@@ -1,0 +1,678 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/layout/DashboardLayout';
+import { Plus, Search, Filter, Users, Edit, Trash2, AlertCircle, RefreshCw, Upload } from 'lucide-react';
+import api from '@/lib/api';
+import { formatPhoneNumber } from '@/lib/utils';
+import type { StudentDto, BatchDto, SubjectDto } from '@/types';
+
+export default function StudentsPage() {
+  const [students, setStudents] = useState<StudentDto[]>([]);
+  const [batches, setBatches] = useState<BatchDto[]>([]);
+  const [subjects, setSubjects] = useState<SubjectDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedBatch, setSelectedBatch] = useState<string>('');
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; student: StudentDto | null }>({ show: false, student: null });
+  const [deleting, setDeleting] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<StudentDto | null>(null);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    fullName: '',
+    parentPhone: '',
+    studentPhone: '',
+    batchId: 0,
+    subjectIds: [] as number[]
+  });
+  const [updating, setUpdating] = useState(false);
+
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
+
+  useEffect(() => {
+    fetchStudents();
+  }, [selectedBatch, selectedSubject]);
+
+  const fetchInitialData = async () => {
+    try {
+      const [batchesRes, subjectsRes] = await Promise.all([
+        api.get<BatchDto[]>('/admin/institute/batches'),
+        api.get<SubjectDto[]>('/admin/institute/subjects'),
+      ]);
+      setBatches(batchesRes.data);
+      setSubjects(subjectsRes.data);
+      setError(null);
+    } catch (error) {
+      console.error('Failed to fetch initial data:', error);
+      setError('Failed to load batch and subject data');
+    }
+  };
+
+  const fetchStudents = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params = new URLSearchParams();
+      if (selectedBatch) params.append('batchId', selectedBatch);
+      if (selectedSubject) params.append('subjectId', selectedSubject);
+      
+      const response = await api.get<StudentDto[]>(`/admin/students?${params.toString()}`);
+      setStudents(response.data);
+      
+      // If no students found and filters are applied, show informative message
+      if (response.data.length === 0 && (selectedBatch || selectedSubject)) {
+        console.log('No students found for the selected filters');
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch students:', error);
+      // Provide more specific error messages
+      if (error.response?.status === 403) {
+        setError('Access denied. Please make sure you are logged in with proper permissions.');
+      } else if (error.response?.status === 404) {
+        setError('The requested batch or subject was not found.');
+      } else if (error.response?.status >= 500) {
+        setError('Server error occurred. Please try again later.');
+      } else {
+        setError('Failed to load students data. Please check your connection and try again.');
+      }
+      setStudents([]); // Clear students on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteStudent = (student: StudentDto) => {
+    setDeleteConfirm({ show: true, student });
+  };
+
+  const confirmDeleteStudent = async () => {
+    if (!deleteConfirm.student) return;
+
+    setDeleting(true);
+    try {
+      await api.delete(`/admin/students/${deleteConfirm.student.id}`);
+      setStudents(students.filter(s => s.id !== deleteConfirm.student!.id));
+      setDeleteConfirm({ show: false, student: null });
+    } catch (error) {
+      console.error('Failed to delete student:', error);
+      alert('Failed to delete student. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirm({ show: false, student: null });
+  };
+
+  const handleEditStudent = (student: StudentDto) => {
+    setEditingStudent(student);
+    setEditFormData({
+      fullName: student.fullName,
+      parentPhone: student.parentPhone,
+      studentPhone: student.studentPhone || '',
+      batchId: student.batch.id,
+      subjectIds: student.subjects.map(s => s.id)
+    });
+    setShowEditForm(true);
+  };
+
+  const handleUpdateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+
+    setUpdating(true);
+    try {
+      const updateRequest = {
+        fullName: editFormData.fullName.trim(),
+        parentPhone: editFormData.parentPhone.trim(),
+        studentPhone: editFormData.studentPhone.trim() || null,
+        batchId: editFormData.batchId,
+        subjectIds: editFormData.subjectIds
+      };
+
+      const response = await api.put(`/admin/students/${editingStudent.id}`, updateRequest);
+      setStudents(students.map(s => s.id === editingStudent.id ? response.data : s));
+      resetEditForm();
+    } catch (error) {
+      console.error('Failed to update student:', error);
+      alert('Failed to update student. Please try again.');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const resetEditForm = () => {
+    setShowEditForm(false);
+    setEditingStudent(null);
+    setEditFormData({
+      fullName: '',
+      parentPhone: '',
+      studentPhone: '',
+      batchId: 0,
+      subjectIds: []
+    });
+  };
+
+  const filteredStudents = students.filter(student =>
+    student.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    student.studentIdCode.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading && students.length === 0) {
+    return (
+      <ProtectedRoute>
+        <DashboardLayout>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading students...</p>
+            </div>
+          </div>
+        </DashboardLayout>
+      </ProtectedRoute>
+    );
+  }
+
+  return (
+    <ProtectedRoute>
+      <DashboardLayout>
+        <div className="space-y-8">
+          {/* Modern Header Section */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-2xl shadow-2xl">
+            {/* Background Elements */}
+            <div className="absolute inset-0 bg-black/10"></div>
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32"></div>
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-24 -translate-x-24"></div>
+            
+            <div className="relative px-8 py-12">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                      <Users className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h1 className="text-4xl font-bold text-white">Student Management</h1>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <p className="text-white/90">Manage students, batches, and subjects</p>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-white/80 text-lg max-w-2xl">
+                    Streamline student enrollment, track academic progress, and manage institutional data efficiently.
+                  </p>
+                </div>
+                <div className="flex space-x-3">
+                  <Link
+                    href="/dashboard/students/import"
+                    className="flex items-center px-6 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-200 text-white font-medium hover:scale-105"
+                  >
+                    <Upload className="h-5 w-5 mr-2" />
+                    Bulk Import
+                  </Link>
+                  <Link
+                    href="/dashboard/students/new"
+                    className="flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 font-medium shadow-lg hover:scale-105 hover:shadow-xl"
+                  >
+                    <Plus className="h-5 w-5 mr-2" />
+                    Add Student
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Modern Filters Section */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-6">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                <Filter className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Advanced Filters</h2>
+                <p className="text-sm text-gray-600">Refine your search and find students quickly</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {/* Search */}
+              <div className="group">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Search Students</label>
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-indigo-500 transition-colors" />
+                  <input
+                    type="text"
+                    placeholder="Name, ID, or phone..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 hover:border-indigo-300"
+                  />
+                </div>
+              </div>
+
+              {/* Batch Filter */}
+              <div className="group">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Filter by Batch</label>
+                <select
+                  value={selectedBatch}
+                  onChange={(e) => setSelectedBatch(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 hover:border-indigo-300"
+                >
+                  <option value="">All Batches</option>
+                  {batches.map((batch) => (
+                    <option key={batch.id} value={batch.id.toString()}>
+                      Batch {batch.batchYear}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Subject Filter */}
+              <div className="group">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Filter by Subject</label>
+                <select
+                  value={selectedSubject}
+                  onChange={(e) => setSelectedSubject(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 hover:border-indigo-300"
+                >
+                  <option value="">All Subjects</option>
+                  {subjects.map((subject) => (
+                    <option key={subject.id} value={subject.id.toString()}>
+                      {subject.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Clear Filters */}
+              <div className="group">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Actions</label>
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSelectedBatch('');
+                    setSelectedSubject('');
+                  }}
+                  className="w-full flex items-center justify-center px-4 py-3 border-2 border-gray-200 rounded-xl hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-all duration-200 group-hover:scale-105"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                Clear Filters
+              </button>
+            </div>
+          </div>
+
+          {/* Error State */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+                <p className="text-red-700">{error}</p>
+                <button
+                  onClick={() => {
+                    setError(null);
+                    fetchStudents();
+                  }}
+                  className="ml-auto text-red-600 hover:text-red-800 underline"
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Students Table */}
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-medium text-gray-900">
+                Students ({filteredStudents.length})
+              </h3>
+              {loading && (
+                <div className="flex items-center text-sm text-gray-500">
+                  <RefreshCw className="animate-spin h-4 w-4 mr-2" />
+                  Loading...
+                </div>
+              )}
+            </div>
+            
+            {filteredStudents.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Student
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        ID Code
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Index Number
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Batch
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Subjects
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Parent Phone
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredStudents.map((student) => (
+                      <tr key={student.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                              <span className="text-sm font-medium text-indigo-600">
+                                {student.fullName.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">
+                                {student.fullName}
+                              </div>
+                              {student.studentPhone && (
+                                <div className="text-sm text-gray-500">
+                                  {formatPhoneNumber(student.studentPhone)}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {student.studentIdCode}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            {student.indexNumber}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          Batch {student.batch.batchYear}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex flex-wrap gap-1">
+                            {student.subjects.map((subject) => (
+                              <span
+                                key={subject.id}
+                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                              >
+                                {subject.name}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatPhoneNumber(student.parentPhone)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              student.isActive
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}
+                          >
+                            {student.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end space-x-2">
+                            <button
+                              onClick={() => handleEditStudent(student)}
+                              className="text-gray-600 hover:text-gray-900 p-1 rounded transition-colors"
+                              title="Edit Student"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              className="text-red-600 hover:text-red-900 p-1 rounded transition-colors"
+                              title="Delete Student"
+                              onClick={() => handleDeleteStudent(student)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <Users className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No students found</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {(() => {
+                    if (searchTerm && (selectedBatch || selectedSubject)) {
+                      const batchText = selectedBatch ? `Batch ${batches.find(b => b.id.toString() === selectedBatch)?.batchYear || selectedBatch}` : '';
+                      const subjectText = selectedSubject ? `Subject ${subjects.find(s => s.id.toString() === selectedSubject)?.name || selectedSubject}` : '';
+                      const filterText = [batchText, subjectText].filter(Boolean).join(' and ');
+                      return `No students found matching "${searchTerm}" in ${filterText}.`;
+                    } else if (searchTerm) {
+                      return `No students found matching "${searchTerm}". Try a different search term.`;
+                    } else if (selectedBatch && selectedSubject) {
+                      const batchYear = batches.find(b => b.id.toString() === selectedBatch)?.batchYear || selectedBatch;
+                      const subjectName = subjects.find(s => s.id.toString() === selectedSubject)?.name || selectedSubject;
+                      return `No students found in Batch ${batchYear} enrolled in ${subjectName}.`;
+                    } else if (selectedBatch) {
+                      const batchYear = batches.find(b => b.id.toString() === selectedBatch)?.batchYear || selectedBatch;
+                      return `No students found in Batch ${batchYear}. This batch may not have any enrolled students yet.`;
+                    } else if (selectedSubject) {
+                      const subjectName = subjects.find(s => s.id.toString() === selectedSubject)?.name || selectedSubject;
+                      return `No students found enrolled in ${subjectName}. This subject may not have any students assigned yet.`;
+                    } else {
+                      return 'Get started by adding your first student.';
+                    }
+                  })()}
+                </p>
+                {searchTerm || selectedBatch || selectedSubject ? (
+                  <div className="mt-6">
+                    <button
+                      onClick={() => {
+                        setSearchTerm('');
+                        setSelectedBatch('');
+                        setSelectedSubject('');
+                      }}
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors mr-3"
+                    >
+                      Clear All Filters
+                    </button>
+                    <Link
+                      href="/dashboard/students/new"
+                      className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                    >
+                      <Plus className="-ml-1 mr-2 h-5 w-5" />
+                      Add Student
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="mt-6">
+                    <Link
+                      href="/dashboard/students/new"
+                      className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                    >
+                      <Plus className="-ml-1 mr-2 h-5 w-5" />
+                      Add Student
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Edit Student Modal */}
+        {showEditForm && editingStudent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Edit Student</h2>
+              <form onSubmit={handleUpdateStudent} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.fullName}
+                      onChange={(e) => setEditFormData({...editFormData, fullName: e.target.value})}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Batch *
+                    </label>
+                    <select
+                      value={editFormData.batchId}
+                      onChange={(e) => setEditFormData({...editFormData, batchId: parseInt(e.target.value)})}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Select Batch</option>
+                      {batches.map((batch) => (
+                        <option key={batch.id} value={batch.id}>
+                          Batch {batch.batchYear}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Parent Phone *
+                    </label>
+                    <input
+                      type="tel"
+                      value={editFormData.parentPhone}
+                      onChange={(e) => setEditFormData({...editFormData, parentPhone: e.target.value})}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Student Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={editFormData.studentPhone}
+                      onChange={(e) => setEditFormData({...editFormData, studentPhone: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Subjects *
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-3">
+                    {subjects.map((subject) => (
+                      <label key={subject.id} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={editFormData.subjectIds.includes(subject.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditFormData({
+                                ...editFormData,
+                                subjectIds: [...editFormData.subjectIds, subject.id]
+                              });
+                            } else {
+                              setEditFormData({
+                                ...editFormData,
+                                subjectIds: editFormData.subjectIds.filter(id => id !== subject.id)
+                              });
+                            }
+                          }}
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">{subject.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {editFormData.subjectIds.length === 0 && (
+                    <p className="text-sm text-red-600 mt-1">Please select at least one subject</p>
+                  )}
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={resetEditForm}
+                    disabled={updating}
+                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updating || editFormData.subjectIds.length === 0}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {updating ? 'Updating...' : 'Update Student'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm.show && deleteConfirm.student && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <div className="flex items-center mb-4">
+                <div className="bg-red-100 p-2 rounded-full mr-3">
+                  <Trash2 className="h-5 w-5 text-red-600" />
+                </div>
+                <h2 className="text-lg font-medium text-gray-900">Delete Student</h2>
+              </div>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete student "{deleteConfirm.student.fullName}" ({deleteConfirm.student.studentIdCode})? 
+                This action cannot be undone and will permanently remove all their data.
+              </p>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={cancelDelete}
+                  disabled={deleting}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteStudent}
+                  disabled={deleting}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleting ? 'Deleting...' : 'Delete Student'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        </div>
+      </DashboardLayout>
+    </ProtectedRoute>
+  );
+}
