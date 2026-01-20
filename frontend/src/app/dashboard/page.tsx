@@ -192,9 +192,6 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </div>
-                  <p className="text-white/80 text-lg max-w-2xl">
-                    Monitor your institute's performance with real-time analytics and comprehensive reporting tools.
-                  </p>
                 </div>
                 <button
                   onClick={handleRefresh}

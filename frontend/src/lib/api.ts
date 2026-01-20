@@ -42,15 +42,13 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     console.log('API Error:', error.response?.status, error.response?.data, 'URL:', error.config?.url);
-    if (error.response?.status === 401) {
-      // Token expired or invalid
-      console.log('401 Unauthorized - redirecting to login');
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      // Token expired, invalid, or access forbidden - redirect to login
+      console.log(`${error.response?.status} ${error.response?.status === 401 ? 'Unauthorized' : 'Forbidden'} - redirecting to login`);
       if (typeof window !== 'undefined') {
         localStorage.removeItem('authToken');
         window.location.href = '/login';
       }
-    } else if (error.response?.status === 403) {
-      console.log('403 Forbidden - access denied');
     }
     return Promise.reject(error);
   }

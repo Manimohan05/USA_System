@@ -6,7 +6,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import CsvFileUpload from '@/components/csv/CsvFileUpload';
 import CsvImportResults from '@/components/csv/CsvImportResults';
-import { ArrowLeft, Upload, FileText, AlertCircle, CheckCircle, Download, Users, BookOpen, Sparkles, GraduationCap } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, AlertCircle, CheckCircle, Download, Users, BookOpen, Sparkles, GraduationCap, ChevronDown, ChevronUp } from 'lucide-react';
 import type { CsvImportResult, BatchDto, SubjectDto } from '@/types';
 import api from '@/lib/api';
 
@@ -15,6 +15,7 @@ export default function BulkImportPage() {
   const [batches, setBatches] = useState<BatchDto[]>([]);
   const [subjects, setSubjects] = useState<SubjectDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [instructionsExpanded, setInstructionsExpanded] = useState(false);
 
   useEffect(() => {
     fetchInitialData();
@@ -144,16 +145,48 @@ export default function BulkImportPage() {
 
           {!importResult ? (
             <>
+              {/* Modern Upload Section */}
+              <div className="backdrop-blur-md bg-white/70 rounded-2xl shadow-xl border border-white/20 p-8">
+                <div className="flex items-center space-x-4 mb-6">
+                  <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl shadow-lg">
+                    <Upload className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                      Upload CSV File
+                    </h2>
+                    <p className="text-gray-600">Drag and drop or click to select your file</p>
+                  </div>
+                </div>
+                
+                <CsvFileUpload onImportComplete={handleImportComplete} />
+              </div>
+
               {/* Modern Instructions Card */}
               <div className="backdrop-blur-md bg-white/70 rounded-2xl shadow-xl border border-white/20 p-8">
-                <div className="flex items-start space-x-4">
-                  <div className="p-3 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl shadow-lg">
-                    <FileText className="h-6 w-6 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-4">
+                <div 
+                  className="flex items-center justify-between cursor-pointer group"
+                  onClick={() => setInstructionsExpanded(!instructionsExpanded)}
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className="p-3 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl shadow-lg group-hover:shadow-xl transition-all duration-300">
+                      <FileText className="h-6 w-6 text-white" />
+                    </div>
+                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
                       How to Import Students
                     </h2>
+                  </div>
+                  <div className="p-2 hover:bg-white/50 rounded-lg transition-all duration-200">
+                    {instructionsExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-gray-600" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-gray-600" />
+                    )}
+                  </div>
+                </div>
+
+                {instructionsExpanded && (
+                  <div className="mt-6 animate-in slide-in-from-top-2 duration-300">
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {[
@@ -204,7 +237,10 @@ export default function BulkImportPage() {
                     {/* Download Template Button */}
                     <div className="mt-6 pt-6 border-t border-gray-200">
                       <button
-                        onClick={downloadTemplate}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadTemplate();
+                        }}
                         className="group flex items-center px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                       >
                         <Download className="h-5 w-5 mr-2 group-hover:animate-bounce" />
@@ -212,7 +248,7 @@ export default function BulkImportPage() {
                       </button>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Modern Requirements & Available Data */}
@@ -292,23 +328,6 @@ export default function BulkImportPage() {
                     </div>
                   </div>
                 </div>
-              </div>
-
-              {/* Modern Upload Section */}
-              <div className="backdrop-blur-md bg-white/70 rounded-2xl shadow-xl border border-white/20 p-8">
-                <div className="flex items-center space-x-4 mb-6">
-                  <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl shadow-lg">
-                    <Upload className="h-6 w-6 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-                      Upload CSV File
-                    </h2>
-                    <p className="text-gray-600">Drag and drop or click to select your file</p>
-                  </div>
-                </div>
-                
-                <CsvFileUpload onImportComplete={handleImportComplete} />
               </div>
             </>
           ) : (
