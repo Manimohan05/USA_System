@@ -207,6 +207,22 @@ public class StudentService {
     }
 
     @Transactional
+    public void reactivateStudent(UUID studentId) {
+        Student student = studentRepository.findById(studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + studentId));
+        student.setActive(true);
+        studentRepository.save(student);
+    }
+
+    @Transactional(readOnly = true)
+    public List<StudentDto> getAllArchivedStudents() {
+        return studentRepository.findByIsActiveFalse()
+                .stream()
+                .map(this::mapToStudentDto)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
     public void deleteStudent(UUID studentId) {
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + studentId));

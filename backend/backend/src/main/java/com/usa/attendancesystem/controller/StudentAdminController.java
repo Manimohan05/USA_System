@@ -87,6 +87,18 @@ public class StudentAdminController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/{studentId}/reactivate")
+    public ResponseEntity<Void> reactivateStudent(@PathVariable UUID studentId) {
+        studentService.reactivateStudent(studentId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/archived")
+    public ResponseEntity<List<StudentDto>> getArchivedStudents() {
+        List<StudentDto> archivedStudents = studentService.getAllArchivedStudents();
+        return ResponseEntity.ok(archivedStudents);
+    }
+
     @PostMapping("/import-csv")
     public ResponseEntity<CsvImportResultDto> importStudentsFromCsv(
             @RequestParam("file") MultipartFile file) {

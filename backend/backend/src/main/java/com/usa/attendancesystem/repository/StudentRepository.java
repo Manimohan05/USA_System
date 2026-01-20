@@ -46,6 +46,11 @@ public interface StudentRepository extends JpaRepository<Student, UUID> {
     List<Student> findByIsActiveTrue();
 
     /**
+     * Finds all archived (inactive) students.
+     */
+    List<Student> findByIsActiveFalse();
+
+    /**
      * Finds all active students belonging to a specific batch. Used for
      * filtering by batch only.
      */

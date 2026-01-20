@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Plus, Search, Filter, Users, Edit, Trash2, AlertCircle, RefreshCw, Upload } from 'lucide-react';
+import { Plus, Search, Filter, Users, Edit, Trash2, AlertCircle, RefreshCw, Upload, Archive } from 'lucide-react';
 import api from '@/lib/api';
 import { formatPhoneNumber } from '@/lib/utils';
 import type { StudentDto, BatchDto, SubjectDto } from '@/types';
@@ -96,12 +96,13 @@ export default function StudentsPage() {
 
     setDeleting(true);
     try {
-      await api.delete(`/admin/students/${deleteConfirm.student.id}`);
+      // Archive student instead of permanently deleting
+      await api.patch(`/admin/students/${deleteConfirm.student.id}/deactivate`);
       setStudents(students.filter(s => s.id !== deleteConfirm.student!.id));
       setDeleteConfirm({ show: false, student: null });
     } catch (error) {
-      console.error('Failed to delete student:', error);
-      alert('Failed to delete student. Please try again.');
+      console.error('Failed to archive student:', error);
+      alert('Failed to archive student. Please try again.');
     } finally {
       setDeleting(false);
     }
@@ -206,25 +207,36 @@ export default function StudentsPage() {
                       </div>
                     </div>
                   </div>
-                  <p className="text-white/80 text-lg max-w-2xl">
-                    Streamline student enrollment, track academic progress, and manage institutional data efficiently.
-                  </p>
                 </div>
-                <div className="flex space-x-3">
-                  <Link
-                    href="/dashboard/students/import"
-                    className="flex items-center px-6 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-200 text-white font-medium hover:scale-105"
-                  >
-                    <Upload className="h-5 w-5 mr-2" />
-                    Bulk Import
-                  </Link>
-                  <Link
-                    href="/dashboard/students/new"
-                    className="flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 font-medium shadow-lg hover:scale-105 hover:shadow-xl"
-                  >
-                    <Plus className="h-5 w-5 mr-2" />
-                    Add Student
-                  </Link>
+                <div className="flex flex-col space-y-3">
+                  {/* First row: Add Student and Bulk Import */}
+                  <div className="flex space-x-3">
+                    <Link
+                      href="/dashboard/students/new"
+                      className="flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 font-medium shadow-lg hover:scale-105 hover:shadow-xl"
+                    >
+                      <Plus className="h-5 w-5 mr-2" />
+                      Add Student
+                    </Link>
+                    <Link
+                      href="/dashboard/students/import"
+                      className="flex items-center px-6 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-200 text-white font-medium hover:scale-105"
+                    >
+                      <Upload className="h-5 w-5 mr-2" />
+                      Bulk Import
+                    </Link>
+                  </div>
+                  
+                  {/* Second row: Archived Students (centered) */}
+                  <div className="flex justify-center">
+                    <Link
+                      href="/dashboard/students/archived"
+                      className="flex items-center px-6 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-200 text-white font-medium hover:scale-105"
+                    >
+                      <Archive className="h-5 w-5 mr-2" />
+                      Archived Students
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
@@ -443,7 +455,7 @@ export default function StudentsPage() {
                             </button>
                             <button
                               className="text-red-600 hover:text-red-900 p-1 rounded transition-colors"
-                              title="Delete Student"
+                              title="Archive Student"
                               onClick={() => handleDeleteStudent(student)}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -637,19 +649,19 @@ export default function StudentsPage() {
           </div>
         )}
 
-        {/* Delete Confirmation Modal */}
+        {/* Archive Confirmation Modal */}
         {deleteConfirm.show && deleteConfirm.student && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-md">
               <div className="flex items-center mb-4">
-                <div className="bg-red-100 p-2 rounded-full mr-3">
-                  <Trash2 className="h-5 w-5 text-red-600" />
+                <div className="bg-orange-100 p-2 rounded-full mr-3">
+                  <Trash2 className="h-5 w-5 text-orange-600" />
                 </div>
-                <h2 className="text-lg font-medium text-gray-900">Delete Student</h2>
+                <h2 className="text-lg font-medium text-gray-900">Archive Student</h2>
               </div>
               <p className="text-gray-600 mb-6">
-                Are you sure you want to delete student "{deleteConfirm.student.fullName}" ({deleteConfirm.student.studentIdCode})? 
-                This action cannot be undone and will permanently remove all their data.
+                Are you sure you want to archive student "{deleteConfirm.student.fullName}" ({deleteConfirm.student.studentIdCode})? 
+                This will move them to the archived section but their data will be preserved.
               </p>
               <div className="flex justify-end space-x-3">
                 <button
@@ -663,9 +675,9 @@ export default function StudentsPage() {
                 <button
                   onClick={confirmDeleteStudent}
                   disabled={deleting}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
                 >
-                  {deleting ? 'Deleting...' : 'Delete Student'}
+                  {deleting ? 'Archiving...' : 'Archive Student'}
                 </button>
               </div>
             </div>
