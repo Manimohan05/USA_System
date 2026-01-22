@@ -46,10 +46,10 @@ export default function BulkImportPage() {
 
   const downloadTemplate = () => {
     const csvContent = [
-      ['Student ID', 'Full Name', 'Index Number', 'Parent Phone', 'Student Phone (Optional)', 'Batch Year', 'Subjects (comma-separated)'],
-      ['STU001', 'John Doe', 'IDX001', '0771234567', '0762345678', '2024', 'Mathematics,Physics'],
-      ['STU002', 'Jane Smith', 'IDX002', '0773456789', '', '2024', 'Chemistry,Biology']
-    ].map(row => row.join(',')).join('\n');
+      ['Batch Year', 'Admission Date (YYYY-MM-DD)', 'Full Name', 'Address', 'NIC (Optional)', 'School', 'Phone No', 'Subjects (comma-separated)'],
+      ['2027', '2026-01-21', 'John Doe', '123 Main St, Colombo', '123456789V', 'Royal College', '0771234567', 'Mathematics,Physics'],
+      ['2027', '2026-01-21', 'Jane Smith', '456 Lake Rd, Kandy', '', 'Dharmaraja College', '0762345678', 'Biology,Chemistry'],
+    ].map((row: string[]) => row.join(',')).join('\\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -233,20 +233,6 @@ export default function BulkImportPage() {
                         </div>
                       ))}
                     </div>
-
-                    {/* Download Template Button */}
-                    <div className="mt-6 pt-6 border-t border-gray-200">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          downloadTemplate();
-                        }}
-                        className="group flex items-center px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                      >
-                        <Download className="h-5 w-5 mr-2 group-hover:animate-bounce" />
-                        Download CSV Template
-                      </button>
-                    </div>
                   </div>
                 )}
               </div>
@@ -264,11 +250,13 @@ export default function BulkImportPage() {
                   
                   <ul className="space-y-3 text-sm text-yellow-800">
                     {[
-                      'All required fields must be filled',
-                      'Student ID codes must be unique',
-                      'Phone numbers: 10 digits (0771234567)',
-                      'Batch years must exist in system',
-                      'Subject names must match exactly',
+                      'Batch Year, Full Name, Address, School, Phone No required',
+                      'NIC is optional (leave empty if not available)',
+                      'Admission Date: YYYY-MM-DD format (2026-01-21)',
+                      'Phone numbers: Sri Lankan format (0771234567)',
+                      'NIC format: 123456789V or 123456789012 (when provided)',
+                      'Subjects: 0,1 assignments based on prefered subjects',
+                      'Index numbers: Auto-generated based on batch',
                       'Maximum file size: 10MB'
                     ].map((item, i) => (
                       <li key={i} className="flex items-start space-x-2">

@@ -101,4 +101,16 @@ public interface StudentRepository extends JpaRepository<Student, UUID> {
      */
     @Query("SELECT COUNT(s) FROM Student s WHERE s.isActive = true AND s.parentPhone IS NOT NULL AND TRIM(s.parentPhone) != ''")
     Long countActiveStudentsWithParentPhone();
+
+    /**
+     * Finds students in a specific batch ordered by index number descending.
+     * Used for generating next index number for batch-based indexing.
+     */
+    @Query("SELECT s FROM Student s WHERE s.batch.id = :batchId ORDER BY s.indexNumber DESC")
+    List<Student> findByBatchIdOrderByIndexNumberDesc(@Param("batchId") Integer batchId);
+
+    /**
+     * Checks if an index number already exists.
+     */
+    boolean existsByIndexNumber(String indexNumber);
 }

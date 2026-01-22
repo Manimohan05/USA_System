@@ -3,6 +3,7 @@ package com.usa.attendancesystem.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -27,12 +28,21 @@ public class Student {
 
     @Column(name = "full_name", nullable = false)
     private String fullName;
+    
+    @Column(name = "address", nullable = false, length = 500)
+    private String address;
+    
+    @Column(name = "nic", length = 15)
+    private String nic; // Optional
+    
+    @Column(name = "school", nullable = false)
+    private String school;
+    
+    @Column(name = "admission_date", nullable = false)
+    private LocalDate admissionDate;
 
     @Column(name = "parent_phone", nullable = false, length = 20)
     private String parentPhone;
-
-    @Column(name = "student_phone", length = 20)
-    private String studentPhone;
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default

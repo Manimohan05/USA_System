@@ -1,161 +1,116 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { ArrowLeft, Save, Upload, UserPlus, Sparkles, Users, BookOpen, Phone, IdCard, RefreshCw, MapPin, CreditCard, GraduationCap, Calendar } from 'lucide-react';
+import { ArrowLeft, Save, Edit2, Sparkles, Users, BookOpen, Phone, IdCard, MapPin, CreditCard, GraduationCap, Calendar } from 'lucide-react';
 import api from '@/lib/api';
-import type { BatchDto, SubjectDto, CreateStudentRequest, StudentDto } from '@/types';
+import type { BatchDto, SubjectDto, UpdateStudentRequest, StudentDto } from '@/types';
 
-export default function NewStudentPage() {
+export default function EditStudentPage() {
   const router = useRouter();
+  const params = useParams();
+  const studentId = params.id as string;
+  
   const [batches, setBatches] = useState<BatchDto[]>([]);
   const [subjects, setSubjects] = useState<SubjectDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [student, setStudent] = useState<StudentDto | null>(null);
   
   const [formData, setFormData] = useState({
     batchId: '',
-    date: new Date().toISOString().split('T')[0], // Today's date
+    date: '',
     indexNumber: '',
     fullName: '',
     address: '',
     nic: '',
     school: '',
     phoneNo: '',
+    studentPhone: '',
     subjectIds: [] as string[],
   });
 
-  const [nextStudentId, setNextStudentId] = useState<string>('Select batch first');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [createdStudentName, setCreatedStudentName] = useState('');
-
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchInitialData();
-    fetchNextStudentId();
-  }, []);
+  }, [studentId]);
 
   const fetchInitialData = async () => {
     try {
-      const [batchesRes, subjectsRes] = await Promise.all([
+      const [batchesRes, subjectsRes, studentRes] = await Promise.all([
         api.get<BatchDto[]>('/admin/institute/batches'),
         api.get<SubjectDto[]>('/admin/institute/subjects'),
+        api.get<StudentDto>(`/admin/students/${studentId}`)
       ]);
+      
       setBatches(batchesRes.data);
       setSubjects(subjectsRes.data);
+      setStudent(studentRes.data);
+      
+      // Populate form with existing student data
+      const studentData = studentRes.data;
+      setFormData({
+        batchId: studentData.batch.id.toString(),
+        date: studentData.admissionDate || new Date().toISOString().split('T')[0],
+        indexNumber: studentData.indexNumber || '',
+        fullName: studentData.fullName,
+        address: studentData.address || '',
+        nic: studentData.nic || '',
+        school: studentData.school || '',
+        phoneNo: studentData.parentPhone,
+        studentPhone: studentData.studentPhone || '',
+        subjectIds: studentData.subjects.map(s => s.id.toString()),
+      });
     } catch (error) {
-      console.error('Failed to fetch initial data:', error);
+      console.error('Failed to fetch data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchNextStudentId = async () => {
-    try {
-      const response = await api.get<string>('/admin/students/next-student-id');
-      setNextStudentId(response.data);
-    } catch (error) {
-      console.error('Failed to fetch next student ID:', error);
-      setNextStudentId('STU001'); // fallback
-    }
-  };
-
-  const generateIndexNumber = async (batchId: string) => {
-    if (!batchId) return '';
-    
-    try {
-      // Find the batch year
-      const batch = batches.find(b => b.id.toString() === batchId);
-      if (!batch) return '';
-      
-      // Call backend to get the next index number for this batch
-      try {
-        const response = await api.get<string>(`/admin/students/next-index-number/${batchId}`);
-        return response.data || '';
-      } catch (error) {
-        console.warn('Could not get next index number from backend, calculating locally:', error);
-        
-        // Fallback: get existing students and calculate locally
-        const studentsResponse = await api.get<StudentDto[]>(`/admin/students?batchId=${batchId}`);
-        const studentCount = studentsResponse.data.length + 1; // Next student number
-        
-        // Generate index number: (last digit of year * 1000) + student count
-        const lastDigit = batch.batchYear % 10;
-        const baseNumber = lastDigit * 1000;
-        const indexNumber = baseNumber + studentCount;
-        
-        return indexNumber.toString();
-      }
-    } catch (error) {
-      console.error('Failed to generate index number:', error);
-      // Ultimate fallback: use batch year last digit + 001
-      const batch = batches.find(b => b.id.toString() === batchId);
-      if (batch) {
-        const lastDigit = batch.batchYear % 10;
-        return `${lastDigit}001`;
-      }
-      return '';
-    }
-  };
-
-  const handleBatchChange = async (batchId: string) => {
-    setFormData(prev => ({ ...prev, batchId }));
-    if (batchId) {
-      const indexNumber = await generateIndexNumber(batchId);
-      setFormData(prev => ({ ...prev, indexNumber: indexNumber || '' }));
-    } else {
-      setFormData(prev => ({ ...prev, indexNumber: '' }));
-    }
-  };
-
-  const refreshPreview = () => {
-    fetchNextStudentId();
-  };
-
-  const validateForm = (): boolean => {
+  const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.batchId) {
-      newErrors.batchId = 'Please select a batch';
+      newErrors.batchId = 'Batch is required';
     }
-
+    
     if (!formData.date) {
-      newErrors.date = 'Date is required';
+      newErrors.date = 'Admission date is required';
     }
 
-    if (!formData.indexNumber || !formData.indexNumber.toString().trim()) {
+    if (!formData.indexNumber?.trim()) {
       newErrors.indexNumber = 'Index number is required';
     }
 
-    if (!formData.fullName.trim()) {
+    if (!formData.fullName?.trim()) {
       newErrors.fullName = 'Full name is required';
     }
 
-    if (!formData.address.trim()) {
+    if (!formData.address?.trim()) {
       newErrors.address = 'Address is required';
     }
 
-    if (!formData.nic.trim()) {
-      // NIC is optional - no error needed
-    } else if (!/^([0-9]{9}[vVxX]|[0-9]{12})$/.test(formData.nic)) {
-      newErrors.nic = 'Please enter a valid NIC (e.g., 123456789V or 123456789012)';
-    }
-
-    if (!formData.school.trim()) {
+    if (!formData.school?.trim()) {
       newErrors.school = 'School is required';
     }
 
-    if (!formData.phoneNo.trim()) {
-      newErrors.phoneNo = 'Phone number is required';
-    } else {
-      const cleanPhone = formData.phoneNo.replace(/\D/g, '');
-      // Sri Lankan phone validation: 07XXXXXXXX (mobile) or 0XXXXXXXX (landline)
-      if (!/^0[1-9]\d{7,8}$/.test(cleanPhone)) {
-        newErrors.phoneNo = 'Please enter a valid Sri Lankan phone number (e.g., 0771234567)';
-      }
+    if (!formData.phoneNo?.trim()) {
+      newErrors.phoneNo = 'Parent phone number is required';
+    } else if (!/^[0-9+\-\s()]+$/.test(formData.phoneNo)) {
+      newErrors.phoneNo = 'Please enter a valid phone number';
+    }
+
+    if (formData.studentPhone && !/^[0-9+\-\s()]+$/.test(formData.studentPhone)) {
+      newErrors.studentPhone = 'Please enter a valid phone number';
+    }
+
+    if (formData.nic && !/^(\d{9}[VXvx]|\d{12})$/.test(formData.nic)) {
+      newErrors.nic = 'Please enter a valid NIC (9 digits + V/X or 12 digits)';
     }
 
     if (formData.subjectIds.length === 0) {
@@ -168,35 +123,31 @@ export default function NewStudentPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
 
     setSubmitting(true);
     try {
-      const request: CreateStudentRequest = {
-        studentIdCode: nextStudentId, // Use auto-generated student ID
-        indexNumber: (formData.indexNumber || '').toString().trim(),
+      const updateRequest: UpdateStudentRequest = {
         fullName: formData.fullName.trim(),
-        address: formData.address.trim(),
-        nic: formData.nic.trim().toUpperCase(),
-        school: formData.school.trim(),
-        parentPhone: formData.phoneNo.replace(/\D/g, ''),
+        parentPhone: formData.phoneNo.trim(),
+        studentPhone: formData.studentPhone.trim() || undefined,
         batchId: parseInt(formData.batchId),
         subjectIds: formData.subjectIds.map(id => parseInt(id)),
+        address: formData.address.trim(),
+        school: formData.school.trim(),
         admissionDate: formData.date,
+        indexNumber: formData.indexNumber.trim(),
+        ...(formData.nic.trim() && { nic: formData.nic.trim() }),
       };
-      
-      const response = await api.post('/admin/students', request);
-      
-      // Show success modal instead of alert
-      setCreatedStudentName(formData.fullName.trim());
+
+      await api.put(`/admin/students/${studentId}`, updateRequest);
       setShowSuccessModal(true);
-      
-    } catch (error: any) {
-      console.error('Failed to create student:', error);
-      alert('Failed to create student. Please try again.');
+    } catch (error) {
+      console.error('Failed to update student:', error);
+      alert('Failed to update student. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -224,6 +175,26 @@ export default function NewStudentPage() {
             <div className="text-center space-y-4">
               <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
               <p className="text-gray-600">Loading student data...</p>
+            </div>
+          </div>
+        </DashboardLayout>
+      </ProtectedRoute>
+    );
+  }
+
+  if (!student) {
+    return (
+      <ProtectedRoute>
+        <DashboardLayout>
+          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-blue-50">
+            <div className="text-center space-y-4">
+              <p className="text-red-600">Student not found</p>
+              <button
+                onClick={() => router.push('/dashboard/students')}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              >
+                Go Back
+              </button>
             </div>
           </div>
         </DashboardLayout>
@@ -272,25 +243,25 @@ export default function NewStudentPage() {
                     <ArrowLeft className="h-6 w-6 text-gray-600 group-hover:text-indigo-600 transition-colors" />
                   </button>
                   <div className="flex items-center space-x-4">
-                    <div className="p-3 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl shadow-lg">
-                      <UserPlus className="h-8 w-8 text-white" />
+                    <div className="p-3 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl shadow-lg">
+                      <Edit2 className="h-8 w-8 text-white" />
                     </div>
                     <div>
                       <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-                        Add New Student
+                        Edit Student
                       </h1>
                       <p className="text-gray-600 flex items-center mt-1">
-                        <Sparkles className="h-4 w-4 mr-2 text-indigo-500" />
-                        Create a new student record
+                        <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
+                        Update student information
                       </p>
                     </div>
                   </div>
                 </div>
                 
-                {/* Next Student ID Preview */}
+                {/* Student ID Display */}
                 <div className="text-center">
-                  <div className="text-xl font-bold text-indigo-600">{nextStudentId}</div>
-                  <div className="text-sm text-gray-500">Next Student ID</div>
+                  <div className="text-xl font-bold text-orange-600">{student.studentIdCode}</div>
+                  <div className="text-sm text-gray-500">Student ID</div>
                 </div>
               </div>
             </div>
@@ -298,7 +269,7 @@ export default function NewStudentPage() {
             {/* Modern Form */}
             <div className="backdrop-blur-md bg-white/70 rounded-2xl shadow-xl border border-white/20 p-8">
               <form onSubmit={handleSubmit} className="space-y-8">
-                {/* 1. Batch Selection - First Field */}
+                {/* 1. Batch Selection */}
                 <div className="space-y-3">
                   <label className="flex items-center text-lg font-semibold text-gray-800">
                     <Users className="h-5 w-5 mr-2 text-orange-600" />
@@ -308,7 +279,7 @@ export default function NewStudentPage() {
                   <div className="relative group">
                     <select
                       value={formData.batchId}
-                      onChange={(e) => handleBatchChange(e.target.value)}
+                      onChange={(e) => setFormData(prev => ({ ...prev, batchId: e.target.value }))}
                       className={`w-full px-4 py-4 bg-white/60 border-2 rounded-xl backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-300 text-lg cursor-pointer ${
                         errors.batchId ? 'border-red-300 bg-red-50/60' : 'border-gray-200 group-hover:border-orange-300'
                       }`}
@@ -353,7 +324,7 @@ export default function NewStudentPage() {
                   )}
                 </div>
 
-                {/* 3. Index Number - Auto-generated based on batch */}
+                {/* 3. Index Number */}
                 <div className="space-y-3">
                   <label className="flex items-center text-lg font-semibold text-gray-800">
                     <IdCard className="h-5 w-5 mr-2 text-indigo-600" />
@@ -364,7 +335,7 @@ export default function NewStudentPage() {
                       type="text"
                       value={formData.indexNumber}
                       onChange={(e) => setFormData(prev => ({ ...prev, indexNumber: e.target.value }))}
-                      placeholder="Select batch to auto-generate"
+                      placeholder="Enter index number"
                       className={`w-full px-4 py-4 bg-white/60 border-2 rounded-xl backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300 text-lg font-medium ${
                         errors.indexNumber ? 'border-red-300 bg-red-50/60' : 'border-gray-200 group-hover:border-indigo-300'
                       }`}
@@ -376,7 +347,6 @@ export default function NewStudentPage() {
                       {errors.indexNumber}
                     </p>
                   )}
-                  
                 </div>
 
                 {/* 4. Full Name */}
@@ -479,11 +449,11 @@ export default function NewStudentPage() {
                   )}
                 </div>
 
-                {/* 8. Phone Number */}
+                {/* 8. Parent Phone Number */}
                 <div className="space-y-3">
                   <label className="flex items-center text-lg font-semibold text-gray-800">
                     <Phone className="h-5 w-5 mr-2 text-green-600" />
-                    Phone No *
+                    Parent Phone No *
                   </label>
                   <div className="relative group">
                     <input
@@ -504,7 +474,32 @@ export default function NewStudentPage() {
                   )}
                 </div>
 
-                {/* 9. Subject Selection - Modern Design */}
+                {/* 9. Student Phone Number */}
+                <div className="space-y-3">
+                  <label className="flex items-center text-lg font-semibold text-gray-800">
+                    <Phone className="h-5 w-5 mr-2 text-cyan-600" />
+                    Student Phone No (Optional)
+                  </label>
+                  <div className="relative group">
+                    <input
+                      type="tel"
+                      value={formData.studentPhone}
+                      onChange={(e) => setFormData(prev => ({ ...prev, studentPhone: e.target.value }))}
+                      placeholder="0771234567"
+                      className={`w-full px-4 py-4 bg-white/60 border-2 rounded-xl backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 text-lg ${
+                        errors.studentPhone ? 'border-red-300 bg-red-50/60' : 'border-gray-200 group-hover:border-cyan-300'
+                      }`}
+                    />
+                  </div>
+                  {errors.studentPhone && (
+                    <p className="text-red-500 text-sm font-medium flex items-center">
+                      <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+                      {errors.studentPhone}
+                    </p>
+                  )}
+                </div>
+
+                {/* 10. Subject Selection */}
                 <div className="space-y-4">
                   <label className="flex items-center text-lg font-semibold text-gray-800">
                     <BookOpen className="h-5 w-5 mr-2 text-green-600" />
@@ -556,11 +551,9 @@ export default function NewStudentPage() {
                       {errors.subjectIds}
                     </p>
                   )}
-                  
-                  
                 </div>
 
-                {/* Modern Form Actions */}
+                {/* Form Actions */}
                 <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4 pt-8 border-t border-gray-200">
                   <button
                     type="button"
@@ -572,45 +565,22 @@ export default function NewStudentPage() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="group flex items-center justify-center px-6 py-3 bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-xl hover:from-indigo-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium text-lg"
+                    className="group flex items-center justify-center px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl hover:from-orange-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium text-lg"
                   >
                     {submitting ? (
                       <>
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
-                        Creating Student...
+                        Updating Student...
                       </>
                     ) : (
                       <>
                         <Save className="h-5 w-5 mr-3 group-hover:scale-110 transition-transform" />
-                        Create Student
+                        Update Student
                       </>
                     )}
                   </button>
                 </div>
               </form>
-            </div>
-
-            {/* Modern Bulk Import Section */}
-            <div className="backdrop-blur-md bg-gradient-to-br from-blue-50/80 to-indigo-50/80 rounded-2xl shadow-xl border border-blue-200/50 p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg">
-                    <Upload className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-blue-900">Bulk Import Available</h3>
-                    <p className="text-sm text-blue-700">
-                      Need to add multiple students? Import from CSV file.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => router.push('/dashboard/students/import')}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium"
-                >
-                  Go to Bulk Import
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -629,9 +599,9 @@ export default function NewStudentPage() {
                 
                 {/* Success Message */}
                 <div className="space-y-2">
-                  <h3 className="text-xl font-bold text-gray-900">Student Created Successfully!</h3>
+                  <h3 className="text-xl font-bold text-gray-900">Student Updated Successfully!</h3>
                   <p className="text-gray-600">
-                    <span className="font-semibold text-green-600">{createdStudentName}</span> has been added to the system.
+                    <span className="font-semibold text-green-600">{formData.fullName}</span> has been updated in the system.
                   </p>
                 </div>
                 

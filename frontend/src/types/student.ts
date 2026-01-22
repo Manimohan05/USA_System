@@ -6,8 +6,12 @@ export interface Student {
   studentIdCode: string;
   indexNumber: string;
   fullName: string;
+  address: string;
+  nic: string;
+  school: string;
   parentPhone: string;
   studentPhone?: string;
+  admissionDate: string;
   isActive: boolean;
   batch: Batch;
   subjects: Subject[];
@@ -18,8 +22,12 @@ export interface StudentDto {
   studentIdCode: string;
   indexNumber: string;
   fullName: string;
+  address: string;
+  nic: string;
+  school: string;
   parentPhone: string;
   studentPhone?: string;
+  admissionDate: string;
   isActive: boolean;
   batch: BatchDto;
   subjects: SubjectDto[];
@@ -27,17 +35,27 @@ export interface StudentDto {
 
 export interface CreateStudentRequest {
   studentIdCode: string;
+  indexNumber: string;
   fullName: string;
+  address: string;
+  nic: string;
+  school: string;
   parentPhone: string;
   studentPhone?: string;
   batchId: number;
   subjectIds: number[];
+  admissionDate: string;
 }
 
 export interface UpdateStudentRequest {
   fullName: string;
+  address: string;
+  nic?: string;
+  school: string;
   parentPhone: string;
   studentPhone?: string;
   batchId: number;
   subjectIds: number[];
+  admissionDate: string;
+  indexNumber: string;
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -10,6 +11,7 @@ import { formatPhoneNumber } from '@/lib/utils';
 import type { StudentDto, BatchDto, SubjectDto } from '@/types';
 
 export default function StudentsPage() {
+  const router = useRouter();
   const [students, setStudents] = useState<StudentDto[]>([]);
   const [batches, setBatches] = useState<BatchDto[]>([]);
   const [subjects, setSubjects] = useState<SubjectDto[]>([]);
@@ -20,16 +22,6 @@ export default function StudentsPage() {
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; student: StudentDto | null }>({ show: false, student: null });
   const [deleting, setDeleting] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<StudentDto | null>(null);
-  const [showEditForm, setShowEditForm] = useState(false);
-  const [editFormData, setEditFormData] = useState({
-    fullName: '',
-    parentPhone: '',
-    studentPhone: '',
-    batchId: 0,
-    subjectIds: [] as number[]
-  });
-  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     fetchInitialData();
@@ -110,55 +102,6 @@ export default function StudentsPage() {
 
   const cancelDelete = () => {
     setDeleteConfirm({ show: false, student: null });
-  };
-
-  const handleEditStudent = (student: StudentDto) => {
-    setEditingStudent(student);
-    setEditFormData({
-      fullName: student.fullName,
-      parentPhone: student.parentPhone,
-      studentPhone: student.studentPhone || '',
-      batchId: student.batch.id,
-      subjectIds: student.subjects.map(s => s.id)
-    });
-    setShowEditForm(true);
-  };
-
-  const handleUpdateStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingStudent) return;
-
-    setUpdating(true);
-    try {
-      const updateRequest = {
-        fullName: editFormData.fullName.trim(),
-        parentPhone: editFormData.parentPhone.trim(),
-        studentPhone: editFormData.studentPhone.trim() || null,
-        batchId: editFormData.batchId,
-        subjectIds: editFormData.subjectIds
-      };
-
-      const response = await api.put(`/admin/students/${editingStudent.id}`, updateRequest);
-      setStudents(students.map(s => s.id === editingStudent.id ? response.data : s));
-      resetEditForm();
-    } catch (error) {
-      console.error('Failed to update student:', error);
-      alert('Failed to update student. Please try again.');
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  const resetEditForm = () => {
-    setShowEditForm(false);
-    setEditingStudent(null);
-    setEditFormData({
-      fullName: '',
-      parentPhone: '',
-      studentPhone: '',
-      batchId: 0,
-      subjectIds: []
-    });
   };
 
   const filteredStudents = students.filter(student =>
@@ -447,7 +390,7 @@ export default function StudentsPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex items-center justify-end space-x-2">
                             <button
-                              onClick={() => handleEditStudent(student)}
+                              onClick={() => router.push(`/dashboard/students/edit/${student.id}`)}
                               className="text-gray-600 hover:text-gray-900 p-1 rounded transition-colors"
                               title="Edit Student"
                             >
@@ -530,124 +473,6 @@ export default function StudentsPage() {
             )}
           </div>
         </div>
-
-        {/* Edit Student Modal */}
-        {showEditForm && editingStudent && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Edit Student</h2>
-              <form onSubmit={handleUpdateStudent} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={editFormData.fullName}
-                      onChange={(e) => setEditFormData({...editFormData, fullName: e.target.value})}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Batch *
-                    </label>
-                    <select
-                      value={editFormData.batchId}
-                      onChange={(e) => setEditFormData({...editFormData, batchId: parseInt(e.target.value)})}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="">Select Batch</option>
-                      {batches.map((batch) => (
-                        <option key={batch.id} value={batch.id}>
-                          Batch {batch.batchYear}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Parent Phone *
-                    </label>
-                    <input
-                      type="tel"
-                      value={editFormData.parentPhone}
-                      onChange={(e) => setEditFormData({...editFormData, parentPhone: e.target.value})}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Student Phone
-                    </label>
-                    <input
-                      type="tel"
-                      value={editFormData.studentPhone}
-                      onChange={(e) => setEditFormData({...editFormData, studentPhone: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Subjects *
-                  </label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-3">
-                    {subjects.map((subject) => (
-                      <label key={subject.id} className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={editFormData.subjectIds.includes(subject.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setEditFormData({
-                                ...editFormData,
-                                subjectIds: [...editFormData.subjectIds, subject.id]
-                              });
-                            } else {
-                              setEditFormData({
-                                ...editFormData,
-                                subjectIds: editFormData.subjectIds.filter(id => id !== subject.id)
-                              });
-                            }
-                          }}
-                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">{subject.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {editFormData.subjectIds.length === 0 && (
-                    <p className="text-sm text-red-600 mt-1">Please select at least one subject</p>
-                  )}
-                </div>
-
-                <div className="flex justify-end space-x-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={resetEditForm}
-                    disabled={updating}
-                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={updating || editFormData.subjectIds.length === 0}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {updating ? 'Updating...' : 'Update Student'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
 
         {/* Archive Confirmation Modal */}
         {deleteConfirm.show && deleteConfirm.student && (

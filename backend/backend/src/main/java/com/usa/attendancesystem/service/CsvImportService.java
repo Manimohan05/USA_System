@@ -6,6 +6,9 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -25,6 +28,13 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
+
+import com.usa.attendancesystem.dto.*;
+import com.usa.attendancesystem.model.*;
+import com.usa.attendancesystem.repository.*;
+import com.usa.attendancesystem.service.StudentService;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -52,24 +62,56 @@ public class CsvImportService {
     private final SubjectRepository subjectRepository;
     private final StudentService studentService;
 
+    // Helper method to parse dates in multiple formats
+    private LocalDate parseFlexibleDate(String dateStr) throws DateTimeParseException {
+        if (dateStr == null || dateStr.trim().isEmpty()) {
+            throw new DateTimeParseException("Date string is empty", dateStr, 0);
+        }
+        
+        String trimmedDate = dateStr.trim();
+        
+        // List of supported date formats
+        DateTimeFormatter[] formatters = {
+            DateTimeFormatter.ofPattern("yyyy-MM-dd"),  // YYYY-MM-DD (preferred)
+            DateTimeFormatter.ofPattern("dd/MM/yyyy"),  // DD/MM/YYYY 
+            DateTimeFormatter.ofPattern("dd-MM-yyyy"),  // DD-MM-YYYY
+            DateTimeFormatter.ofPattern("MM/dd/yyyy"),  // MM/DD/YYYY (US format)
+            DateTimeFormatter.ofPattern("MM-dd-yyyy")   // MM-DD-YYYY (US format)
+        };
+        
+        // Try each format
+        for (DateTimeFormatter formatter : formatters) {
+            try {
+                return LocalDate.parse(trimmedDate, formatter);
+            } catch (DateTimeParseException e) {
+                // Continue to next format
+            }
+        }
+        
+        // If no format worked, throw exception with helpful message
+        throw new DateTimeParseException("Invalid date format. Supported formats: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY", dateStr, 0);
+    }
+
     // Dynamic headers - will be generated based on available subjects
     private String[] getCsvHeaders() {
-        List<Subject> allSubjects = subjectRepository.findAll();
         List<String> headers = new ArrayList<>();
-        headers.add("Full Name");
-        headers.add("Parent Phone");
-        headers.add("Student Phone");
         headers.add("Batch Year");
-
-        // Add subject columns
+        headers.add("Admission Date (YYYY-MM-DD or DD/MM/YYYY)");
+        headers.add("Full Name");
+        headers.add("Address");
+        headers.add("NIC (Optional)");
+        headers.add("School");
+        headers.add("Phone No");
+        
+        // Add individual subject columns
+        List<Subject> allSubjects = subjectRepository.findAll();
         for (Subject subject : allSubjects) {
             headers.add(subject.getName());
         }
-
+        
         return headers.toArray(new String[0]);
     }
 
-    @Transactional
     public CsvImportResultDto importStudentsFromCsv(MultipartFile file) {
         log.info("Starting import process for file: {}", file.getOriginalFilename());
 
@@ -98,7 +140,8 @@ public class CsvImportService {
         int totalRows = 0;
         int successfulImports = 0;
 
-        try (Reader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8); CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader())) {
+        try (Reader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8); 
+             CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader())) {
 
             List<CSVRecord> records = csvParser.getRecords();
             totalRows = records.size();
@@ -111,34 +154,64 @@ public class CsvImportService {
 
                 try {
                     StudentCsvImportRequest studentRequest = parseRecord(record, rowNumber);
-                    StudentDto createdStudent = createStudentFromCsv(studentRequest);
+                    
+                    // Process each student in a separate transaction to avoid rollback-only issues
+                    StudentDto createdStudent = createStudentFromRequest(studentRequest);
                     importedStudents.add(createdStudent);
                     successfulImports++;
+                    
                     log.debug("Successfully imported student: {}", studentRequest.fullName());
                 } catch (Exception e) {
-                    String error = String.format("Row %d: %s", rowNumber, e.getMessage());
-                    errors.add(error);
+                    String errorMsg = "Row " + rowNumber + ": " + e.getMessage();
+                    errors.add(errorMsg);
                     log.warn("Failed to import student at row {}: {}", rowNumber, e.getMessage());
                 }
             }
-
-        } catch (IOException e) {
-            String error = "Failed to read CSV file: " + e.getMessage();
-            errors.add(error);
-            log.error("CSV file reading error", e);
+        } catch (Exception e) {
+            log.error("Error reading CSV file", e);
+            throw new RuntimeException("Failed to read CSV file: " + e.getMessage(), e);
         }
 
-        int failedImports = totalRows - successfulImports;
-        log.info("CSV import completed: {} successful, {} failed out of {} total",
-                successfulImports, failedImports, totalRows);
+        log.info("CSV import completed. Total: {}, Successful: {}, Failed: {}", totalRows, successfulImports, errors.size());
+        return new CsvImportResultDto(totalRows, successfulImports, errors.size(), errors, importedStudents);
+    }
+    
+    @Transactional
+    private StudentDto createStudentFromRequest(StudentCsvImportRequest studentRequest) {
+        try {
+            // Find batch
+            Batch batch = batchRepository.findByBatchYear(studentRequest.batchYear())
+                    .orElseThrow(() -> new RuntimeException("Batch not found: " + studentRequest.batchYear()));
 
-        return new CsvImportResultDto(
-                totalRows,
-                successfulImports,
-                failedImports,
-                errors,
-                importedStudents
-        );
+            // Parse selected subjects and find subject entities
+            Set<Subject> subjects = parseSubjects(studentRequest.subjectNames());
+
+            // Generate next student ID for the batch
+            String studentId = studentService.getNextStudentIdForBatch(batch.getId());
+
+            // Create and save student
+            Student student = Student.builder()
+                    .studentIdCode(studentId)
+                    .fullName(studentRequest.fullName())
+                    .address(studentRequest.address())
+                    .nic(studentRequest.nic())
+                    .school(studentRequest.school())
+                    .admissionDate(studentRequest.admissionDate())
+                    .parentPhone(studentRequest.phoneNumber())
+                    .indexNumber(studentService.getNextIndexNumberForBatch(batch.getId()))
+                    .isActive(true)
+                    .batch(batch)
+                    .subjects(subjects)
+                    .build();
+
+            Student savedStudent = studentRepository.save(student);
+
+            // Convert to DTO and return
+            return studentToDto(savedStudent);
+        } catch (Exception e) {
+            log.error("Error creating student: {}", e.getMessage());
+            throw new RuntimeException("Failed to create student: " + e.getMessage(), e);
+        }
     }
 
     private CsvImportResultDto importFromExcel(MultipartFile file) {
@@ -242,10 +315,31 @@ public class CsvImportService {
 
     private StudentCsvImportRequest parseExcelRow(Row row, List<String> headers, int rowNumber) {
         try {
-            String fullName = getCellValueByHeader(row, headers, "Full Name");
-            String parentPhone = getCellValueByHeader(row, headers, "Parent Phone");
-            String studentPhone = getCellValueByHeaderOptional(row, headers, "Student Phone");
+            // Parse fields in the exact order as add student form
             String batchYearStr = getCellValueByHeader(row, headers, "Batch Year");
+            String admissionDateStr = getCellValueByHeader(row, headers, "Admission Date (YYYY-MM-DD or DD/MM/YYYY)");
+            String fullName = getCellValueByHeader(row, headers, "Full Name");
+            String address = getCellValueByHeader(row, headers, "Address");
+            String nic = getCellValueByHeaderOptional(row, headers, "NIC (Optional)");
+            String school = getCellValueByHeader(row, headers, "School");
+            String phoneNumber = getCellValueByHeader(row, headers, "Phone No");
+            
+            // Parse individual subject columns and build subject names string
+            List<Subject> allSubjects = subjectRepository.findAll();
+            List<String> selectedSubjects = new ArrayList<>();
+            
+            for (Subject subject : allSubjects) {
+                String subjectValue = getCellValueByHeaderOptional(row, headers, subject.getName());
+                if (subjectValue != null && ("1".equals(subjectValue.trim()) || "1.0".equals(subjectValue.trim()))) {
+                    selectedSubjects.add(subject.getName());
+                }
+            }
+            
+            if (selectedSubjects.isEmpty()) {
+                throw new IllegalArgumentException("At least one subject must be selected (marked with 1)");
+            }
+            
+            String subjectNames = String.join(", ", selectedSubjects);
 
             // Validate and parse batch year
             Integer batchYear;
@@ -255,23 +349,33 @@ public class CsvImportService {
                 throw new IllegalArgumentException("Invalid batch year format: " + batchYearStr);
             }
 
-            // Parse subjects from 1/0 columns
-            List<Subject> allSubjects = subjectRepository.findAll();
-            List<String> selectedSubjects = new ArrayList<>();
-
-            for (Subject subject : allSubjects) {
-                String subjectValue = getCellValueByHeaderOptional(row, headers, subject.getName());
-                if ("1".equals(subjectValue) || "1.0".equals(subjectValue)) {
-                    selectedSubjects.add(subject.getName());
-                }
+            // Validate and parse admission date
+            LocalDate admissionDate;
+            try {
+                admissionDate = parseFlexibleDate(admissionDateStr);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid admission date format. Supported formats: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY. Got: " + admissionDateStr);
             }
 
-            String subjectNames = String.join(",", selectedSubjects);
+            // Validate and normalize phone number format
+            String cleanPhone = phoneNumber.trim().replaceAll("[^0-9]", "");
+            
+            // Handle different phone number formats
+            if (cleanPhone.matches("^[1-9]\\d{7,8}$")) {
+                // Add leading 0 if missing (e.g., 771234567 -> 0771234567)
+                cleanPhone = "0" + cleanPhone;
+            } else if (!cleanPhone.matches("^0[1-9]\\d{7,8}$")) {
+                // Invalid format after all normalization attempts
+                throw new IllegalArgumentException("Invalid phone number format. Use Sri Lankan format (0771234567 or 771234567): " + phoneNumber);
+            }
 
             return new StudentCsvImportRequest(
                     fullName.trim(),
-                    parentPhone.trim().replaceAll("[^0-9]", ""), // Remove non-digits
-                    studentPhone != null ? studentPhone.trim().replaceAll("[^0-9]", "") : null,
+                    address.trim(),
+                    nic != null && !nic.trim().isEmpty() ? nic.trim() : null,
+                    school.trim(),
+                    admissionDate,
+                    cleanPhone,
                     batchYear,
                     subjectNames
             );
@@ -308,10 +412,35 @@ public class CsvImportService {
 
     private StudentCsvImportRequest parseRecord(CSVRecord record, int rowNumber) {
         try {
-            String fullName = getFieldValue(record, "Full Name", rowNumber);
-            String parentPhone = getFieldValue(record, "Parent Phone", rowNumber);
-            String studentPhone = getOptionalFieldValue(record, "Student Phone");
+            // Parse fields in the exact order as add student form
             String batchYearStr = getFieldValue(record, "Batch Year", rowNumber);
+            String admissionDateStr = getFieldValue(record, "Admission Date (YYYY-MM-DD or DD/MM/YYYY)", rowNumber);
+            String fullName = getFieldValue(record, "Full Name", rowNumber);
+            String address = getFieldValue(record, "Address", rowNumber);
+            String nic = getOptionalFieldValue(record, "NIC (Optional)"); // Optional field
+            String school = getFieldValue(record, "School", rowNumber);
+            String phoneNumber = getFieldValue(record, "Phone No", rowNumber);
+            
+            // Parse individual subject columns and build subject names string
+            List<Subject> allSubjects = subjectRepository.findAll();
+            List<String> selectedSubjects = new ArrayList<>();
+            
+            for (Subject subject : allSubjects) {
+                try {
+                    String subjectValue = record.get(subject.getName());
+                    if ("1".equals(subjectValue.trim())) {
+                        selectedSubjects.add(subject.getName());
+                    }
+                } catch (IllegalArgumentException e) {
+                    // Subject column not found, skip
+                }
+            }
+            
+            if (selectedSubjects.isEmpty()) {
+                throw new IllegalArgumentException("At least one subject must be selected (marked with 1)");
+            }
+            
+            String subjectNames = String.join(", ", selectedSubjects);
 
             // Validate and parse batch year
             Integer batchYear;
@@ -321,23 +450,57 @@ public class CsvImportService {
                 throw new IllegalArgumentException("Invalid batch year format: " + batchYearStr);
             }
 
-            // Parse subjects from 1/0 columns
-            List<Subject> allSubjects = subjectRepository.findAll();
-            List<String> selectedSubjects = new ArrayList<>();
-
-            for (Subject subject : allSubjects) {
-                String subjectValue = getOptionalFieldValue(record, subject.getName());
-                if ("1".equals(subjectValue)) {
-                    selectedSubjects.add(subject.getName());
-                }
+            // Validate and parse admission date
+            LocalDate admissionDate;
+            try {
+                admissionDate = parseFlexibleDate(admissionDateStr);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid admission date format. Supported formats: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY. Got: " + admissionDateStr);
             }
 
-            String subjectNames = String.join(",", selectedSubjects);
+            // Validate NIC format if provided
+            if (nic != null && !nic.trim().isEmpty()) {
+                String nicTrimmed = nic.trim();
+                
+                // Handle scientific notation from Excel (e.g., "2.00012E+11")
+                if (nicTrimmed.matches(".*[eE][+-]?\\d+.*")) {
+                    try {
+                        // Convert scientific notation to long and then to string
+                        double scientificValue = Double.parseDouble(nicTrimmed);
+                        nicTrimmed = String.format("%.0f", scientificValue);
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("Invalid NIC format. Use 123456789V or 123456789012: " + nicTrimmed);
+                    }
+                }
+                
+                // Validate NIC format: 9 digits + V/X or 12 digits
+                if (!nicTrimmed.matches("^([0-9]{9}[vVxX]|[0-9]{12})$")) {
+                    throw new IllegalArgumentException("Invalid NIC format. Use 123456789V or 123456789012: " + nicTrimmed);
+                }
+                
+                // Update the nic variable with cleaned value
+                nic = nicTrimmed;
+            }
+
+            // Validate and normalize phone number format
+            String cleanPhone = phoneNumber.trim().replaceAll("[^0-9]", "");
+            
+            // Handle different phone number formats
+            if (cleanPhone.matches("^[1-9]\\d{7,8}$")) {
+                // Add leading 0 if missing (e.g., 771234567 -> 0771234567)
+                cleanPhone = "0" + cleanPhone;
+            } else if (!cleanPhone.matches("^0[1-9]\\d{7,8}$")) {
+                // Invalid format after all normalization attempts
+                throw new IllegalArgumentException("Invalid phone number format. Use Sri Lankan format (0771234567 or 771234567): " + phoneNumber);
+            }
 
             return new StudentCsvImportRequest(
                     fullName.trim(),
-                    parentPhone.trim().replaceAll("[^0-9]", ""), // Remove non-digits
-                    studentPhone != null ? studentPhone.trim().replaceAll("[^0-9]", "") : null,
+                    address.trim(),
+                    nic != null && !nic.trim().isEmpty() ? nic.trim() : null,
+                    school.trim(),
+                    admissionDate,
+                    cleanPhone,
                     batchYear,
                     subjectNames
             );
@@ -380,17 +543,22 @@ public class CsvImportService {
         // Parse and validate subjects
         Set<Subject> subjects = parseSubjects(request.subjectNames());
 
-        // Auto-generate student ID code and index number
-        String studentIdCode = generateNextStudentIdCode();
-        String indexNumber = generateNextIndexNumber();
+        // Auto-generate batch-based student ID code
+        String studentIdCode = studentService.getNextStudentIdForBatch(batch.getId());
+        
+        // Generate batch-based index number using the same system as individual creation
+        String indexNumber = studentService.getNextIndexNumberForBatch(batch.getId());
 
-        // Create student
+        // Create student with new field structure
         Student student = Student.builder()
                 .studentIdCode(studentIdCode)
                 .indexNumber(indexNumber)
                 .fullName(request.fullName())
-                .parentPhone(request.parentPhone())
-                .studentPhone(request.studentPhone())
+                .address(request.address())
+                .nic(request.nic() != null && !request.nic().trim().isEmpty() ? request.nic().toUpperCase() : null)
+                .school(request.school())
+                .admissionDate(request.admissionDate())
+                .parentPhone(request.phoneNumber())
                 .batch(batch)
                 .subjects(subjects)
                 .isActive(true)
@@ -425,78 +593,24 @@ public class CsvImportService {
         return subjects;
     }
 
-    /**
-     * Generate next student ID code for CSV import
-     */
-    private String generateNextStudentIdCode() {
-        List<Student> students = studentRepository.findAllOrderByStudentIdCodeDesc();
-
-        if (students.isEmpty()) {
-            return "STU001";
-        }
-
-        int maxNumber = 0;
-        for (Student student : students) {
-            String studentIdCode = student.getStudentIdCode();
-            if (studentIdCode.startsWith("STU") && studentIdCode.length() >= 6) {
-                try {
-                    String numericPart = studentIdCode.substring(3);
-                    int number = Integer.parseInt(numericPart);
-                    maxNumber = Math.max(maxNumber, number);
-                } catch (NumberFormatException e) {
-                    continue;
-                }
-            }
-        }
-
-        int nextNumber = maxNumber + 1;
-        return String.format("STU%03d", nextNumber);
-    }
-
-    /**
-     * Generate next index number for CSV import
-     */
-    private String generateNextIndexNumber() {
-        List<Student> students = studentRepository.findAllOrderByIndexNumberDesc();
-
-        if (students.isEmpty()) {
-            return "IDX001";
-        }
-
-        int maxNumber = 0;
-        for (Student student : students) {
-            String indexNumber = student.getIndexNumber();
-            if (indexNumber.startsWith("IDX") && indexNumber.length() >= 6) {
-                try {
-                    String numericPart = indexNumber.substring(3);
-                    int number = Integer.parseInt(numericPart);
-                    maxNumber = Math.max(maxNumber, number);
-                } catch (NumberFormatException e) {
-                    continue;
-                }
-            }
-        }
-
-        int nextNumber = maxNumber + 1;
-        return String.format("IDX%03d", nextNumber);
-    }
-
     public String generateCsvTemplate() {
         try (StringWriter writer = new StringWriter(); CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.withHeader(getCsvHeaders()))) {
 
             List<Subject> allSubjects = subjectRepository.findAll();
-
-            // Add sample data rows for reference
+            
+            // Add sample data rows for reference matching the expected format
+            // Row 1: John Doe - Mathematics and Physics student
             List<Object> row1 = new ArrayList<>();
-            row1.add("John Doe");           // Full Name
-            row1.add("0771234567");        // Parent Phone (Sri Lankan format)
-            row1.add("0712345678");        // Student Phone (Sri Lankan format)
-            row1.add("2024");              // Batch Year
-
-            // Add subject values (1 for Mathematics and Physics, 0 for others)
+            row1.add("2024");                           // Batch Year
+            row1.add("2024-01-15");                     // Admission Date (YYYY-MM-DD)
+            row1.add("John Doe");                       // Full Name
+            row1.add("123 Main Street, Colombo 03");    // Address
+            row1.add("123456789V");                     // NIC (Optional)
+            row1.add("Royal College");                  // School
+            row1.add("0771234567");                     // Phone No
+            // Add subject values (1 for selected, 0 for not selected)
             for (Subject subject : allSubjects) {
-                if ("Mathematics".equalsIgnoreCase(subject.getName())
-                        || "Physics".equalsIgnoreCase(subject.getName())) {
+                if ("Mathematics".equalsIgnoreCase(subject.getName()) || "Physics".equalsIgnoreCase(subject.getName())) {
                     row1.add("1");
                 } else {
                     row1.add("0");
@@ -504,13 +618,16 @@ public class CsvImportService {
             }
             csvPrinter.printRecord(row1.toArray());
 
-            // Row 2: Jane Smith with Chemistry
+            // Row 2: Jane Smith - Chemistry student
             List<Object> row2 = new ArrayList<>();
-            row2.add("Jane Smith");
-            row2.add("0773456789");        // Sri Lankan format
-            row2.add("");                   // Empty student phone
-            row2.add("2024");
-
+            row2.add("2024");                           // Batch Year
+            row2.add("2024-02-20");                     // Admission Date (YYYY-MM-DD)
+            row2.add("Jane Smith");                     // Full Name
+            row2.add("456 Lake Road, Kandy");           // Address
+            row2.add("987654321V");                     // NIC (Optional)
+            row2.add("Vishaka Vidyalaya");              // School
+            row2.add("0773456789");                     // Phone No
+            // Add subject values
             for (Subject subject : allSubjects) {
                 if ("Chemistry".equalsIgnoreCase(subject.getName())) {
                     row2.add("1");
@@ -520,23 +637,45 @@ public class CsvImportService {
             }
             csvPrinter.printRecord(row2.toArray());
 
-            // Row 3: Bob Johnson with multiple subjects
+            // Row 3: Bob Johnson - Multiple subjects student
             List<Object> row3 = new ArrayList<>();
-            row3.add("Bob Johnson");
-            row3.add("0114567890");        // Sri Lankan landline format
-            row3.add("0779876543");        // Sri Lankan mobile format
-            row3.add("2025");
-
+            row3.add("2025");                           // Batch Year
+            row3.add("2025-03-10");                     // Admission Date (YYYY-MM-DD)
+            row3.add("Bob Johnson");                    // Full Name
+            row3.add("789 Hill View, Galle");           // Address
+            row3.add("200012345678");                   // NIC (Optional) - new format
+            row3.add("Richmond College");               // School
+            row3.add("0114567890");                     // Phone No
+            // Add subject values
             for (Subject subject : allSubjects) {
-                if ("Mathematics".equalsIgnoreCase(subject.getName())
-                        || "Chemistry".equalsIgnoreCase(subject.getName())
-                        || "Physics".equalsIgnoreCase(subject.getName())) {
+                if ("Mathematics".equalsIgnoreCase(subject.getName()) || 
+                    "Chemistry".equalsIgnoreCase(subject.getName()) || 
+                    "Physics".equalsIgnoreCase(subject.getName())) {
                     row3.add("1");
                 } else {
                     row3.add("0");
                 }
             }
             csvPrinter.printRecord(row3.toArray());
+
+            // Row 4: Example with different combination
+            List<Object> row4 = new ArrayList<>();
+            row4.add("2025");                           // Batch Year
+            row4.add("2025-04-05");                     // Admission Date (YYYY-MM-DD)
+            row4.add("Sarah Wilson");                   // Full Name
+            row4.add("321 Beach Road, Negombo");        // Address
+            row4.add("");                               // NIC (Optional) - empty
+            row4.add("Holy Family Convent");            // School
+            row4.add("0779876543");                     // Phone No
+            // Add subject values
+            for (Subject subject : allSubjects) {
+                if ("Biology".equalsIgnoreCase(subject.getName()) || "Chemistry".equalsIgnoreCase(subject.getName())) {
+                    row4.add("1");
+                } else {
+                    row4.add("0");
+                }
+            }
+            csvPrinter.printRecord(row4.toArray());
 
             csvPrinter.flush();
             return writer.toString();
@@ -564,35 +703,39 @@ public class CsvImportService {
                 Cell cell = headerRow.createCell(i);
                 cell.setCellValue(headers[i]);
                 cell.setCellStyle(headerStyle);
-                sheet.autoSizeColumn(i);
             }
 
-            // Create sample data rows
-            // Row 1: John Doe
+            // Create sample data rows matching the expected format
+            // Row 1: John Doe - Mathematics and Physics student
             Row row1 = sheet.createRow(1);
             int colIndex = 0;
-            row1.createCell(colIndex++).setCellValue("John Doe");
-            row1.createCell(colIndex++).setCellValue("0771234567");  // Sri Lankan mobile
-            row1.createCell(colIndex++).setCellValue("0712345678");  // Sri Lankan mobile
-            row1.createCell(colIndex++).setCellValue(2024);
-
+            row1.createCell(colIndex++).setCellValue(2024);                          // Batch Year
+            row1.createCell(colIndex++).setCellValue("2024-01-15");                  // Admission Date
+            row1.createCell(colIndex++).setCellValue("John Doe");                    // Full Name
+            row1.createCell(colIndex++).setCellValue("123 Main Street, Colombo 03");  // Address
+            row1.createCell(colIndex++).setCellValue("123456789V");                  // NIC
+            row1.createCell(colIndex++).setCellValue("Royal College");               // School
+            row1.createCell(colIndex++).setCellValue("0771234567");                  // Phone No
+            // Add subject values
             for (Subject subject : allSubjects) {
-                if ("Mathematics".equalsIgnoreCase(subject.getName())
-                        || "Physics".equalsIgnoreCase(subject.getName())) {
+                if ("Mathematics".equalsIgnoreCase(subject.getName()) || "Physics".equalsIgnoreCase(subject.getName())) {
                     row1.createCell(colIndex++).setCellValue(1);
                 } else {
                     row1.createCell(colIndex++).setCellValue(0);
                 }
             }
 
-            // Row 2: Jane Smith
+            // Row 2: Jane Smith - Chemistry student
             Row row2 = sheet.createRow(2);
             colIndex = 0;
-            row2.createCell(colIndex++).setCellValue("Jane Smith");
-            row2.createCell(colIndex++).setCellValue("0773456789");  // Sri Lankan mobile
-            row2.createCell(colIndex++).setCellValue(""); // Empty student phone
-            row2.createCell(colIndex++).setCellValue(2024);
-
+            row2.createCell(colIndex++).setCellValue(2024);                          // Batch Year
+            row2.createCell(colIndex++).setCellValue("2024-02-20");                  // Admission Date
+            row2.createCell(colIndex++).setCellValue("Jane Smith");                  // Full Name
+            row2.createCell(colIndex++).setCellValue("456 Lake Road, Kandy");         // Address
+            row2.createCell(colIndex++).setCellValue("987654321V");                  // NIC
+            row2.createCell(colIndex++).setCellValue("Vishaka Vidyalaya");           // School
+            row2.createCell(colIndex++).setCellValue("0773456789");                  // Phone No
+            // Add subject values
             for (Subject subject : allSubjects) {
                 if ("Chemistry".equalsIgnoreCase(subject.getName())) {
                     row2.createCell(colIndex++).setCellValue(1);
@@ -601,21 +744,43 @@ public class CsvImportService {
                 }
             }
 
-            // Row 3: Bob Johnson
+            // Row 3: Bob Johnson - Multiple subjects student
             Row row3 = sheet.createRow(3);
             colIndex = 0;
-            row3.createCell(colIndex++).setCellValue("Bob Johnson");
-            row3.createCell(colIndex++).setCellValue("0114567890");  // Sri Lankan landline
-            row3.createCell(colIndex++).setCellValue("0779876543");  // Sri Lankan mobile
-            row3.createCell(colIndex++).setCellValue(2025);
-
+            row3.createCell(colIndex++).setCellValue(2025);                          // Batch Year
+            row3.createCell(colIndex++).setCellValue("2025-03-10");                  // Admission Date
+            row3.createCell(colIndex++).setCellValue("Bob Johnson");                 // Full Name
+            row3.createCell(colIndex++).setCellValue("789 Hill View, Galle");        // Address
+            row3.createCell(colIndex++).setCellValue("");                            // NIC (empty)
+            row3.createCell(colIndex++).setCellValue("Richmond College");            // School
+            row3.createCell(colIndex++).setCellValue("0114567890");                  // Phone No
+            // Add subject values
             for (Subject subject : allSubjects) {
-                if ("Mathematics".equalsIgnoreCase(subject.getName())
-                        || "Chemistry".equalsIgnoreCase(subject.getName())
-                        || "Physics".equalsIgnoreCase(subject.getName())) {
+                if ("Mathematics".equalsIgnoreCase(subject.getName()) || 
+                    "Chemistry".equalsIgnoreCase(subject.getName()) || 
+                    "Physics".equalsIgnoreCase(subject.getName())) {
                     row3.createCell(colIndex++).setCellValue(1);
                 } else {
                     row3.createCell(colIndex++).setCellValue(0);
+                }
+            }
+
+            // Row 4: Sarah Wilson - Example with different combination
+            Row row4 = sheet.createRow(4);
+            colIndex = 0;
+            row4.createCell(colIndex++).setCellValue(2025);                          // Batch Year
+            row4.createCell(colIndex++).setCellValue("2025-04-05");                  // Admission Date
+            row4.createCell(colIndex++).setCellValue("Sarah Wilson");                // Full Name
+            row4.createCell(colIndex++).setCellValue("321 Beach Road, Negombo");     // Address
+            row4.createCell(colIndex++).setCellValue("");                           // NIC (empty)
+            row4.createCell(colIndex++).setCellValue("Holy Family Convent");         // School
+            row4.createCell(colIndex++).setCellValue("0779876543");                  // Phone No
+            // Add subject values
+            for (Subject subject : allSubjects) {
+                if ("Biology".equalsIgnoreCase(subject.getName()) || "Chemistry".equalsIgnoreCase(subject.getName())) {
+                    row4.createCell(colIndex++).setCellValue(1);
+                } else {
+                    row4.createCell(colIndex++).setCellValue(0);
                 }
             }
 
@@ -630,5 +795,35 @@ public class CsvImportService {
             log.error("Error generating Excel template", e);
             throw new RuntimeException("Failed to generate Excel template", e);
         }
+    }
+    
+    /**
+     * Convert Student entity to DTO
+     */
+    private StudentDto studentToDto(Student student) {
+        return new StudentDto(
+                student.getId(),
+                student.getStudentIdCode(),
+                student.getIndexNumber(),
+                student.getFullName(),
+                student.getAddress(),
+                student.getNic(),
+                student.getSchool(),
+                student.getAdmissionDate(),
+                student.getParentPhone(),
+                student.isActive(),
+                new BatchDto(
+                        student.getBatch().getId(),
+                        student.getBatch().getBatchYear(),
+                        0L // We don't need exact count for import, so set to 0
+                ),
+                student.getSubjects().stream()
+                        .map(subject -> new SubjectDto(
+                                subject.getId(),
+                                subject.getName(),
+                                0L // We don't need exact count for import, so set to 0
+                        ))
+                        .collect(java.util.stream.Collectors.toSet())
+        );
     }
 }

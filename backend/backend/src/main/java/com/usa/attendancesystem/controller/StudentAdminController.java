@@ -171,9 +171,21 @@ public class StudentAdminController {
         }
     }
 
+    @GetMapping("/next-student-id/{batchId}")
+    public ResponseEntity<String> getNextStudentIdForBatch(@PathVariable Integer batchId) {
+        String nextStudentId = studentService.getNextStudentIdForBatch(batchId);
+        return ResponseEntity.ok(nextStudentId);
+    }
+
     @GetMapping("/next-student-id")
     public ResponseEntity<String> getNextStudentIdCode() {
         String nextStudentId = studentService.getNextStudentIdCode();
         return ResponseEntity.ok(nextStudentId);
+    }
+
+    @GetMapping("/next-index-number/{batchId}")
+    public ResponseEntity<String> getNextIndexNumber(@PathVariable Integer batchId) {
+        String nextIndexNumber = studentService.getNextIndexNumberForBatch(batchId);
+        return ResponseEntity.ok(nextIndexNumber);
     }
 }
