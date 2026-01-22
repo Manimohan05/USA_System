@@ -82,13 +82,13 @@ public class StudentService {
             int indexNum = Integer.parseInt(indexNumber);
             int lastDigit = batch.getBatchYear() % 10;
             int baseNumber = lastDigit * 1000;
-            
+
             if (indexNum < baseNumber || indexNum >= baseNumber + 1000) {
                 throw new IllegalArgumentException(
-                    String.format("Index number %s is not valid for batch %d. Expected range: %d-%d", 
-                        indexNumber, batch.getBatchYear(), baseNumber + 1, baseNumber + 999));
+                        String.format("Index number %s is not valid for batch %d. Expected range: %d-%d",
+                                indexNumber, batch.getBatchYear(), baseNumber + 1, baseNumber + 999));
             }
-            
+
             // Check if index number already exists
             if (studentRepository.existsByIndexNumber(indexNumber)) {
                 throw new IllegalArgumentException("Index number " + indexNumber + " already exists");
@@ -131,22 +131,21 @@ public class StudentService {
 
     /**
      * Generate next index number for a specific batch following the format:
-     * Batch 2027 -> 7001, 7002, 7003...
-     * Batch 2028 -> 8001, 8002, 8003...
+     * Batch 2027 -> 7001, 7002, 7003... Batch 2028 -> 8001, 8002, 8003...
      */
     public String getNextIndexNumberForBatch(Integer batchId) {
         Batch batch = batchRepository.findById(batchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Batch not found with ID: " + batchId));
-        
+
         // Get the last digit of the batch year
         int lastDigit = batch.getBatchYear() % 10;
         int baseNumber = lastDigit * 1000;
-        
+
         // Get existing students in this batch ordered by index number
         List<Student> studentsInBatch = studentRepository.findByBatchIdOrderByIndexNumberDesc(batchId);
-        
+
         int nextSequence = 1; // Start from 1
-        
+
         if (!studentsInBatch.isEmpty()) {
             // Find the highest sequence number for this batch
             for (Student student : studentsInBatch) {
@@ -161,7 +160,7 @@ public class StudentService {
                 }
             }
         }
-        
+
         return String.valueOf(baseNumber + nextSequence);
     }
 
@@ -176,23 +175,22 @@ public class StudentService {
 
     /**
      * Generates the next student ID based on batch year and student sequence.
-     * Format: [last digit of year][sequence number]
-     * E.g., for batch 2026: 6001, 6002, 6003...
-     * E.g., for batch 2025: 5001, 5002, 5003...
+     * Format: [last digit of year][sequence number] E.g., for batch 2026: 6001,
+     * 6002, 6003... E.g., for batch 2025: 5001, 5002, 5003...
      */
     public String getNextStudentIdForBatch(Integer batchId) {
         // Get the batch
         Batch batch = batchRepository.findById(batchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Batch not found with id: " + batchId));
-        
+
         int batchYear = batch.getBatchYear();
         int lastDigit = batchYear % 10;
         String prefix = String.valueOf(lastDigit);
-        
+
         // Find the highest student ID for this batch prefix across all students
         List<Student> allStudents = studentRepository.findAll();
         int maxSequence = 0;
-        
+
         for (Student student : allStudents) {
             String studentId = student.getStudentIdCode();
             if (studentId != null && studentId.startsWith(prefix) && studentId.length() == 4) {
@@ -204,15 +202,15 @@ public class StudentService {
                 }
             }
         }
-        
+
         // Generate next sequence number
         int nextSequence = maxSequence + 1;
-        
+
         // Ensure the sequence number is at least 001 for the first student
         if (nextSequence < 1) {
             nextSequence = 1;
         }
-        
+
         // Format: last digit + sequence (padded to 3 digits)
         return String.format("%d%03d", lastDigit, nextSequence);
     }
@@ -224,7 +222,7 @@ public class StudentService {
     private String generateNextStudentIdCode() {
         int currentYear = LocalDate.now().getYear();
         String yearPrefix = String.valueOf(currentYear);
-        
+
         List<Student> students = studentRepository.findAllOrderByStudentIdCodeDesc();
 
         if (students.isEmpty()) {

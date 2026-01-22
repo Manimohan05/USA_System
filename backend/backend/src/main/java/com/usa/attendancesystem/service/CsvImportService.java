@@ -29,18 +29,13 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import lombok.extern.slf4j.Slf4j;
-
-import com.usa.attendancesystem.dto.*;
-import com.usa.attendancesystem.model.*;
-import com.usa.attendancesystem.repository.*;
-import com.usa.attendancesystem.service.StudentService;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.usa.attendancesystem.dto.BatchDto;
 import com.usa.attendancesystem.dto.CsvImportResultDto;
 import com.usa.attendancesystem.dto.StudentCsvImportRequest;
 import com.usa.attendancesystem.dto.StudentDto;
+import com.usa.attendancesystem.dto.SubjectDto;
 import com.usa.attendancesystem.exception.ResourceNotFoundException;
 import com.usa.attendancesystem.model.Batch;
 import com.usa.attendancesystem.model.Student;
@@ -67,18 +62,18 @@ public class CsvImportService {
         if (dateStr == null || dateStr.trim().isEmpty()) {
             throw new DateTimeParseException("Date string is empty", dateStr, 0);
         }
-        
+
         String trimmedDate = dateStr.trim();
-        
+
         // List of supported date formats
         DateTimeFormatter[] formatters = {
-            DateTimeFormatter.ofPattern("yyyy-MM-dd"),  // YYYY-MM-DD (preferred)
-            DateTimeFormatter.ofPattern("dd/MM/yyyy"),  // DD/MM/YYYY 
-            DateTimeFormatter.ofPattern("dd-MM-yyyy"),  // DD-MM-YYYY
-            DateTimeFormatter.ofPattern("MM/dd/yyyy"),  // MM/DD/YYYY (US format)
-            DateTimeFormatter.ofPattern("MM-dd-yyyy")   // MM-DD-YYYY (US format)
+            DateTimeFormatter.ofPattern("yyyy-MM-dd"), // YYYY-MM-DD (preferred)
+            DateTimeFormatter.ofPattern("dd/MM/yyyy"), // DD/MM/YYYY 
+            DateTimeFormatter.ofPattern("dd-MM-yyyy"), // DD-MM-YYYY
+            DateTimeFormatter.ofPattern("MM/dd/yyyy"), // MM/DD/YYYY (US format)
+            DateTimeFormatter.ofPattern("MM-dd-yyyy") // MM-DD-YYYY (US format)
         };
-        
+
         // Try each format
         for (DateTimeFormatter formatter : formatters) {
             try {
@@ -87,7 +82,7 @@ public class CsvImportService {
                 // Continue to next format
             }
         }
-        
+
         // If no format worked, throw exception with helpful message
         throw new DateTimeParseException("Invalid date format. Supported formats: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY", dateStr, 0);
     }
@@ -102,13 +97,13 @@ public class CsvImportService {
         headers.add("NIC (Optional)");
         headers.add("School");
         headers.add("Phone No");
-        
+
         // Add individual subject columns
         List<Subject> allSubjects = subjectRepository.findAll();
         for (Subject subject : allSubjects) {
             headers.add(subject.getName());
         }
-        
+
         return headers.toArray(new String[0]);
     }
 
@@ -140,8 +135,7 @@ public class CsvImportService {
         int totalRows = 0;
         int successfulImports = 0;
 
-        try (Reader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8); 
-             CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader())) {
+        try (Reader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8); CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader())) {
 
             List<CSVRecord> records = csvParser.getRecords();
             totalRows = records.size();
@@ -154,12 +148,12 @@ public class CsvImportService {
 
                 try {
                     StudentCsvImportRequest studentRequest = parseRecord(record, rowNumber);
-                    
+
                     // Process each student in a separate transaction to avoid rollback-only issues
                     StudentDto createdStudent = createStudentFromRequest(studentRequest);
                     importedStudents.add(createdStudent);
                     successfulImports++;
-                    
+
                     log.debug("Successfully imported student: {}", studentRequest.fullName());
                 } catch (Exception e) {
                     String errorMsg = "Row " + rowNumber + ": " + e.getMessage();
@@ -175,7 +169,7 @@ public class CsvImportService {
         log.info("CSV import completed. Total: {}, Successful: {}, Failed: {}", totalRows, successfulImports, errors.size());
         return new CsvImportResultDto(totalRows, successfulImports, errors.size(), errors, importedStudents);
     }
-    
+
     @Transactional
     private StudentDto createStudentFromRequest(StudentCsvImportRequest studentRequest) {
         try {
@@ -323,22 +317,22 @@ public class CsvImportService {
             String nic = getCellValueByHeaderOptional(row, headers, "NIC (Optional)");
             String school = getCellValueByHeader(row, headers, "School");
             String phoneNumber = getCellValueByHeader(row, headers, "Phone No");
-            
+
             // Parse individual subject columns and build subject names string
             List<Subject> allSubjects = subjectRepository.findAll();
             List<String> selectedSubjects = new ArrayList<>();
-            
+
             for (Subject subject : allSubjects) {
                 String subjectValue = getCellValueByHeaderOptional(row, headers, subject.getName());
                 if (subjectValue != null && ("1".equals(subjectValue.trim()) || "1.0".equals(subjectValue.trim()))) {
                     selectedSubjects.add(subject.getName());
                 }
             }
-            
+
             if (selectedSubjects.isEmpty()) {
                 throw new IllegalArgumentException("At least one subject must be selected (marked with 1)");
             }
-            
+
             String subjectNames = String.join(", ", selectedSubjects);
 
             // Validate and parse batch year
@@ -359,7 +353,7 @@ public class CsvImportService {
 
             // Validate and normalize phone number format
             String cleanPhone = phoneNumber.trim().replaceAll("[^0-9]", "");
-            
+
             // Handle different phone number formats
             if (cleanPhone.matches("^[1-9]\\d{7,8}$")) {
                 // Add leading 0 if missing (e.g., 771234567 -> 0771234567)
@@ -420,11 +414,11 @@ public class CsvImportService {
             String nic = getOptionalFieldValue(record, "NIC (Optional)"); // Optional field
             String school = getFieldValue(record, "School", rowNumber);
             String phoneNumber = getFieldValue(record, "Phone No", rowNumber);
-            
+
             // Parse individual subject columns and build subject names string
             List<Subject> allSubjects = subjectRepository.findAll();
             List<String> selectedSubjects = new ArrayList<>();
-            
+
             for (Subject subject : allSubjects) {
                 try {
                     String subjectValue = record.get(subject.getName());
@@ -435,11 +429,11 @@ public class CsvImportService {
                     // Subject column not found, skip
                 }
             }
-            
+
             if (selectedSubjects.isEmpty()) {
                 throw new IllegalArgumentException("At least one subject must be selected (marked with 1)");
             }
-            
+
             String subjectNames = String.join(", ", selectedSubjects);
 
             // Validate and parse batch year
@@ -461,7 +455,7 @@ public class CsvImportService {
             // Validate NIC format if provided
             if (nic != null && !nic.trim().isEmpty()) {
                 String nicTrimmed = nic.trim();
-                
+
                 // Handle scientific notation from Excel (e.g., "2.00012E+11")
                 if (nicTrimmed.matches(".*[eE][+-]?\\d+.*")) {
                     try {
@@ -472,19 +466,19 @@ public class CsvImportService {
                         throw new IllegalArgumentException("Invalid NIC format. Use 123456789V or 123456789012: " + nicTrimmed);
                     }
                 }
-                
+
                 // Validate NIC format: 9 digits + V/X or 12 digits
                 if (!nicTrimmed.matches("^([0-9]{9}[vVxX]|[0-9]{12})$")) {
                     throw new IllegalArgumentException("Invalid NIC format. Use 123456789V or 123456789012: " + nicTrimmed);
                 }
-                
+
                 // Update the nic variable with cleaned value
                 nic = nicTrimmed;
             }
 
             // Validate and normalize phone number format
             String cleanPhone = phoneNumber.trim().replaceAll("[^0-9]", "");
-            
+
             // Handle different phone number formats
             if (cleanPhone.matches("^[1-9]\\d{7,8}$")) {
                 // Add leading 0 if missing (e.g., 771234567 -> 0771234567)
@@ -545,7 +539,7 @@ public class CsvImportService {
 
         // Auto-generate batch-based student ID code
         String studentIdCode = studentService.getNextStudentIdForBatch(batch.getId());
-        
+
         // Generate batch-based index number using the same system as individual creation
         String indexNumber = studentService.getNextIndexNumberForBatch(batch.getId());
 
@@ -597,7 +591,7 @@ public class CsvImportService {
         try (StringWriter writer = new StringWriter(); CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT.withHeader(getCsvHeaders()))) {
 
             List<Subject> allSubjects = subjectRepository.findAll();
-            
+
             // Add sample data rows for reference matching the expected format
             // Row 1: John Doe - Mathematics and Physics student
             List<Object> row1 = new ArrayList<>();
@@ -648,9 +642,9 @@ public class CsvImportService {
             row3.add("0114567890");                     // Phone No
             // Add subject values
             for (Subject subject : allSubjects) {
-                if ("Mathematics".equalsIgnoreCase(subject.getName()) || 
-                    "Chemistry".equalsIgnoreCase(subject.getName()) || 
-                    "Physics".equalsIgnoreCase(subject.getName())) {
+                if ("Mathematics".equalsIgnoreCase(subject.getName())
+                        || "Chemistry".equalsIgnoreCase(subject.getName())
+                        || "Physics".equalsIgnoreCase(subject.getName())) {
                     row3.add("1");
                 } else {
                     row3.add("0");
@@ -756,9 +750,9 @@ public class CsvImportService {
             row3.createCell(colIndex++).setCellValue("0114567890");                  // Phone No
             // Add subject values
             for (Subject subject : allSubjects) {
-                if ("Mathematics".equalsIgnoreCase(subject.getName()) || 
-                    "Chemistry".equalsIgnoreCase(subject.getName()) || 
-                    "Physics".equalsIgnoreCase(subject.getName())) {
+                if ("Mathematics".equalsIgnoreCase(subject.getName())
+                        || "Chemistry".equalsIgnoreCase(subject.getName())
+                        || "Physics".equalsIgnoreCase(subject.getName())) {
                     row3.createCell(colIndex++).setCellValue(1);
                 } else {
                     row3.createCell(colIndex++).setCellValue(0);
@@ -796,7 +790,7 @@ public class CsvImportService {
             throw new RuntimeException("Failed to generate Excel template", e);
         }
     }
-    
+
     /**
      * Convert Student entity to DTO
      */
@@ -819,10 +813,10 @@ public class CsvImportService {
                 ),
                 student.getSubjects().stream()
                         .map(subject -> new SubjectDto(
-                                subject.getId(),
-                                subject.getName(),
-                                0L // We don't need exact count for import, so set to 0
-                        ))
+                        subject.getId(),
+                        subject.getName(),
+                        0L // We don't need exact count for import, so set to 0
+                ))
                         .collect(java.util.stream.Collectors.toSet())
         );
     }
