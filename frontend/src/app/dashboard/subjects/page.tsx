@@ -140,9 +140,6 @@ export default function SubjectsPage() {
                       </div>
                     </div>
                   </div>
-                  <p className="text-white/80 text-lg max-w-2xl">
-                    Create, organize, and manage academic subjects to build a comprehensive curriculum for your institution.
-                  </p>
                 </div>
                 <div className="flex space-x-3">
                   <button

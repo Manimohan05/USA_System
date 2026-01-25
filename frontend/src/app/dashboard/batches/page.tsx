@@ -140,9 +140,6 @@ export default function BatchesPage() {
                       </div>
                     </div>
                   </div>
-                  <p className="text-white/80 text-lg max-w-2xl">
-                    Create and manage academic batches to organize students by enrollment year and track their progress.
-                  </p>
                 </div>
                 <button
                   onClick={() => setShowForm(true)}

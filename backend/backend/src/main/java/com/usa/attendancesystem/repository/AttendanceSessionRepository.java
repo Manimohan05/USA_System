@@ -22,6 +22,9 @@ public interface AttendanceSessionRepository extends JpaRepository<AttendanceSes
     @Query("SELECT s FROM AttendanceSession s WHERE s.sessionDate = :date AND s.isActive = true ORDER BY s.createdAt DESC")
     List<AttendanceSession> findActiveSessionsByDate(@Param("date") LocalDate date);
 
+    @Query("SELECT s FROM AttendanceSession s WHERE s.sessionDate = :date ORDER BY s.createdAt DESC")
+    List<AttendanceSession> findAllSessionsByDate(@Param("date") LocalDate date);
+
     @Query("SELECT s FROM AttendanceSession s WHERE s.isActive = true ORDER BY s.createdAt DESC")
     List<AttendanceSession> findAllActiveSessions();
 

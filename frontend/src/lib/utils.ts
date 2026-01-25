@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Format date for display
-export function formatDate(date: string | Date | undefined | null, format: 'short' | 'long' | 'time' = 'short'): string {
+export function formatDate(date: string | Date | undefined | null, format: 'short' | 'long' | 'time' | 'datetime' = 'short'): string {
   if (!date) {
     return 'N/A';
   }
@@ -35,6 +35,14 @@ export function formatDate(date: string | Date | undefined | null, format: 'shor
       });
     case 'time':
       return dateObj.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    case 'datetime':
+      return dateObj.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
       });

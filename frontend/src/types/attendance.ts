@@ -26,6 +26,9 @@ export interface AttendanceSessionDto {
   sessionDate: string; // ISO date string
   isActive: boolean;
   createdAt: string; // ISO datetime string
+  endedAt?: string; // ISO datetime string when session was ended
+  canReactivate?: boolean; // True if session is within 10-minute reactivation window
+  isClosed?: boolean; // True if session is temporarily closed
 }
 
 export interface PresentStudentDto {

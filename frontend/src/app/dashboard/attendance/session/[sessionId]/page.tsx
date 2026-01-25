@@ -44,12 +44,86 @@ export default function AttendanceSessionPage() {
   const [validationResponse, setValidationResponse] = useState<AttendanceValidationResponseDto | null>(null);
   const [sessionStatus, setSessionStatus] = useState<SessionAttendanceStatusDto | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
+  
+  // Countdown Timer State
+  const [timeRemaining, setTimeRemaining] = useState<number>(0); // in seconds
+  const [isAutoEnding, setIsAutoEnding] = useState(false);
+  
+  // Success overlay state
+  const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [successTitle, setSuccessTitle] = useState('');
 
   useEffect(() => {
     if (sessionId) {
       fetchSessionData();
     }
   }, [sessionId]);
+
+  // Countdown Timer Effect
+  useEffect(() => {
+    if (!session || !session.isActive) {
+      setTimeRemaining(0);
+      return;
+    }
+
+    // Calculate remaining time (60 minutes from creation)
+    const sessionCreatedAt = new Date(session.createdAt).getTime();
+    const now = Date.now();
+    const sessionDuration = 60 * 60 * 1000; // 60 minutes in milliseconds
+    const elapsed = now - sessionCreatedAt;
+    const remaining = Math.max(0, sessionDuration - elapsed);
+    
+    setTimeRemaining(Math.floor(remaining / 1000)); // Convert to seconds
+
+    // Set up countdown interval
+    const interval = setInterval(() => {
+      setTimeRemaining(prev => {
+        const newTime = Math.max(0, prev - 1);
+        
+        // Auto-end session when countdown reaches 0
+        if (newTime === 0 && session.isActive && !isAutoEnding) {
+          setIsAutoEnding(true);
+          autoEndSession();
+        }
+        
+        return newTime;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [session, isAutoEnding]);
+
+  // Format countdown time display
+  const formatCountdown = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Auto-end session when countdown reaches 0
+  const autoEndSession = async () => {
+    if (!session) return;
+    
+    try {
+      console.log('Auto-ending session after 60 minutes:', sessionId);
+      await api.put(`/admin/attendance/sessions/${sessionId}/deactivate`);
+      
+      console.log('Session auto-ended successfully, refreshing session data');
+      await fetchSessionData();
+      
+      alert(`⏰ Session Auto-Ended\n\nThe session has been automatically ended after 60 minutes.\n\n📱 SMS notifications have been sent to parents of absent students with actual attendance times.`);
+    } catch (error: any) {
+      console.error('Failed to auto-end session:', error);
+    } finally {
+      setIsAutoEnding(false);
+    }
+  };
 
   const fetchSessionData = async () => {
     try {
@@ -143,42 +217,50 @@ export default function AttendanceSessionPage() {
     }
   };
 
-  const endSession = async () => {
+  // Close session temporarily (can be reopened)
+  const closeSession = async () => {
+    if (!session) return;
+    
+    const sessionInfo = `Batch ${session.batchYear} - ${session.subjectName} (${formatDate(session.sessionDate)})`;
+
+    try {
+      console.log('Attempting to close session temporarily:', sessionId);
+      await api.put(`/admin/attendance/sessions/${sessionId}/close`);
+      
+      console.log('Session closed successfully');
+      
+      // Show success overlay instead of alert
+      setSuccessTitle(`${sessionInfo} - Successfully Closed!`);
+      setSuccessMessage('The session has been paused temporarily and can be reopened from the attendance page.');
+      setShowSuccessOverlay(true);
+      
+    } catch (error: any) {
+      console.error('Failed to close session:', error);
+      alert(`❌ Failed to Close Session\n\nError: ${error.response?.data?.message || 'Please try again.'}`); 
+    }
+  };
+
+  // Reactivate session (within 10-minute recovery window)
+  const reactivateSession = async () => {
     if (!session) return;
     
     const sessionInfo = `Batch ${session.batchYear} - ${session.subjectName} (${formatDate(session.sessionDate)})`;
     
-    if (!confirm(`🛑 End Attendance Session?\n\nSession: ${sessionInfo}\n\n⚠️ Important Information:\n• Students will no longer be able to mark attendance\n• Parents of absent students will automatically receive SMS notifications\n• This action cannot be undone\n\n📱 The system will send meaningful messages to parents informing them about their child's absence from today's class.\n\nAre you sure you want to end this session?`)) {
+    if (!confirm(`🔄 Reactivate Attendance Session?\n\nSession: ${sessionInfo}\n\n📋 This will:\n• Reopen the session for attendance marking\n• Allow students to mark attendance again\n• Extend the session time\n\n⚠️ Note: This is only available within 10 minutes of ending.\n\nAre you sure you want to reactivate this session?`)) {
       return;
     }
 
     try {
-      console.log('Attempting to end session:', sessionId, 'for session:', sessionInfo);
-      await api.put(`/admin/attendance/sessions/${sessionId}/deactivate`);
+      console.log('Attempting to reactivate session:', sessionId);
+      await api.put(`/admin/attendance/sessions/${sessionId}/reactivate`);
       
-      console.log('Session ended successfully, refreshing session data');
-      // Refresh session data
+      console.log('Session reactivated successfully, refreshing session data');
       await fetchSessionData();
       
-      alert(`✅ Session Ended Successfully!\n\nSession: ${sessionInfo}\n\n📋 Summary:\n• The attendance session has been closed\n• Students can no longer mark attendance\n• SMS notifications have been sent to parents of absent students\n\n📱 Parents received meaningful messages about their child's absence, including class details and the importance of regular attendance.`);
+      alert(`✅ Session Reactivated!\n\nSession: ${sessionInfo}\n\n📋 The session is now active again and students can mark attendance.`);
     } catch (error: any) {
-      console.error('Failed to end session:', error);
-      console.error('Error details:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        message: error.message
-      });
-      
-      let errorMessage = 'Failed to end session. Please try again.';
-      
-      if (error.response?.status === 404) {
-        errorMessage = 'Session not found. It may have already been ended or deleted.';
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      }
-      
-      alert(`❌ Failed to End Session\n\nSession: ${sessionInfo}\n\nError: ${errorMessage}\n\n🔍 Debug Info:\nStatus: ${error.response?.status || 'Unknown'}\nSessionID: ${sessionId}\n\nNote: If the session was partially ended, some SMS notifications may have been sent. Please check the backend logs for more details.`);
+      console.error('Failed to reactivate session:', error);
+      alert(`❌ Failed to Reactivate Session\n\nError: ${error.response?.data?.message || 'Please try again. The 10-minute window may have expired.'}`);
     }
   };
 
@@ -249,9 +331,12 @@ export default function AttendanceSessionPage() {
                     <div>
                       <h1 className="text-4xl font-bold text-white">Attendance Session</h1>
                       <div className="flex items-center space-x-2 mt-1">
-                        <div className={`w-2 h-2 rounded-full animate-pulse ${session.isActive ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                        <div className={`w-2 h-2 rounded-full animate-pulse ${session.isActive ? 'bg-green-400' : session.isClosed ? 'bg-yellow-400' : session.canReactivate ? 'bg-red-400 animate-pulse' : 'bg-gray-400'}`}></div>
                         <p className="text-white/90">
-                          {session.isActive ? 'Active Session' : 'Session Ended'}
+                          {session.isActive ? 'Active Session' : 
+                           session.isClosed ? 'Session Closed (Temporary)' :
+                           session.canReactivate ? 'Session Ended - Can Reactivate (10 min)' :
+                           'Session Ended'}
                         </p>
                       </div>
                     </div>
@@ -267,13 +352,50 @@ export default function AttendanceSessionPage() {
                     <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                     Refresh
                   </button>
+                  
+                  {/* Session Management Buttons */}
                   {session.isActive && (
+                    <>
+                      {/* Countdown Timer */}
+                      <div className="flex items-center px-4 py-2 bg-white/10 backdrop-blur-sm rounded-xl">
+                        <Clock className="h-4 w-4 mr-2 text-white" />
+                        <span className={`text-white font-mono font-bold ${
+                          timeRemaining <= 300 ? 'animate-pulse text-red-200' : // Last 5 minutes
+                          timeRemaining <= 600 ? 'text-yellow-200' : // Last 10 minutes
+                          'text-white'
+                        }`}>
+                          {formatCountdown(timeRemaining)}
+                        </span>
+                      </div>
+                      
+                      <button
+                        onClick={closeSession}
+                        className="flex items-center px-4 py-2 bg-yellow-500/80 hover:bg-yellow-500 text-white rounded-xl transition-colors"
+                        title="Temporarily close session (can be reopened) - NO SMS sent"
+                      >
+                        <Pause className="h-4 w-4 mr-2" />
+                        Close Session
+                      </button>
+                    </>
+                  )}
+                  
+                  {/* Notice for ended sessions */}
+                  {!session.isActive && !session.canReactivate && (
+                    <div className="flex items-center px-4 py-2 bg-gray-100 rounded-xl">
+                      <XCircle className="h-4 w-4 mr-2 text-gray-500" />
+                      <span className="text-gray-600">Session ended - Use dashboard to reactivate</span>
+                    </div>
+                  )}
+                  
+                  {/* Reactivate button for accidentally ended sessions (10-minute window) */}
+                  {!session.isActive && session.canReactivate && (
                     <button
-                      onClick={endSession}
-                      className="flex items-center px-4 py-2 bg-red-500/80 hover:bg-red-500 text-white rounded-xl transition-colors"
+                      onClick={reactivateSession}
+                      className="flex items-center px-4 py-2 bg-red-500/80 hover:bg-red-500 text-white rounded-xl transition-colors animate-pulse"
+                      title="Reactivate session within 10-minute recovery window"
                     >
-                      <Pause className="h-4 w-4 mr-2" />
-                      End Session
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Reactivate (10 min left)
                     </button>
                   )}
                 </div>
@@ -306,9 +428,9 @@ export default function AttendanceSessionPage() {
           </div>
 
           {/* Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Mark Attendance Section */}
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+            <div className="lg:col-span-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
               <div className="px-6 py-6 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 bg-white/10 rounded-xl">
@@ -318,10 +440,17 @@ export default function AttendanceSessionPage() {
                 </div>
                 <span className={`px-3 py-1 text-sm font-semibold rounded-full ${
                   session.isActive 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-red-100 text-red-800'
+                    ? 'bg-green-100 text-green-800'
+                    : session.isClosed
+                    ? 'bg-yellow-100 text-yellow-800' 
+                    : session.canReactivate
+                    ? 'bg-red-100 text-red-800 animate-pulse'
+                    : 'bg-gray-100 text-gray-800'
                 }`}>
-                  {session.isActive ? 'Active' : 'Ended'}
+                  {session.isActive ? 'Active' : 
+                   session.isClosed ? 'Closed' :
+                   session.canReactivate ? 'Can Reactivate' :
+                   'Ended'}
                 </span>
               </div>
 
@@ -338,7 +467,7 @@ export default function AttendanceSessionPage() {
                           type="text"
                           value={indexInput}
                           onChange={(e) => setIndexInput(e.target.value)}
-                          placeholder="Enter student ID or index number (e.g., IDX001)"
+                          placeholder="Enter student ID or index number here"
                           className="w-full pl-12 pr-4 py-4 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-gray-50 hover:bg-white"
                           disabled={marking}
                           autoComplete="off"
@@ -365,6 +494,25 @@ export default function AttendanceSessionPage() {
                       )}
                     </button>
 
+                    {/* Countdown Warning */}
+                    {timeRemaining <= 600 && timeRemaining > 0 && (
+                      <div className={`p-4 rounded-xl border-l-4 ${
+                        timeRemaining <= 300 
+                          ? 'bg-red-50 border-red-500 text-red-800'
+                          : 'bg-yellow-50 border-yellow-500 text-yellow-800'
+                      }`}>
+                        <div className="flex items-center">
+                          <Clock className="h-5 w-5 mr-2" />
+                          <p className="font-medium">
+                            {timeRemaining <= 300 
+                              ? `⚠️ Session will end automatically in ${formatCountdown(timeRemaining)}!`
+                              : `⏰ Session will end in ${formatCountdown(timeRemaining)}`
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Validation Response */}
                     {validationResponse && (
                       <div className={`p-4 rounded-xl border-l-4 ${
@@ -389,13 +537,42 @@ export default function AttendanceSessionPage() {
                       </div>
                     )}
                   </form>
+                ) : session.isClosed ? (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Pause className="h-8 w-8 text-yellow-500" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Session Temporarily Closed</h3>
+                    <p className="text-gray-600 mb-4">This session has been temporarily closed by an administrator. Please use the attendance page to reopen it.</p>
+                  </div>
+                ) : session.canReactivate ? (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <RefreshCw className="h-8 w-8 text-red-500 animate-pulse" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Session Accidentally Ended</h3>
+                    <p className="text-gray-600 mb-4">This session was ended but can still be reactivated within the 10-minute recovery window.</p>
+                    <div className="space-y-3">
+                      <button
+                        onClick={reactivateSession}
+                        className="px-6 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors font-medium animate-pulse block mx-auto"
+                      >
+                        <RefreshCw className="h-4 w-4 inline mr-2" />
+                        REACTIVATE SESSION
+                      </button>
+                      <p className="text-sm text-red-600 font-medium">⏰ Recovery window expires 10 minutes after ending</p>
+                    </div>
+                  </div>
                 ) : (
                   <div className="text-center py-8">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Pause className="h-8 w-8 text-gray-400" />
+                      <XCircle className="h-8 w-8 text-gray-400" />
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">Session Ended</h3>
-                    <p className="text-gray-600">This attendance session has been ended and is no longer accepting attendance marks.</p>
+                    <p className="text-gray-600">This attendance session has been permanently ended and is no longer accepting attendance marks.</p>
+                    {session.endedAt && (
+                      <p className="text-sm text-gray-500 mt-2">Ended on {formatDate(session.endedAt, 'datetime')}</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -488,6 +665,56 @@ export default function AttendanceSessionPage() {
           </div>
         </div>
       </DashboardLayout>
+      
+      {/* Success Overlay */}
+      {showSuccessOverlay && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-gray-500 to-gray-600 px-6 py-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                  <CheckCircle className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Success!</h3>
+                  <p className="text-gray-100 text-sm">Session Closed Temporarily</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div className="p-6">
+              <h4 className="font-semibold text-gray-900 mb-3">{successTitle}</h4>
+              <p className="text-gray-600 mb-6 whitespace-pre-line">{successMessage}</p>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowSuccessOverlay(false);
+                    window.close();
+                    if (!window.closed) {
+                      router.push('/dashboard/attendance');
+                    }
+                  }}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Close Tab
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSuccessOverlay(false);
+                    router.push('/dashboard/attendance');
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all"
+                >
+                  Go to Attendance Page
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </ProtectedRoute>
   );
 }

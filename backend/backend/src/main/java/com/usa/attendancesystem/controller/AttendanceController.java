@@ -95,6 +95,33 @@ public class AttendanceController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * ADMIN endpoint to temporarily close a session (pause without sending SMS).
+     */
+    @PutMapping("/admin/attendance/sessions/{sessionId}/close")
+    public ResponseEntity<Void> closeSession(@PathVariable Long sessionId) {
+        sessionService.closeSessionTemporarily(sessionId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * ADMIN endpoint to reopen a temporarily closed session.
+     */
+    @PutMapping("/admin/attendance/sessions/{sessionId}/reopen")
+    public ResponseEntity<Void> reopenSession(@PathVariable Long sessionId) {
+        sessionService.reopenSession(sessionId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * ADMIN endpoint to reactivate an ended session within recovery window.
+     */
+    @PutMapping("/admin/attendance/sessions/{sessionId}/reactivate")
+    public ResponseEntity<Void> reactivateSession(@PathVariable Long sessionId) {
+        sessionService.reactivateSession(sessionId);
+        return ResponseEntity.ok().build();
+    }
+
     // ============ ATTENDANCE MARKING ENDPOINTS ============
     /**
      * PUBLIC endpoint for marking attendance by index number in a session with

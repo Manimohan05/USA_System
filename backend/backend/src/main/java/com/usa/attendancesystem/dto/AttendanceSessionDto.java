@@ -14,7 +14,10 @@ public record AttendanceSessionDto(
         String subjectName,
         LocalDate sessionDate,
         boolean isActive,
-        Instant createdAt
+        boolean isClosed,
+        boolean canReactivate,
+        Instant createdAt,
+        Instant endedAt
         ) {
 
 }

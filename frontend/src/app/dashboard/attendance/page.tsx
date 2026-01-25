@@ -212,13 +212,13 @@ function AttendancePageContent() {
       ? `Batch ${sessionToEnd.batchYear} - ${sessionToEnd.subjectName} (${formatDate(sessionToEnd.sessionDate)})`
       : 'this session';
 
-    if (!confirm(`🛑 End Attendance Session?\n\nSession: ${sessionInfo}\n\n⚠️ Important Information:\n• Students will no longer be able to mark attendance\n• Parents of absent students will automatically receive SMS notifications\n• This action cannot be undone\n\n📱 The system will send meaningful messages to parents informing them about their child's absence from today's class.\n\nAre you sure you want to end this session?`)) {
+    if (!confirm(`🛑 END Attendance Session PERMANENTLY?\n\nSession: ${sessionInfo}\n\n⚠️ CRITICAL ACTION - This will:\n• PERMANENTLY end the attendance session\n• Send SMS notifications to parents of absent students\n• Allow 10-minute recovery window for accidental clicks\n• Cannot be reopened after 10 minutes\n\n📱 Parents will receive meaningful messages about their child's absence from today's class.\n\nAre you absolutely sure you want to END this session?`)) {
       return;
     }
 
     try {
-      console.log('Attempting to end session:', sessionId, 'for session:', sessionInfo);
-      await api.put(`/admin/attendance/sessions/${sessionId}/deactivate`);
+      console.log('Attempting to end session permanently:', sessionId, 'for session:', sessionInfo);
+      await api.put(`/admin/attendance/sessions/${sessionId}/end`);
       
       console.log('Session ended successfully, refreshing sessions list');
       // Refresh sessions list
@@ -230,7 +230,7 @@ function AttendancePageContent() {
         setSessionStatus(null);
       }
       
-      alert(`✅ Session Ended Successfully!\n\nSession: ${sessionInfo}\n\n📋 Summary:\n• The attendance session has been closed\n• Students can no longer mark attendance\n• SMS notifications have been sent to parents of absent students\n\n📱 Parents received meaningful messages about their child's absence, including class details and the importance of regular attendance.`);
+      alert(`✅ Session Ended Successfully!\n\nSession: ${sessionInfo}\n\n📋 Summary:\n• The attendance session has been permanently ended\n• SMS notifications have been sent to parents of absent students\n• 10-minute recovery window is now active\n\n⏱️ You have 10 minutes to reactivate if this was accidental.\n📱 Parents received meaningful messages about their child's absence.`);
     } catch (error: any) {
       console.error('Failed to end session:', error);
       console.error('Error details:', {
@@ -405,9 +405,6 @@ function AttendancePageContent() {
                   </div>
                 </div>
               </div>
-              <p className="text-white/80 text-lg max-w-2xl">
-                Manage attendance sessions, allow students to mark their presence, and generate comprehensive reports.
-              </p>
             </div>
           </div>
 
@@ -647,9 +644,16 @@ function AttendancePageContent() {
                               <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
                                 session.isActive 
                                   ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' 
+                                  : session.canReactivate
+                                  ? 'bg-red-100 text-red-800 ring-1 ring-red-200 animate-pulse'
+                                  : session.isClosed
+                                  ? 'bg-yellow-100 text-yellow-800 ring-1 ring-yellow-200'
                                   : 'bg-gray-100 text-gray-800 ring-1 ring-gray-200'
                               }`}>
-                                {session.isActive ? '● Active' : '○ Inactive'}
+                                {session.isActive ? '● Active' : 
+                                 session.canReactivate ? '⚠ Can Recover' :
+                                 session.isClosed ? '⏸ Closed' :
+                                 '○ Ended'}
                               </span>
                             </div>
                             <div className="space-y-2">
@@ -669,7 +673,7 @@ function AttendancePageContent() {
                               className="group w-full bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-indigo-100 hover:to-purple-100 hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
                             >
                               <ExternalLink className="w-4 h-4 inline mr-2 group-hover:animate-pulse" />
-                              Open in New Tab
+                              Open Session
                             </button>
                             {session.isActive && (
                               <button
@@ -680,7 +684,7 @@ function AttendancePageContent() {
                                 className="group w-full bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-red-100 hover:to-rose-100 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
                               >
                                 <Pause className="w-4 h-4 inline mr-2 group-hover:animate-pulse" />
-                                End Session
+                                END SESSION
                               </button>
                             )}
                           </div>
@@ -690,68 +694,6 @@ function AttendancePageContent() {
                   )}
                 </div>
               </div>
-
-              {/* Quick Actions for Multi-Session Management */}
-              {sessions.length > 0 && (
-                <div className="bg-white backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                  <div className="px-6 py-6 bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2 bg-white/10 rounded-xl">
-                        <ExternalLink className="h-6 w-6 text-white" />
-                      </div>
-                      <h2 className="text-xl font-bold text-white">Quick Actions</h2>
-                    </div>
-                  </div>
-
-                  <div className="p-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <button
-                        onClick={() => {
-                          const activeSessions = sessions.filter(s => s.isActive);
-                          if (activeSessions.length === 0) {
-                            alert('No active sessions to open.');
-                            return;
-                          }
-                          activeSessions.forEach(session => {
-                            window.open(`/dashboard/attendance/session/${session.id}`, '_blank');
-                          });
-                        }}
-                        disabled={sessions.filter(s => s.isActive).length === 0}
-                        className="group flex items-center justify-center px-6 py-4 bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 border border-emerald-200 rounded-xl font-semibold hover:from-emerald-100 hover:to-teal-100 hover:border-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 active:scale-95"
-                      >
-                        <ExternalLink className="h-5 w-5 mr-2 group-hover:animate-pulse" />
-                        Open All Active Sessions
-                        <span className="ml-2 px-2 py-1 bg-emerald-100 text-emerald-800 text-sm rounded-full">
-                          {sessions.filter(s => s.isActive).length}
-                        </span>
-                      </button>
-                      
-                      <button
-                        onClick={() => {
-                          sessions.forEach(session => {
-                            window.open(`/dashboard/attendance/session/${session.id}`, '_blank');
-                          });
-                        }}
-                        className="group flex items-center justify-center px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200 rounded-xl font-semibold hover:from-blue-100 hover:to-indigo-100 hover:border-blue-300 transition-all duration-200 transform hover:scale-105 active:scale-95"
-                      >
-                        <ExternalLink className="h-5 w-5 mr-2 group-hover:animate-pulse" />
-                        Open All Sessions
-                        <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
-                          {sessions.length}
-                        </span>
-                      </button>
-                    </div>
-                    
-                    <div className="mt-4 p-4 bg-gray-50 rounded-xl">
-                      <h4 className="text-sm font-semibold text-gray-900 mb-2">💡 Pro Tip:</h4>
-                      <p className="text-sm text-gray-600">
-                        Use "Open All Active Sessions" to quickly access all running sessions in separate tabs. 
-                        This allows you to handle multiple concurrent classes without switching between sessions.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
