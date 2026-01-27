@@ -182,7 +182,7 @@ export default function NewStudentPage() {
         address: formData.address.trim(),
         nic: formData.nic.trim().toUpperCase(),
         school: formData.school.trim(),
-        parentPhone: formData.phoneNo.replace(/\D/g, ''),
+        parentPhone: formData.phoneNo.trim(), // Keep original format for backend processing
         batchId: parseInt(formData.batchId),
         subjectIds: formData.subjectIds.map(id => parseInt(id)),
         admissionDate: formData.date,

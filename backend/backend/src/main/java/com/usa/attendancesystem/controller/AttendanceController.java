@@ -122,6 +122,16 @@ public class AttendanceController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * ADMIN endpoint to permanently end a session with SMS notifications.
+     * This is an alias for deactivateSession for better API clarity.
+     */
+    @PutMapping("/admin/attendance/sessions/{sessionId}/end")
+    public ResponseEntity<Void> endSession(@PathVariable Long sessionId) {
+        sessionService.deactivateSession(sessionId);
+        return ResponseEntity.ok().build();
+    }
+
     // ============ ATTENDANCE MARKING ENDPOINTS ============
     /**
      * PUBLIC endpoint for marking attendance by index number in a session with

@@ -53,6 +53,9 @@ export default function AttendanceSessionPage() {
   const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [successTitle, setSuccessTitle] = useState('');
+  
+  // Recovery window countdown
+  const [recoveryTimeRemaining, setRecoveryTimeRemaining] = useState(0);
 
   useEffect(() => {
     if (sessionId) {
@@ -67,12 +70,26 @@ export default function AttendanceSessionPage() {
       return;
     }
 
-    // Calculate remaining time (60 minutes from creation)
+    // Calculate remaining time (60 minutes from creation or reactivation)
+    // If session was reactivated, use current time as base for new 60-minute timer
     const sessionCreatedAt = new Date(session.createdAt).getTime();
     const now = Date.now();
     const sessionDuration = 60 * 60 * 1000; // 60 minutes in milliseconds
-    const elapsed = now - sessionCreatedAt;
-    const remaining = Math.max(0, sessionDuration - elapsed);
+    
+    // For reactivated sessions, check if the session was recently updated
+    // If the session is active but should have expired based on creation time,
+    // it means it was reactivated, so give it a fresh 60-minute window
+    const elapsedSinceCreation = now - sessionCreatedAt;
+    let remaining;
+    
+    if (elapsedSinceCreation > sessionDuration && session.isActive) {
+      // Session was likely reactivated, give it fresh 60 minutes
+      remaining = sessionDuration;
+      console.log('Session appears to have been reactivated, resetting countdown to 60 minutes');
+    } else {
+      // Normal countdown from creation time
+      remaining = Math.max(0, sessionDuration - elapsedSinceCreation);
+    }
     
     setTimeRemaining(Math.floor(remaining / 1000)); // Convert to seconds
 
@@ -93,6 +110,40 @@ export default function AttendanceSessionPage() {
 
     return () => clearInterval(interval);
   }, [session, isAutoEnding]);
+
+  // Recovery Window Countdown Effect
+  useEffect(() => {
+    if (!session || !session.canReactivate || !session.endedAt) {
+      setRecoveryTimeRemaining(0);
+      return;
+    }
+
+    // Calculate remaining recovery time (10 minutes from endedAt)
+    const endedAt = new Date(session.endedAt).getTime();
+    const now = Date.now();
+    const recoveryDuration = 10 * 60 * 1000; // 10 minutes in milliseconds
+    const elapsed = now - endedAt;
+    const remaining = Math.max(0, recoveryDuration - elapsed);
+    
+    setRecoveryTimeRemaining(Math.floor(remaining / 1000)); // Convert to seconds
+
+    // Set up recovery countdown interval
+    const recoveryInterval = setInterval(() => {
+      setRecoveryTimeRemaining(prev => {
+        const newTime = Math.max(0, prev - 1);
+        
+        // Refresh session data when recovery window expires
+        if (newTime === 0) {
+          console.log('Recovery window expired, refreshing session data');
+          fetchSessionData();
+        }
+        
+        return newTime;
+      });
+    }, 1000);
+
+    return () => clearInterval(recoveryInterval);
+  }, [session]);
 
   // Format countdown time display
   const formatCountdown = (seconds: number) => {
@@ -256,6 +307,13 @@ export default function AttendanceSessionPage() {
       
       console.log('Session reactivated successfully, refreshing session data');
       await fetchSessionData();
+      
+      // Clear any existing validation response
+      setValidationResponse(null);
+      setIndexInput('');
+      
+      // Reset auto-ending flag
+      setIsAutoEnding(false);
       
       alert(`✅ Session Reactivated!\n\nSession: ${sessionInfo}\n\n📋 The session is now active again and students can mark attendance.`);
     } catch (error: any) {
@@ -552,6 +610,20 @@ export default function AttendanceSessionPage() {
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">Session Accidentally Ended</h3>
                     <p className="text-gray-600 mb-4">This session was ended but can still be reactivated within the 10-minute recovery window.</p>
+                    
+                    {/* Recovery countdown display */}
+                    {recoveryTimeRemaining > 0 && (
+                      <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg inline-block">
+                        <div className="flex items-center space-x-2 text-red-800">
+                          <Clock className="h-4 w-4" />
+                          <span className="font-mono text-lg font-bold">
+                            {formatCountdown(recoveryTimeRemaining)}
+                          </span>
+                          <span className="text-sm">remaining</span>
+                        </div>
+                      </div>
+                    )}
+                    
                     <div className="space-y-3">
                       <button
                         onClick={reactivateSession}

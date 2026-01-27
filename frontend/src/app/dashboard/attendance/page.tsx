@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Calendar, Users, CheckCircle, XCircle, Download, Search, Play, Pause, Settings, Clock, BookOpen, GraduationCap, User, ExternalLink } from 'lucide-react';
+import { Calendar, Users, CheckCircle, XCircle, Download, Search, Play, Pause, Settings, Clock, BookOpen, GraduationCap, User, ExternalLink, AlertTriangle } from 'lucide-react';
 import api from '@/lib/api';
 import { formatDate, formatDateForAPI } from '@/lib/utils';
 import type { 
@@ -52,8 +52,6 @@ function AttendancePageContent() {
   const [validationResponse, setValidationResponse] = useState<AttendanceValidationResponseDto | null>(null);
   const [sessionStatus, setSessionStatus] = useState<SessionAttendanceStatusDto | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
-  
-
   
   // Report State
   const [reportDate, setReportDate] = useState(formatDateForAPI(new Date()));
@@ -204,7 +202,6 @@ function AttendancePageContent() {
       setCreatingSession(false);
     }
   };
-
   const endSession = async (sessionId: number) => {
     // Find the session being ended for better confirmation message
     const sessionToEnd = sessions.find(s => s.id === sessionId);
@@ -237,18 +234,27 @@ function AttendancePageContent() {
         status: error.response?.status,
         statusText: error.response?.statusText,
         data: error.response?.data,
-        message: error.message
+        message: error.message,
+        config: {
+          method: error.config?.method,
+          url: error.config?.url,
+          baseURL: error.config?.baseURL
+        }
       });
       
       let errorMessage = 'Failed to end session. Please try again.';
+      let debugInfo = '';
       
       if (error.response?.status === 404) {
         errorMessage = 'Session not found. It may have already been ended or deleted.';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Internal server error occurred while ending the session.';
+        debugInfo = `\n\nBackend Error: ${JSON.stringify(error.response?.data, null, 2)}`;
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       }
       
-      alert(`❌ Failed to End Session\n\nSession: ${sessionInfo}\n\nError: ${errorMessage}\n\n🔍 Debug Info:\nStatus: ${error.response?.status || 'Unknown'}\nSessionID: ${sessionId}\n\nNote: If the session was partially ended, some SMS notifications may have been sent. Please check the backend logs for more details.`);
+      alert(`❌ Failed to End Session\n\nSession: ${sessionInfo}\n\nError: ${errorMessage}${debugInfo}\n\n🔍 Debug Info:\nStatus: ${error.response?.status || 'Unknown'}\nURL: ${error.config?.url || 'Unknown'}\nSessionID: ${sessionId}\n\nNote: If the session was partially ended, some SMS notifications may have been sent. Please check the backend logs for more details.`);
     }
   };
 
@@ -279,7 +285,7 @@ function AttendancePageContent() {
     try {
       const request: AttendanceMarkByIndexRequest = {
         indexNumber: indexInput.trim().toUpperCase(),
-        sessionId: currentSession.id,
+        sessionId: currentSession!.id,
       };
       
       const response = await api.post<AttendanceValidationResponseDto>('/attendance/mark-by-index', request);
@@ -288,7 +294,7 @@ function AttendancePageContent() {
       if (response.data.success) {
         setIndexInput('');
         // Refresh session status to show the new attendance
-        await fetchSessionStatus(currentSession.id);
+        await fetchSessionStatus(currentSession!.id);
         
         // Auto-clear success message after 5 seconds
         setTimeout(() => setValidationResponse(null), 5000);
@@ -421,17 +427,6 @@ function AttendancePageContent() {
               >
                 <Settings className="h-5 w-5 mr-2" />
                 Sessions
-              </button>
-              <button
-                onClick={() => setActiveTab('mark')}
-                className={`flex-1 flex items-center justify-center px-6 py-3 rounded-xl font-medium text-sm transition-all duration-200 ${
-                  activeTab === 'mark'
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/25'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}
-              >
-                <CheckCircle className="h-5 w-5 mr-2" />
-                Mark Attendance
               </button>
               <button
                 onClick={() => setActiveTab('report')}
@@ -644,16 +639,9 @@ function AttendancePageContent() {
                               <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
                                 session.isActive 
                                   ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' 
-                                  : session.canReactivate
-                                  ? 'bg-red-100 text-red-800 ring-1 ring-red-200 animate-pulse'
-                                  : session.isClosed
-                                  ? 'bg-yellow-100 text-yellow-800 ring-1 ring-yellow-200'
                                   : 'bg-gray-100 text-gray-800 ring-1 ring-gray-200'
                               }`}>
-                                {session.isActive ? '● Active' : 
-                                 session.canReactivate ? '⚠ Can Recover' :
-                                 session.isClosed ? '⏸ Closed' :
-                                 '○ Ended'}
+                                {session.isActive ? '● Active' : '○ Ended'}
                               </span>
                             </div>
                             <div className="space-y-2">
@@ -697,35 +685,9 @@ function AttendancePageContent() {
             </div>
           )}
 
-          {/* Mark Attendance Tab */}
-          {activeTab === 'mark' && (
-            <div className="space-y-6">
-              {/* Session Selection */}
-              {!currentSession ? (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
-                  <div className="flex items-center">
-                    <div className="shrink-0">
-                      <Settings className="h-6 w-6 text-amber-600" />
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-amber-800">
-                        No Active Session Selected
-                      </h3>
-                      <div className="mt-2 text-sm text-amber-700">
-                        <p>Please go to the "Sessions" tab to create or select an active attendance session before marking attendance.</p>
-                      </div>
-                      <div className="mt-4">
-                        <button
-                          onClick={() => setActiveTab('sessions')}
-                          className="bg-amber-100 text-amber-800 px-3 py-1 rounded text-sm hover:bg-amber-200 transition-colors"
-                        >
-                          Go to Sessions
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
+          {/* Reports Tab */}
+          {/* Reports Tab */}
+          {activeTab === 'report' && (
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                   {/* Attendance Marking Form */}
                   <div className="xl:col-span-2">
@@ -743,19 +705,19 @@ function AttendancePageContent() {
                             <div className="space-y-2 text-indigo-100">
                               <div className="flex items-center space-x-2">
                                 <GraduationCap className="h-4 w-4" />
-                                <span><span className="font-medium">Batch:</span> {currentSession.batchYear}</span>
+                                <span><span className="font-medium">Batch:</span> {currentSession?.batchYear}</span>
                               </div>
                               <div className="flex items-center space-x-2">
                                 <BookOpen className="h-4 w-4" />
-                                <span><span className="font-medium">Subject:</span> {currentSession.subjectName}</span>
+                                <span><span className="font-medium">Subject:</span> {currentSession?.subjectName}</span>
                               </div>
                               <div className="flex items-center space-x-2">
                                 <Clock className="h-4 w-4" />
-                                <span><span className="font-medium">Date:</span> {formatDate(currentSession.sessionDate)}</span>
+                                <span><span className="font-medium">Date:</span> {currentSession?.sessionDate ? formatDate(currentSession.sessionDate) : 'N/A'}</span>
                               </div>
                             </div>
                           </div>
-                          {currentSession.isActive && (
+                          {currentSession && currentSession.isActive && (
                             <button
                               onClick={() => endSession(currentSession.id)}
                               className="group bg-red-500/20 text-white border border-red-300/30 rounded-xl px-4 py-3 text-sm font-semibold hover:bg-red-500/30 hover:border-red-300/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-400 transition-all duration-200 transform hover:scale-105"
@@ -778,17 +740,26 @@ function AttendancePageContent() {
                         <form onSubmit={handleSessionAttendance} className="space-y-6">
                           {/* Student ID/Index Input */}
                           <div>
-                            <label className="block text-sm font-semibold text-gray-800 mb-3">
+                            <label className="block text-sm font-semibold text-gray-800 mb-2">
                               Student ID or Index Number
                             </label>
+                            <p className="text-xs text-gray-600 mb-3">
+                              💡 Enter your Student ID (e.g., STU001, STU123) or Index Number (e.g., IDX001, IDX123)
+                            </p>
                             <div className="relative group">
                               <input
                                 type="text"
                                 value={indexInput}
-                                onChange={(e) => setIndexInput(e.target.value)}
-                                placeholder="Enter ID (STU001) or Index (IDX001)"
+                                onChange={(e) => {
+                                  // Auto-format input - convert to uppercase for consistency
+                                  const value = e.target.value.toUpperCase().trim();
+                                  setIndexInput(value);
+                                }}
+                                placeholder="STU001, IDX123, or similar format"
                                 className="w-full px-4 py-4 pr-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-lg font-mono bg-gray-50 hover:bg-white transition-all duration-200 group-hover:border-indigo-300"
                                 required
+                                autoComplete="off"
+                                spellCheck="false"
                               />
                               <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
                                 <div className="p-1 bg-indigo-100 rounded-lg group-focus-within:bg-indigo-200 transition-colors">
@@ -796,6 +767,13 @@ function AttendancePageContent() {
                                 </div>
                               </div>
                             </div>
+                            {indexInput && (
+                              <div className="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                                <p className="text-xs text-blue-700">
+                                  Looking for: <span className="font-mono font-bold">{indexInput}</span>
+                                </p>
+                              </div>
+                            )}
                           </div>
 
                           {/* Submit Button */}
@@ -840,7 +818,13 @@ function AttendancePageContent() {
                                 {validationResponse.success ? (
                                   <CheckCircle className="h-6 w-6 text-emerald-600" />
                                 ) : validationResponse.errorCode === 'ALREADY_MARKED' ? (
-                                  <XCircle className="h-6 w-6 text-amber-600" />
+                                  <Clock className="h-6 w-6 text-amber-600" />
+                                ) : validationResponse.errorCode === 'STUDENT_NOT_FOUND' ? (
+                                  <User className="h-6 w-6 text-red-600" />
+                                ) : validationResponse.errorCode === 'STUDENT_INACTIVE' ? (
+                                  <AlertTriangle className="h-6 w-6 text-red-600" />
+                                ) : validationResponse.errorCode === 'WRONG_BATCH' || validationResponse.errorCode === 'WRONG_SUBJECT' ? (
+                                  <ExternalLink className="h-6 w-6 text-red-600" />
                                 ) : (
                                   <XCircle className="h-6 w-6 text-red-600" />
                                 )}
@@ -853,7 +837,26 @@ function AttendancePageContent() {
                                     ? 'text-amber-900'
                                     : 'text-red-900'
                                 }`}>
-                                  {validationResponse.success ? '✓ Attendance Marked Successfully!' : '⚠ Validation Error'}
+                                  {validationResponse.success 
+                                    ? '✅ Attendance Marked Successfully!' 
+                                    : validationResponse.errorCode === 'ALREADY_MARKED'
+                                    ? '⏰ Already Marked Today'
+                                    : validationResponse.errorCode === 'STUDENT_NOT_FOUND'
+                                    ? '🔍 Student ID Not Found'
+                                    : validationResponse.errorCode === 'STUDENT_INACTIVE'
+                                    ? '⚠️ Student Account Inactive'
+                                    : validationResponse.errorCode === 'WRONG_BATCH'
+                                    ? '📚 Wrong Batch'
+                                    : validationResponse.errorCode === 'WRONG_SUBJECT'
+                                    ? '📖 Wrong Subject'
+                                    : validationResponse.errorCode === 'SESSION_NOT_FOUND'
+                                    ? '🏫 No Active Session'
+                                    : validationResponse.errorCode === 'EMPTY_INPUT'
+                                    ? '📝 ID Required'
+                                    : validationResponse.errorCode === 'NO_SESSION'
+                                    ? '🎯 Select Session First'
+                                    : '❌ Validation Error'
+                                  }
                                 </h3>
                                 <div className={`text-sm ${
                                   validationResponse.success
@@ -864,12 +867,62 @@ function AttendancePageContent() {
                                 }`}>
                                   <p className="font-medium">{validationResponse.message}</p>
                                   
+                                  {/* Enhanced error help messages */}
+                                  {!validationResponse.success && (
+                                    <div className="mt-3 p-3 bg-white/60 backdrop-blur rounded-lg border border-white/50">
+                                      {validationResponse.errorCode === 'STUDENT_NOT_FOUND' && (
+                                        <div className="space-y-2">
+                                          <p className="text-xs font-semibold text-red-700">💡 What to check:</p>
+                                          <ul className="text-xs text-red-600 space-y-1 ml-4">
+                                            <li>• Make sure you entered the correct Student ID or Index Number</li>
+                                            <li>• Check for typos (letters vs numbers)</li>
+                                            <li>• Ensure you're registered for this class</li>
+                                            <li>• Contact your instructor if the problem persists</li>
+                                          </ul>
+                                        </div>
+                                      )}
+                                      {validationResponse.errorCode === 'WRONG_BATCH' && (
+                                        <div className="space-y-2">
+                                          <p className="text-xs font-semibold text-red-700">💡 Batch mismatch:</p>
+                                          <p className="text-xs text-red-600">You're not enrolled in this batch. Please check with your instructor or join the correct class session.</p>
+                                        </div>
+                                      )}
+                                      {validationResponse.errorCode === 'WRONG_SUBJECT' && (
+                                        <div className="space-y-2">
+                                          <p className="text-xs font-semibold text-red-700">💡 Subject mismatch:</p>
+                                          <p className="text-xs text-red-600">You're not enrolled in this subject. Please verify you're in the correct class or contact your instructor.</p>
+                                        </div>
+                                      )}
+                                      {validationResponse.errorCode === 'STUDENT_INACTIVE' && (
+                                        <div className="space-y-2">
+                                          <p className="text-xs font-semibold text-red-700">💡 Account status:</p>
+                                          <p className="text-xs text-red-600">Your student account is inactive. Please contact the administration office to reactivate your account.</p>
+                                        </div>
+                                      )}
+                                      {validationResponse.errorCode === 'SESSION_NOT_FOUND' && (
+                                        <div className="space-y-2">
+                                          <p className="text-xs font-semibold text-red-700">💡 Session status:</p>
+                                          <p className="text-xs text-red-600">No active attendance session found. Please wait for your instructor to start the session or contact them directly.</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  
                                   {/* Show student info if available */}
                                   {validationResponse.student && (
                                     <div className="mt-3 p-4 bg-white/60 backdrop-blur rounded-xl border border-white/50">
                                       <div className="flex items-center space-x-2 mb-2">
                                         <User className="h-4 w-4 text-gray-600" />
                                         <p className="font-bold text-gray-900">{validationResponse.student.fullName}</p>
+                                        {validationResponse.errorCode === 'ALREADY_MARKED' && validationResponse.markedAt && (
+                                          <span className="ml-2 px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full font-medium">
+                                            Marked at {new Date(validationResponse.markedAt).toLocaleTimeString('en-US', {
+                                              hour: '2-digit',
+                                              minute: '2-digit',
+                                              hour12: true
+                                            })}
+                                          </span>
+                                        )}
                                       </div>
                                       <div className="flex items-center space-x-4 text-xs text-gray-600">
                                         <span className="flex items-center space-x-1">
@@ -1033,7 +1086,6 @@ function AttendancePageContent() {
                 </div>
               )}
             </div>
-          )}
 
           {/* Reports Tab */}
           {activeTab === 'report' && (
@@ -1194,7 +1246,7 @@ function AttendancePageContent() {
               )}
             </div>
           )}
-        </div>
+        
       </DashboardLayout>
     </ProtectedRoute>
   );
