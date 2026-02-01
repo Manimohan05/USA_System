@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { useToast } from '@/contexts/toast';
 import { Plus, Calendar, Users, Trash2, Edit, X, GraduationCap, Sparkles } from 'lucide-react';
 import api from '@/lib/api';
 import type { BatchDto, CreateBatchRequest } from '@/types';
 
 export default function BatchesPage() {
+  const { addToast } = useToast();
   const [batches, setBatches] = useState<BatchDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -26,7 +28,12 @@ export default function BatchesPage() {
       const response = await api.get<BatchDto[]>('/admin/institute/batches');
       setBatches(response.data);
     } catch (error) {
-      console.error('Failed to fetch batches:', error);
+      addToast({
+        type: 'error',
+        title: 'Failed to Load Batches',
+        message: 'Unable to fetch batch data. Please refresh the page.',
+        duration: 5000
+      });
     } finally {
       setLoading(false);
     }
@@ -55,9 +62,33 @@ export default function BatchesPage() {
       setNewBatchYear('');
       setShowForm(false);
       setEditingBatch(null);
-    } catch (error) {
-      console.error('Failed to save batch:', error);
-      alert('Failed to save batch. Please try again.');
+    } catch (error: any) {
+      // Handle specific error cases
+      const errorMessage = error.response?.data?.message || '';
+      
+      if (errorMessage.includes('already exists')) {
+        addToast({
+          type: 'warning',
+          title: '⚠️ Batch Already Exists',
+          message: `Batch ${newBatchYear} already exists. Please use a different year or edit the existing batch.`,
+          duration: 6000
+        });
+      } else if (errorMessage.includes('Batch not found')) {
+        addToast({
+          type: 'error',
+          title: '❌ Batch Not Found',
+          message: 'The batch you are trying to update no longer exists. Please refresh the page.',
+          duration: 5000
+        });
+      } else {
+        // Generic error for unexpected cases
+        addToast({
+          type: 'error',
+          title: 'Failed to Save Batch',
+          message: errorMessage || 'Unable to save batch. Please try again.',
+          duration: 5000
+        });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -82,8 +113,12 @@ export default function BatchesPage() {
       setBatches(batches.filter(b => b.id !== deleteConfirm.batch!.id));
       setDeleteConfirm({ show: false, batch: null });
     } catch (error) {
-      console.error('Failed to delete batch:', error);
-      alert('Failed to delete batch. Please try again.');
+      addToast({
+        type: 'error',
+        title: 'Failed to Delete Batch',
+        message: 'Unable to delete batch. Please try again.',
+        duration: 5000
+      });
     } finally {
       setDeleting(false);
     }
@@ -119,7 +154,7 @@ export default function BatchesPage() {
       <DashboardLayout>
         <div className="space-y-8">
           {/* Modern Header Section */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-blue-500 via-sky-500 to-cyan-600 rounded-2xl shadow-2xl">
+          <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 rounded-2xl shadow-2xl">
             {/* Background Elements */}
             <div className="absolute inset-0 bg-black/10"></div>
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32"></div>
@@ -135,7 +170,7 @@ export default function BatchesPage() {
                     <div>
                       <h1 className="text-4xl font-bold text-white">Batch Management</h1>
                       <div className="flex items-center space-x-2 mt-1">
-                        <div className="w-2 h-2 bg-sky-400 rounded-full animate-pulse"></div>
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
                         <p className="text-white/90">Organize academic batches and years</p>
                       </div>
                     </div>
@@ -143,7 +178,7 @@ export default function BatchesPage() {
                 </div>
                 <button
                   onClick={() => setShowForm(true)}
-                  className="group flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-sky-500 text-white rounded-xl hover:from-blue-600 hover:to-sky-600 transition-all duration-200 font-medium shadow-lg hover:scale-105 hover:shadow-xl"
+                  className="group flex items-center px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 font-medium shadow-lg hover:scale-105 hover:shadow-xl"
                 >
                   <Plus className="h-5 w-5 mr-2 group-hover:rotate-90 transition-transform duration-200" />
                   Add Batch
@@ -157,7 +192,7 @@ export default function BatchesPage() {
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 p-8 w-full max-w-lg">
                 <div className="flex items-center space-x-3 mb-6">
-                  <div className="p-3 bg-gradient-to-br from-blue-500 to-sky-500 rounded-xl">
+                  <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl">
                     <Sparkles className="h-6 w-6 text-white" />
                   </div>
                   <div>
@@ -175,7 +210,7 @@ export default function BatchesPage() {
                         value={newBatchYear}
                         onChange={(e) => setNewBatchYear(e.target.value)}
                         required
-                        className="w-full px-4 py-4 pr-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-sky-100 focus:border-sky-500 transition-all duration-200 bg-gray-50 hover:bg-white text-lg appearance-none"
+                        className="w-full px-4 py-4 pr-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white text-lg appearance-none"
                       >
                         <option value="">Select Academic Year</option>
                         {years.map((year) => (
@@ -185,7 +220,7 @@ export default function BatchesPage() {
                         ))}
                       </select>
                       <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-                        <Calendar className="h-5 w-5 text-sky-500" />
+                        <Calendar className="h-5 w-5 text-indigo-500" />
                       </div>
                     </div>
                     <p className="text-xs text-gray-500 mt-2">Choose the year when students will be enrolled in this batch</p>
@@ -202,7 +237,7 @@ export default function BatchesPage() {
                     <button
                       type="submit"
                       disabled={submitting || !newBatchYear.trim()}
-                      className="group px-6 py-3 bg-gradient-to-r from-blue-500 to-sky-500 text-white rounded-xl hover:from-blue-600 hover:to-sky-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 disabled:hover:scale-100"
+                      className="group px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 disabled:hover:scale-100"
                     >
                       {submitting ? (
                         <>
@@ -260,7 +295,7 @@ export default function BatchesPage() {
           {/* Modern Batches Grid */}
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-6">
             <div className="flex items-center space-x-3 mb-8">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-sky-500 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
                 <GraduationCap className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -271,18 +306,18 @@ export default function BatchesPage() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {batches.map((batch) => (
-                <div key={batch.id} className="group relative bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-6 border border-gray-100 hover:border-sky-200 transform hover:scale-105">
+                <div key={batch.id} className="group relative bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-6 border border-gray-100 hover:border-indigo-200 transform hover:scale-105">
                   {/* Background decoration */}
-                  <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-100 to-sky-100 rounded-full -translate-y-10 translate-x-10 opacity-50 group-hover:opacity-70 transition-opacity"></div>
+                  <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full -translate-y-10 translate-x-10 opacity-50 group-hover:opacity-70 transition-opacity"></div>
                   
                   <div className="relative">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-3">
-                        <div className="p-3 bg-gradient-to-br from-blue-500 to-sky-500 rounded-xl group-hover:scale-110 transition-transform duration-200">
+                        <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl group-hover:scale-110 transition-transform duration-200">
                           <Calendar className="h-6 w-6 text-white" />
                         </div>
                         <div>
-                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-sky-700 transition-colors">Batch {batch.batchYear}</h3>
+                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-indigo-700 transition-colors">Batch {batch.batchYear}</h3>
                           <p className="text-sm text-gray-500 font-medium">Academic Year {batch.batchYear}</p>
                         </div>
                       </div>
@@ -296,7 +331,7 @@ export default function BatchesPage() {
                       <div className="flex space-x-2">
                         <button 
                           onClick={() => handleEditBatch(batch)}
-                          className="p-2 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-all duration-200"
+                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-200"
                           title="Edit Batch"
                         >
                           <Edit className="h-4 w-4" />
@@ -319,7 +354,7 @@ export default function BatchesPage() {
           {batches.length === 0 && (
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-12">
               <div className="text-center">
-                <div className="mx-auto w-24 h-24 bg-gradient-to-br from-blue-100 to-sky-100 rounded-full flex items-center justify-center mb-6">
+                <div className="mx-auto w-24 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center mb-6">
                   <Calendar className="h-12 w-12 text-sky-600" />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">No Batches Created</h3>

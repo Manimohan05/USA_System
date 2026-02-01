@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { useToast } from '@/contexts/toast';
 import { Plus, Search, Filter, Users, Edit, Trash2, AlertCircle, RefreshCw, Upload, Archive } from 'lucide-react';
 import api from '@/lib/api';
 import { formatPhoneNumber } from '@/lib/utils';
 import type { StudentDto, BatchDto, SubjectDto } from '@/types';
 
 export default function StudentsPage() {
+  const { addToast } = useToast();
   const router = useRouter();
   const [students, setStudents] = useState<StudentDto[]>([]);
   const [batches, setBatches] = useState<BatchDto[]>([]);
@@ -93,8 +95,12 @@ export default function StudentsPage() {
       setStudents(students.filter(s => s.id !== deleteConfirm.student!.id));
       setDeleteConfirm({ show: false, student: null });
     } catch (error) {
-      console.error('Failed to archive student:', error);
-      alert('Failed to archive student. Please try again.');
+      addToast({
+        type: 'error',
+        title: 'Failed to Archive Student',
+        message: 'Unable to archive student. Please try again.',
+        duration: 5000
+      });
     } finally {
       setDeleting(false);
     }

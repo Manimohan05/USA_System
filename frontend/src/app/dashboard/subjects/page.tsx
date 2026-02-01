@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { useToast } from '@/contexts/toast';
 import { Plus, BookOpen, Users, Trash2, Edit, Search, Filter, Sparkles, GraduationCap, Star } from 'lucide-react';
 import api from '@/lib/api';
 import type { SubjectDto, CreateSubjectRequest } from '@/types';
 
 export default function SubjectsPage() {
+  const { addToast } = useToast();
   const [subjects, setSubjects] = useState<SubjectDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -29,7 +31,12 @@ export default function SubjectsPage() {
       const response = await api.get<SubjectDto[]>('/admin/institute/subjects');
       setSubjects(response.data);
     } catch (error) {
-      console.error('Failed to fetch subjects:', error);
+      addToast({
+        type: 'error',
+        title: 'Failed to Load Subjects',
+        message: 'Unable to fetch subject data. Please refresh the page.',
+        duration: 5000
+      });
     } finally {
       setLoading(false);
     }
@@ -58,9 +65,24 @@ export default function SubjectsPage() {
       setNewSubjectName('');
       setShowForm(false);
       setEditingSubject(null);
-    } catch (error) {
-      console.error('Failed to save subject:', error);
-      alert('Failed to save subject. Please try again.');
+    } catch (error: any) {
+      // Check if it's a duplicate subject error
+      if (error.response?.status === 409 || 
+          error.response?.data?.message?.includes('already exists')) {
+        addToast({
+          type: 'warning',
+          title: 'Subject Already Exists',
+          message: `A subject with the name "${newSubjectName}" already exists. Please choose a different name.`,
+          duration: 5000
+        });
+      } else {
+        addToast({
+          type: 'error',
+          title: 'Failed to Save Subject',
+          message: 'Unable to save subject. Please try again.',
+          duration: 5000
+        });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -85,8 +107,12 @@ export default function SubjectsPage() {
       setSubjects(subjects.filter(s => s.id !== deleteConfirm.subject!.id));
       setDeleteConfirm({ show: false, subject: null });
     } catch (error) {
-      console.error('Failed to delete subject:', error);
-      alert('Failed to delete subject. Please try again.');
+      addToast({
+        type: 'error',
+        title: 'Failed to Delete Subject',
+        message: 'Unable to delete subject. Please try again.',
+        duration: 5000
+      });
     } finally {
       setDeleting(false);
     }
@@ -119,7 +145,7 @@ export default function SubjectsPage() {
       <DashboardLayout>
         <div className="space-y-8">
           {/* Modern Header Section */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 rounded-2xl shadow-2xl">
+          <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 rounded-2xl shadow-2xl">
             {/* Background Elements */}
             <div className="absolute inset-0 bg-black/10"></div>
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32"></div>
@@ -135,7 +161,7 @@ export default function SubjectsPage() {
                     <div>
                       <h1 className="text-4xl font-bold text-white">Subject Management</h1>
                       <div className="flex items-center space-x-2 mt-1">
-                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
                         <p className="text-white/90">Manage academic subjects and curriculum</p>
                       </div>
                     </div>
@@ -144,7 +170,7 @@ export default function SubjectsPage() {
                 <div className="flex space-x-3">
                   <button
                     onClick={() => setShowForm(true)}
-                    className="group flex items-center px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 font-medium shadow-lg hover:scale-105 hover:shadow-xl"
+                    className="group flex items-center px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 font-medium shadow-lg hover:scale-105 hover:shadow-xl"
                   >
                     <Plus className="h-5 w-5 mr-2 group-hover:rotate-90 transition-transform duration-200" />
                     Add Subject
@@ -159,7 +185,7 @@ export default function SubjectsPage() {
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 p-8 w-full max-w-lg">
                 <div className="flex items-center space-x-3 mb-6">
-                  <div className="p-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl">
+                  <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl">
                     <Sparkles className="h-6 w-6 text-white" />
                   </div>
                   <div>
@@ -179,10 +205,10 @@ export default function SubjectsPage() {
                         onChange={(e) => setNewSubjectName(e.target.value)}
                         placeholder="Enter subject name (e.g., Chemistry, Physics, Mathematics)"
                         required
-                        className="w-full px-4 py-4 pr-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all duration-200 bg-gray-50 hover:bg-white text-lg"
+                        className="w-full px-4 py-4 pr-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white text-lg"
                       />
                       <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-                        <BookOpen className="h-5 w-5 text-emerald-500" />
+                        <BookOpen className="h-5 w-5 text-indigo-500" />
                       </div>
                     </div>
                     <p className="text-xs text-gray-500 mt-2">Choose a clear and descriptive name for the subject</p>
@@ -199,7 +225,7 @@ export default function SubjectsPage() {
                     <button
                       type="submit"
                       disabled={submitting || !newSubjectName.trim()}
-                      className="group px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 disabled:hover:scale-100"
+                      className="group px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 disabled:hover:scale-100"
                     >
                       {submitting ? (
                         <>
@@ -277,7 +303,7 @@ export default function SubjectsPage() {
           {/* Modern Subjects Grid */}
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-6">
             <div className="flex items-center space-x-3 mb-8">
-              <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
                 <GraduationCap className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -288,25 +314,24 @@ export default function SubjectsPage() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {subjects.map((subject) => (
-                <div key={subject.id} className="group relative bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-6 border border-gray-100 hover:border-emerald-200 transform hover:scale-105">
+                <div key={subject.id} className="group relative bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-6 border border-gray-100 hover:border-indigo-200 transform hover:scale-105">
                   {/* Background decoration */}
-                  <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-full -translate-y-10 translate-x-10 opacity-50 group-hover:opacity-70 transition-opacity"></div>
+                  <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full -translate-y-10 translate-x-10 opacity-50 group-hover:opacity-70 transition-opacity"></div>
                   
                   <div className="relative">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-3">
-                        <div className="p-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl group-hover:scale-110 transition-transform duration-200">
+                        <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl group-hover:scale-110 transition-transform duration-200">
                           <BookOpen className="h-6 w-6 text-white" />
                         </div>
                         <div>
-                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-emerald-700 transition-colors">{subject.name}</h3>
-                          <p className="text-sm text-gray-500 font-mono">ID: {subject.id}</p>
+                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-indigo-700 transition-colors">{subject.name}</h3>
                         </div>
                       </div>
                       <div className="flex space-x-1">
                         <button 
                           onClick={() => handleEditSubject(subject)}
-                          className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all duration-200 group-hover:scale-110"
+                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-200 group-hover:scale-110"
                           title="Edit Subject"
                         >
                           <Edit className="h-4 w-4" />
@@ -322,19 +347,15 @@ export default function SubjectsPage() {
                     </div>
                     
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-xl border border-indigo-100">
                         <div className="flex items-center space-x-2">
-                          <Users className="h-5 w-5 text-emerald-600" />
-                          <span className="text-sm font-medium text-emerald-800">Enrolled Students</span>
+                          <Users className="h-5 w-5 text-indigo-600" />
+                          <span className="text-sm font-medium text-indigo-800">Enrolled Students</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <span className="text-2xl font-bold text-emerald-700">{subject.studentCount}</span>
+                          <span className="text-2xl font-bold text-indigo-700">{subject.studentCount}</span>
                           <Star className="h-4 w-4 text-yellow-400 fill-current" />
                         </div>
-                      </div>
-                      
-                      <div className="text-xs text-gray-500 text-center">
-                        Created: {new Date().toLocaleDateString()}
                       </div>
                     </div>
                   </div>

@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { useToast } from '@/contexts/toast';
 import { 
   Calendar, 
   Users, 
@@ -30,6 +31,7 @@ import type {
 } from '@/types';
 
 export default function AttendanceSessionPage() {
+  const { addToast } = useToast();
   const params = useParams();
   const router = useRouter();
   const sessionId = params.sessionId as string;
@@ -45,14 +47,20 @@ export default function AttendanceSessionPage() {
   const [sessionStatus, setSessionStatus] = useState<SessionAttendanceStatusDto | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
   
-  // Countdown Timer State
-  const [timeRemaining, setTimeRemaining] = useState<number>(0); // in seconds
+  // Countdown Timer State (60 minutes = 3600 seconds)
+  const [timeRemaining, setTimeRemaining] = useState<number>(3600); // countdown from 60 minutes
   const [isAutoEnding, setIsAutoEnding] = useState(false);
   
   // Success overlay state
   const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [successTitle, setSuccessTitle] = useState('');
+  
+  // Confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const [confirmTitle, setConfirmTitle] = useState('');
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   
   // Recovery window countdown
   const [recoveryTimeRemaining, setRecoveryTimeRemaining] = useState(0);
@@ -66,87 +74,52 @@ export default function AttendanceSessionPage() {
   // Countdown Timer Effect
   useEffect(() => {
     if (!session || !session.isActive) {
-      setTimeRemaining(0);
+      setTimeRemaining(3600); // Reset to 60 minutes
       return;
     }
 
-    // Calculate remaining time (60 minutes from creation or reactivation)
-    // If session was reactivated, use current time as base for new 60-minute timer
+    // Calculate remaining time from session creation
     const sessionCreatedAt = new Date(session.createdAt).getTime();
-    const now = Date.now();
     const sessionDuration = 60 * 60 * 1000; // 60 minutes in milliseconds
     
-    // For reactivated sessions, check if the session was recently updated
-    // If the session is active but should have expired based on creation time,
-    // it means it was reactivated, so give it a fresh 60-minute window
-    const elapsedSinceCreation = now - sessionCreatedAt;
-    let remaining;
-    
-    if (elapsedSinceCreation > sessionDuration && session.isActive) {
-      // Session was likely reactivated, give it fresh 60 minutes
-      remaining = sessionDuration;
-      console.log('Session appears to have been reactivated, resetting countdown to 60 minutes');
-    } else {
-      // Normal countdown from creation time
-      remaining = Math.max(0, sessionDuration - elapsedSinceCreation);
-    }
-    
-    setTimeRemaining(Math.floor(remaining / 1000)); // Convert to seconds
+    const updateCountdown = () => {
+      const now = Date.now();
+      const elapsed = now - sessionCreatedAt;
+      const remaining = Math.max(0, sessionDuration - elapsed);
+      const remainingSeconds = Math.floor(remaining / 1000);
+      
+      setTimeRemaining(remainingSeconds);
+      
+      // Auto-end session when time reaches 0
+      if (remainingSeconds === 0 && !isAutoEnding) {
+        setIsAutoEnding(true);
+        autoEndSession();
+      }
+    };
 
-    // Set up countdown interval
-    const interval = setInterval(() => {
-      setTimeRemaining(prev => {
-        const newTime = Math.max(0, prev - 1);
-        
-        // Auto-end session when countdown reaches 0
-        if (newTime === 0 && session.isActive && !isAutoEnding) {
-          setIsAutoEnding(true);
-          autoEndSession();
-        }
-        
-        return newTime;
-      });
-    }, 1000);
+    // Set initial countdown
+    updateCountdown();
+
+    // Update countdown every second
+    const interval = setInterval(updateCountdown, 1000);
 
     return () => clearInterval(interval);
   }, [session, isAutoEnding]);
 
-  // Recovery Window Countdown Effect
+  // Recovery Window - No time limit (can reopen anytime until fully ended)
   useEffect(() => {
     if (!session || !session.canReactivate || !session.endedAt) {
       setRecoveryTimeRemaining(0);
       return;
     }
 
-    // Calculate remaining recovery time (10 minutes from endedAt)
-    const endedAt = new Date(session.endedAt).getTime();
-    const now = Date.now();
-    const recoveryDuration = 10 * 60 * 1000; // 10 minutes in milliseconds
-    const elapsed = now - endedAt;
-    const remaining = Math.max(0, recoveryDuration - elapsed);
-    
-    setRecoveryTimeRemaining(Math.floor(remaining / 1000)); // Convert to seconds
-
-    // Set up recovery countdown interval
-    const recoveryInterval = setInterval(() => {
-      setRecoveryTimeRemaining(prev => {
-        const newTime = Math.max(0, prev - 1);
-        
-        // Refresh session data when recovery window expires
-        if (newTime === 0) {
-          console.log('Recovery window expired, refreshing session data');
-          fetchSessionData();
-        }
-        
-        return newTime;
-      });
-    }, 1000);
-
-    return () => clearInterval(recoveryInterval);
+    // Sessions can be reopened indefinitely until fully ended
+    // No countdown timer needed
+    setRecoveryTimeRemaining(-1); // -1 indicates unlimited time
   }, [session]);
 
   // Format countdown time display
-  const formatCountdown = (seconds: number) => {
+  const formatCountdownTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
@@ -157,20 +130,60 @@ export default function AttendanceSessionPage() {
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Auto-end session when countdown reaches 0
+  // Fully end session permanently (sends SMS notifications)
+  const fullyEndSession = async () => {
+    if (!session) return;
+    
+    const sessionInfo = `Batch ${session.batchYear} - ${session.subjectName} (${formatDate(session.sessionDate)})`;
+
+    setConfirmTitle('Fully End Session?');
+    setConfirmMessage(`Are you sure you want to FULLY END this session?\n\n${sessionInfo}\n\n⚠️ This action cannot be undone and will:\n• Permanently close the session\n• Send SMS notifications to parents of absent students\n• Prevent any future reopening`);
+    setConfirmAction(() => async () => {
+      try {
+        console.log('Fully ending session:', sessionId);
+        await api.delete(`/admin/attendance/sessions/${sessionId}/fully-end`);
+        
+        console.log('Session fully ended successfully, refreshing session data');
+        await fetchSessionData();
+        
+        addToast({
+          type: 'success',
+          title: '✅ Session Fully Ended',
+          message: 'The session has been permanently closed.\n\n📱 SMS notifications have been sent to parents of absent students.',
+          duration: 10000
+        });
+      } catch (error: any) {
+        console.error('Failed to fully end session:', error);
+        addToast({
+          type: 'error',
+          title: '❌ Failed to Fully End Session',
+          message: `Error: ${error.response?.data?.message || 'Please try again.'}`,
+          duration: 6000
+        });
+      }
+    });
+    setShowConfirmModal(true);
+  };
+
+  // Auto-end session function (for manual session ending)
   const autoEndSession = async () => {
     if (!session) return;
     
     try {
-      console.log('Auto-ending session after 60 minutes:', sessionId);
+      console.log('Ending session:', sessionId);
       await api.put(`/admin/attendance/sessions/${sessionId}/deactivate`);
       
-      console.log('Session auto-ended successfully, refreshing session data');
+      console.log('Session ended successfully, refreshing session data');
       await fetchSessionData();
       
-      alert(`⏰ Session Auto-Ended\n\nThe session has been automatically ended after 60 minutes.\n\n📱 SMS notifications have been sent to parents of absent students with actual attendance times.`);
+      addToast({
+        type: 'warning',
+        title: '⏰ Session Timer Expired',
+        message: 'The 60-minute session timer has expired. Session temporarily ended.\n\n💡 You can reopen this session anytime or click "Fully End" to send SMS notifications.',
+        duration: 8000
+      });
     } catch (error: any) {
-      console.error('Failed to auto-end session:', error);
+      console.error('Failed to end session:', error);
     } finally {
       setIsAutoEnding(false);
     }
@@ -202,7 +215,12 @@ export default function AttendanceSessionPage() {
       const response = await api.get<SessionAttendanceStatusDto>(`/attendance/sessions/${sessionId}/status`);
       setSessionStatus(response.data);
     } catch (error) {
-      console.error('Failed to fetch session status:', error);
+      addToast({
+        type: 'error',
+        title: 'Failed to Load Session',
+        message: 'Unable to load session data. Please refresh the page.',
+        duration: 5000
+      });
     } finally {
       setLoadingStatus(false);
     }
@@ -243,18 +261,24 @@ export default function AttendanceSessionPage() {
       
       if (response.data.success) {
         setIndexInput('');
-        // Refresh session status to show the new attendance
-        await fetchSessionStatus();
-        
         // Auto-clear success message after 5 seconds
         setTimeout(() => setValidationResponse(null), 5000);
       }
-    } catch (error: any) {
-      console.error('Failed to mark attendance:', error);
       
+      // Always refresh session status to show current state
+      // Add small delay to ensure backend transaction has completed
+      setTimeout(async () => {
+        await fetchSessionStatus();
+      }, 100);
+    } catch (error: any) {
       // Handle server validation response in error case
       if (error.response?.data && typeof error.response.data === 'object' && 'success' in error.response.data) {
         setValidationResponse(error.response.data as AttendanceValidationResponseDto);
+        // Refresh session status even for structured error responses (like ALREADY_MARKED)
+        // Add small delay to ensure backend transaction has completed
+        setTimeout(async () => {
+          await fetchSessionStatus();
+        }, 100);
       } else {
         const errorMessage = error.response?.data?.message || 'Failed to mark attendance. Please try again.';
         setValidationResponse({
@@ -275,10 +299,7 @@ export default function AttendanceSessionPage() {
     const sessionInfo = `Batch ${session.batchYear} - ${session.subjectName} (${formatDate(session.sessionDate)})`;
 
     try {
-      console.log('Attempting to close session temporarily:', sessionId);
       await api.put(`/admin/attendance/sessions/${sessionId}/close`);
-      
-      console.log('Session closed successfully');
       
       // Show success overlay instead of alert
       setSuccessTitle(`${sessionInfo} - Successfully Closed!`);
@@ -286,20 +307,33 @@ export default function AttendanceSessionPage() {
       setShowSuccessOverlay(true);
       
     } catch (error: any) {
-      console.error('Failed to close session:', error);
-      alert(`❌ Failed to Close Session\n\nError: ${error.response?.data?.message || 'Please try again.'}`); 
+      addToast({
+        type: 'error',
+        title: '❌ Failed to Close Session',
+        message: `Error: ${error.response?.data?.message || 'Please try again.'}`,
+        duration: 6000
+      });
     }
   };
 
-  // Reactivate session (within 10-minute recovery window)
+  // Reactivate session (can reopen anytime until fully ended)
   const reactivateSession = async () => {
     if (!session) return;
     
     const sessionInfo = `Batch ${session.batchYear} - ${session.subjectName} (${formatDate(session.sessionDate)})`;
     
-    if (!confirm(`🔄 Reactivate Attendance Session?\n\nSession: ${sessionInfo}\n\n📋 This will:\n• Reopen the session for attendance marking\n• Allow students to mark attendance again\n• Extend the session time\n\n⚠️ Note: This is only available within 10 minutes of ending.\n\nAre you sure you want to reactivate this session?`)) {
-      return;
-    }
+    // Show confirmation modal
+    setConfirmTitle('🔄 Reactivate Attendance Session?');
+    setConfirmMessage(`**Session:** ${sessionInfo}\n\n**📋 This will:**\n• Reopen the session for attendance marking\n• Allow students to mark attendance again\n• Preserve all existing attendance records\n\n💡 **Note:** Session can be reopened anytime until fully ended.`);
+    setConfirmAction(() => async () => {
+      setShowConfirmModal(false);
+      await performReactivation(sessionInfo);
+    });
+    setShowConfirmModal(true);
+    return;
+  };
+  
+  const performReactivation = async (sessionInfo: string) => {
 
     try {
       console.log('Attempting to reactivate session:', sessionId);
@@ -315,10 +349,18 @@ export default function AttendanceSessionPage() {
       // Reset auto-ending flag
       setIsAutoEnding(false);
       
-      alert(`✅ Session Reactivated!\n\nSession: ${sessionInfo}\n\n📋 The session is now active again and students can mark attendance.`);
+      // Show success overlay
+      setSuccessTitle(`✅ Session Reactivated Successfully!`);
+      setSuccessMessage(`${sessionInfo}\n\nThe session is now active again and students can mark attendance.`);
+      setShowSuccessOverlay(true);
     } catch (error: any) {
       console.error('Failed to reactivate session:', error);
-      alert(`❌ Failed to Reactivate Session\n\nError: ${error.response?.data?.message || 'Please try again. The 10-minute window may have expired.'}`);
+      addToast({
+        type: 'error',
+        title: '❌ Failed to Reactivate Session',
+        message: `Error: ${error.response?.data?.message || 'Please try again.'}`,
+        duration: 8000
+      });
     }
   };
 
@@ -415,15 +457,22 @@ export default function AttendanceSessionPage() {
                   {session.isActive && (
                     <>
                       {/* Countdown Timer */}
-                      <div className="flex items-center px-4 py-2 bg-white/10 backdrop-blur-sm rounded-xl">
-                        <Clock className="h-4 w-4 mr-2 text-white" />
-                        <span className={`text-white font-mono font-bold ${
-                          timeRemaining <= 300 ? 'animate-pulse text-red-200' : // Last 5 minutes
-                          timeRemaining <= 600 ? 'text-yellow-200' : // Last 10 minutes
-                          'text-white'
+                      <div className={`flex items-center px-4 py-2 backdrop-blur-sm rounded-xl ${
+                        timeRemaining <= 300 ? 'bg-red-500/20 border border-red-400/30' : 'bg-white/10'
+                      }`}>
+                        <Clock className={`h-4 w-4 mr-2 ${
+                          timeRemaining <= 300 ? 'text-red-200 animate-pulse' : 'text-white'
+                        }`} />
+                        <span className={`font-mono font-bold ${
+                          timeRemaining <= 300 ? 'text-red-200' : 'text-white'
                         }`}>
-                          {formatCountdown(timeRemaining)}
+                          {formatCountdownTime(timeRemaining)}
                         </span>
+                        {timeRemaining <= 300 && (
+                          <span className="ml-2 text-xs text-red-200">
+                            (Auto-end soon)
+                          </span>
+                        )}
                       </div>
                       
                       <button
@@ -433,8 +482,15 @@ export default function AttendanceSessionPage() {
                       >
                         <Pause className="h-4 w-4 mr-2" />
                         Close Session
-                      </button>
-                    </>
+                      </button>                      
+                      <button
+                        onClick={fullyEndSession}
+                        className="flex items-center px-4 py-2 bg-red-500/80 hover:bg-red-500 text-white rounded-xl transition-colors"
+                        title="Permanently end session and send SMS notifications"
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Fully End
+                      </button>                    </>
                   )}
                   
                   {/* Notice for ended sessions */}
@@ -552,25 +608,6 @@ export default function AttendanceSessionPage() {
                       )}
                     </button>
 
-                    {/* Countdown Warning */}
-                    {timeRemaining <= 600 && timeRemaining > 0 && (
-                      <div className={`p-4 rounded-xl border-l-4 ${
-                        timeRemaining <= 300 
-                          ? 'bg-red-50 border-red-500 text-red-800'
-                          : 'bg-yellow-50 border-yellow-500 text-yellow-800'
-                      }`}>
-                        <div className="flex items-center">
-                          <Clock className="h-5 w-5 mr-2" />
-                          <p className="font-medium">
-                            {timeRemaining <= 300 
-                              ? `⚠️ Session will end automatically in ${formatCountdown(timeRemaining)}!`
-                              : `⏰ Session will end in ${formatCountdown(timeRemaining)}`
-                            }
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
                     {/* Validation Response */}
                     {validationResponse && (
                       <div className={`p-4 rounded-xl border-l-4 ${
@@ -601,38 +638,64 @@ export default function AttendanceSessionPage() {
                       <Pause className="h-8 w-8 text-yellow-500" />
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">Session Temporarily Closed</h3>
-                    <p className="text-gray-600 mb-4">This session has been temporarily closed by an administrator. Please use the attendance page to reopen it.</p>
+                    <p className="text-gray-600 mb-4">This session has been temporarily closed by an administrator. It can be reopened anytime or fully ended.</p>
+                    
+                    <div className="flex space-x-4">
+                      <button
+                        onClick={() => router.push('/dashboard/attendance')}
+                        className="flex-1 flex items-center justify-center px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-colors"
+                      >
+                        <ArrowLeft className="h-5 w-5 mr-2" />
+                        Back to Attendance
+                      </button>
+                      
+                      <button
+                        onClick={fullyEndSession}
+                        className="flex-1 flex items-center justify-center px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors font-medium"
+                        title="Permanently end session and send SMS notifications"
+                      >
+                        <XCircle className="h-5 w-5 mr-2" />
+                        Fully End
+                      </button>
+                    </div>
                   </div>
                 ) : session.canReactivate ? (
                   <div className="text-center py-8">
-                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <RefreshCw className="h-8 w-8 text-red-500 animate-pulse" />
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <RefreshCw className="h-8 w-8 text-green-500" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Session Accidentally Ended</h3>
-                    <p className="text-gray-600 mb-4">This session was ended but can still be reactivated within the 10-minute recovery window.</p>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Session Ended - Can Reopen</h3>
+                    <p className="text-gray-600 mb-4">This session was ended but can be reactivated anytime until fully ended.</p>
                     
-                    {/* Recovery countdown display */}
-                    {recoveryTimeRemaining > 0 && (
-                      <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg inline-block">
-                        <div className="flex items-center space-x-2 text-red-800">
-                          <Clock className="h-4 w-4" />
-                          <span className="font-mono text-lg font-bold">
-                            {formatCountdown(recoveryTimeRemaining)}
-                          </span>
-                          <span className="text-sm">remaining</span>
+                    <div className="space-y-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h4 className="font-medium text-blue-800 mb-2">📋 Reopen Options:</h4>
+                        <div className="text-sm text-blue-700 space-y-1">
+                          <p>• <strong>Reopen Session:</strong> Continue attendance marking with same session ID</p>
+                          <p>• <strong>Fully End:</strong> Permanently close and send SMS notifications</p>
                         </div>
                       </div>
-                    )}
-                    
-                    <div className="space-y-3">
-                      <button
-                        onClick={reactivateSession}
-                        className="px-6 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors font-medium animate-pulse block mx-auto"
-                      >
-                        <RefreshCw className="h-4 w-4 inline mr-2" />
-                        REACTIVATE SESSION
-                      </button>
-                      <p className="text-sm text-red-600 font-medium">⏰ Recovery window expires 10 minutes after ending</p>
+                      
+                      <div className="flex space-x-4">
+                        <button
+                          onClick={reactivateSession}
+                          className="flex-1 flex items-center justify-center px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl transition-colors font-medium"
+                        >
+                          <Play className="h-5 w-5 mr-2" />
+                          Reopen Session
+                        </button>
+                        
+                        <button
+                          onClick={fullyEndSession}
+                          className="flex-1 flex items-center justify-center px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors font-medium"
+                          title="Permanently end session and send SMS notifications"
+                        >
+                          <XCircle className="h-5 w-5 mr-2" />
+                          Fully End
+                        </button>
+                      </div>
+                      
+                      <p className="text-sm text-gray-500 text-center">💡 Reopen preserves all existing attendance. Fully End sends SMS notifications.</p>
                     </div>
                   </div>
                 ) : (
@@ -781,6 +844,60 @@ export default function AttendanceSessionPage() {
                   className="px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all"
                 >
                   Go to Attendance Page
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <RefreshCw className="h-6 w-6 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-white">{confirmTitle}</h3>
+              </div>
+            </div>
+            
+            {/* Body */}
+            <div className="p-6">
+              <div className="text-gray-700 mb-6 whitespace-pre-line leading-relaxed">
+                {confirmMessage.split('\n').map((line, index) => {
+                  if (line.startsWith('**') && line.endsWith('**')) {
+                    return <p key={index} className="font-bold text-gray-900 mb-2">{line.slice(2, -2)}</p>;
+                  }
+                  if (line.startsWith('•')) {
+                    return <p key={index} className="ml-4 mb-1">{line}</p>;
+                  }
+                  if (line.startsWith('⚠️')) {
+                    return <p key={index} className="font-semibold text-amber-700 mt-3">{line}</p>;
+                  }
+                  return <p key={index} className="mb-2">{line}</p>;
+                })}
+              </div>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    if (confirmAction) {
+                      confirmAction();
+                    }
+                  }}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 font-semibold shadow-lg"
+                >
+                  ✅ Yes, Reactivate
+                </button>
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-semibold"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

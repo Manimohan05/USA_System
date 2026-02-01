@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -96,7 +97,8 @@ public class AttendanceController {
     }
 
     /**
-     * ADMIN endpoint to temporarily close a session (pause without sending SMS).
+     * ADMIN endpoint to temporarily close a session (pause without sending
+     * SMS).
      */
     @PutMapping("/admin/attendance/sessions/{sessionId}/close")
     public ResponseEntity<Void> closeSession(@PathVariable Long sessionId) {
@@ -123,12 +125,23 @@ public class AttendanceController {
     }
 
     /**
-     * ADMIN endpoint to permanently end a session with SMS notifications.
-     * This is an alias for deactivateSession for better API clarity.
+     * ADMIN endpoint to permanently end a session with SMS notifications. This
+     * is an alias for deactivateSession for better API clarity.
      */
     @PutMapping("/admin/attendance/sessions/{sessionId}/end")
     public ResponseEntity<Void> endSession(@PathVariable Long sessionId) {
         sessionService.deactivateSession(sessionId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * ADMIN endpoint to permanently and fully end a session with SMS
+     * notifications. This prevents any future reactivation and ensures SMS
+     * notifications are sent.
+     */
+    @DeleteMapping("/admin/attendance/sessions/{sessionId}/fully-end")
+    public ResponseEntity<Void> fullyEndSession(@PathVariable Long sessionId) {
+        sessionService.fullyEndSession(sessionId);
         return ResponseEntity.ok().build();
     }
 

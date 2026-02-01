@@ -28,16 +28,16 @@ public class Student {
 
     @Column(name = "full_name", nullable = false)
     private String fullName;
-    
+
     @Column(name = "address", nullable = false, length = 500)
     private String address;
-    
+
     @Column(name = "nic", length = 15)
     private String nic; // Optional
-    
+
     @Column(name = "school", nullable = false)
     private String school;
-    
+
     @Column(name = "admission_date", nullable = false)
     private LocalDate admissionDate;
 

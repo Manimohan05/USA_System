@@ -73,8 +73,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Header - Fixed */}
         <div className="relative flex items-center justify-between h-20 px-6 border-b border-slate-700/50 flex-shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-              <GraduationCap className="h-6 w-6 text-white" />
+            <div className="w-10 h-10 bg-white/10 backdrop-blur-xl rounded-xl flex items-center justify-center shadow-lg overflow-hidden">
+              <img src="/usa-logo.png" alt="USA Institute Logo" className="h-8 w-8 object-contain" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-white">USA Attendance</h1>

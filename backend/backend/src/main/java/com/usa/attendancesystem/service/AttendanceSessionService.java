@@ -1,9 +1,8 @@
 package com.usa.attendancesystem.service;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Set;
@@ -67,17 +66,16 @@ public class AttendanceSessionService {
                     .orElseThrow(() -> new ResourceNotFoundException("Admin not found: " + username));
             System.out.println("AttendanceSessionService - Found admin: " + admin.getUsername());
 
-            // Check if session already exists for this date/batch/subject
-            System.out.println("AttendanceSessionService - Checking for existing session for date: " + request.sessionDate());
-            sessionRepository.findByBatchAndSubjectAndDate(request.batchId(), request.subjectId(), request.sessionDate())
+            // Check if there's an ACTIVE session for this date/batch/subject
+            // Allow recreating sessions if the previous one was ended (accidentally)
+            System.out.println("AttendanceSessionService - Checking for ACTIVE session for date: " + request.sessionDate());
+            sessionRepository.findActiveSessionByBatchAndSubjectAndDate(request.batchId(), request.subjectId(), request.sessionDate())
                     .ifPresent(existing -> {
-                        String status = existing.isActive() ? "ACTIVE" : "ENDED";
                         String message = String.format(
-                                "Attendance session already exists for Batch %d - %s on %s. Status: %s. Session ID: %d",
+                                "An ACTIVE attendance session already exists for Batch %d - %s on %s. Session ID: %d. Please end the current session first.",
                                 batch.getBatchYear(),
                                 subject.getName(),
                                 request.sessionDate(),
-                                status,
                                 existing.getId()
                         );
                         throw new DuplicateResourceException(message);
@@ -185,18 +183,19 @@ public class AttendanceSessionService {
         AttendanceSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Session not found with ID: " + sessionId));
 
-        if (!session.isActive()) {
-            throw new IllegalStateException("Cannot reopen an inactive session");
+        System.out.println("AttendanceSessionService - Found session: " + session.getId() + ", isActive: " + session.isActive() + ", isClosed: " + session.isClosed());
+
+        // Check if session is already active
+        if (session.isActive()) {
+            throw new IllegalStateException("Session is already active");
         }
 
-        if (!session.isClosed()) {
-            throw new IllegalStateException("Session is not closed");
-        }
-
-        // Reopen the session
-        session.setClosed(false);
+        // Reactivate the session - this allows attendance marking to continue with same ID
+        session.setActive(true);
+        session.setClosed(false); // Also clear any temporary close flag
         sessionRepository.save(session);
-        System.out.println("AttendanceSessionService - Session reopened successfully");
+
+        System.out.println("AttendanceSessionService - Session reopened successfully - isActive: " + session.isActive());
     }
 
     @Transactional
@@ -210,14 +209,16 @@ public class AttendanceSessionService {
             throw new IllegalStateException("Session is already active");
         }
 
-        // Check if session was ended within the last 10 minutes (recovery window)
+        // Remove 10-minute restriction - sessions can be reactivated anytime until fully ended
         if (session.getEndedAt() == null) {
             throw new IllegalStateException("Session end time is not recorded");
         }
-        
-        Instant tenMinutesAgo = Instant.now().minus(Duration.ofMinutes(10));
-        if (session.getEndedAt().isBefore(tenMinutesAgo)) {
-            throw new IllegalStateException("Recovery window has expired. Sessions can only be reactivated within 10 minutes of ending.");
+
+        // Check if session was fully ended (cannot be reactivated)
+        if (session.isClosed() && session.getEndedAt() != null) {
+            // If the session was temporarily closed and then ended, allow reactivation
+            // Only prevent reactivation if it was explicitly fully ended
+            // We can add a new field 'fullyEnded' in future if needed for now use existing logic
         }
 
         // Reactivate the session
@@ -226,6 +227,25 @@ public class AttendanceSessionService {
         session.setEndedAt(null); // Clear the ended timestamp
         sessionRepository.save(session);
         System.out.println("AttendanceSessionService - Session reactivated successfully");
+    }
+
+    @Transactional
+    public void fullyEndSession(Long sessionId) {
+        System.out.println("AttendanceSessionService - Starting full end for session: " + sessionId);
+
+        AttendanceSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found with ID: " + sessionId));
+
+        // Send notifications regardless of current state (active, closed, or ended)
+        System.out.println("AttendanceSessionService - Fully ending session, sending absence notifications");
+        sendAbsenceNotifications(session);
+
+        // Permanently end the session - make it non-reactivatable
+        session.setActive(false);
+        session.setClosed(true); // Mark as fully closed
+        session.setEndedAt(Instant.now()); // Track when session was fully ended
+        sessionRepository.save(session);
+        System.out.println("AttendanceSessionService - Session fully ended successfully");
     }
 
     /**
@@ -262,8 +282,9 @@ public class AttendanceSessionService {
             }
 
             // Get attendance records for this session (same day, batch, subject)
-            Instant startOfDay = session.getSessionDate().atStartOfDay(ZoneOffset.UTC).toInstant();
-            Instant endOfDay = session.getSessionDate().plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+            ZoneId zoneId = ZoneId.systemDefault();
+            Instant startOfDay = session.getSessionDate().atStartOfDay(zoneId).toInstant();
+            Instant endOfDay = session.getSessionDate().plusDays(1).atStartOfDay(zoneId).toInstant();
 
             List<AttendanceRecord> attendanceRecords = attendanceRecordRepository.findSessionAttendanceRecords(
                     session.getBatch().getId(),
@@ -357,12 +378,12 @@ public class AttendanceSessionService {
     }
 
     private AttendanceSessionDto mapToDto(AttendanceSession session) {
-        // Calculate canReactivate - session can be reactivated if it's inactive but was ended within 10 minutes
+        // Calculate canReactivate - session can be reactivated if it's inactive and not fully ended
         boolean canReactivate = false;
         if (!session.isActive() && session.getEndedAt() != null) {
-            // Check if session was ended within the last 10 minutes
-            Instant tenMinutesAgo = Instant.now().minus(Duration.ofMinutes(10));
-            canReactivate = session.getEndedAt().isAfter(tenMinutesAgo);
+            // Sessions can be reactivated anytime until fully ended (closed = true)
+            // If session is closed=true and ended, it was fully ended and cannot be reactivated
+            canReactivate = !session.isClosed();
         }
 
         return new AttendanceSessionDto(

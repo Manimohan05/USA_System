@@ -8,50 +8,52 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add auth token
-api.interceptors.request.use(
-  (config) => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('authToken');
-      console.log('API Request Interceptor:', {
-        url: config.url,
-        method: config.method?.toUpperCase(),
-        tokenPresent: !!token,
-        tokenLength: token?.length || 0,
-        headers: config.headers
-      });
-      
-      if (token) {
-        config.headers = config.headers || {};
-        config.headers.Authorization = `Bearer ${token}`;
-        console.log('API Request - Authorization header added:', token.substring(0, 20) + '...');
-      } else {
-        console.log('API Request - No token found in localStorage');
-      }
-    }
-    return config;
+// Create a separate instance for messaging operations with extended timeout
+export const messagingApi = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080/api',
+  timeout: 60000, // 60 seconds for SMS operations
+  headers: {
+    'Content-Type': 'application/json',
   },
-  (error) => {
-    console.error('API Request Interceptor Error:', error);
-    return Promise.reject(error);
+});
+
+// Request interceptor to add auth token
+const addAuthToken = (config: any) => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('authToken');
+    
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
-);
+  return config;
+};
 
 // Response interceptor to handle common errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
+const handleResponse = (response: any) => response;
+const handleError = (error: any) => {
+  // Only log unexpected errors, not business logic errors like "already marked"
+  if (error.response?.status && ![400, 409].includes(error.response.status)) {
     console.log('API Error:', error.response?.status, error.response?.data, 'URL:', error.config?.url);
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      // Token expired, invalid, or access forbidden - redirect to login
-      console.log(`${error.response?.status} ${error.response?.status === 401 ? 'Unauthorized' : 'Forbidden'} - redirecting to login`);
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('authToken');
-        window.location.href = '/login';
-      }
-    }
-    return Promise.reject(error);
   }
-);
+  
+  if (error.response?.status === 401 || error.response?.status === 403) {
+    // Token expired, invalid, or access forbidden - redirect to login
+    console.log(`${error.response?.status} ${error.response?.status === 401 ? 'Unauthorized' : 'Forbidden'} - redirecting to login`);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('authToken');
+      window.location.href = '/login';
+    }
+  }
+  return Promise.reject(error);
+};
+
+// Apply interceptors to both instances
+api.interceptors.request.use(addAuthToken, (error) => Promise.reject(error));
+api.interceptors.response.use(handleResponse, handleError);
+
+messagingApi.interceptors.request.use(addAuthToken, (error) => Promise.reject(error));
+messagingApi.interceptors.response.use(handleResponse, handleError);
 
 export default api;

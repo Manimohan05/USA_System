@@ -392,22 +392,22 @@ public class StudentService {
 
         // Remove all non-digit characters first
         String cleaned = phoneNumber.replaceAll("\\D", "");
-        
+
         // If already in correct international format (94XXXXXXXXX - 11 digits)
         if (cleaned.length() == 11 && cleaned.startsWith("94")) {
             return "+" + cleaned;
         }
-        
+
         // If starts with 0 (Sri Lankan local format - 0XXXXXXXXX - 10 digits)
         if (cleaned.length() == 10 && cleaned.startsWith("0")) {
             return "+94" + cleaned.substring(1); // Remove 0 and add +94
         }
-        
+
         // If 9 digits (missing leading 0 - XXXXXXXXX)
         if (cleaned.length() == 9) {
             return "+94" + cleaned;
         }
-        
+
         // If none of the above patterns match, log warning and return original
         System.out.println("WARNING: Unexpected phone number format: " + phoneNumber + " (cleaned: " + cleaned + ")");
         return phoneNumber;

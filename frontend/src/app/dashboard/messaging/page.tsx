@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Send, MessageSquare, Bell, Users, Calendar, Target, Zap, CheckCircle, AlertTriangle, Sparkles } from 'lucide-react';
-import api from '@/lib/api';
+import api, { messagingApi } from '@/lib/api';
 import type { BatchDto, SubjectDto, BroadcastMessageRequest, MessagingStatsDto, TargetedStudentCountDto } from '@/types';
 
 type MessageType = 'broadcast' | 'fee-reminder';
@@ -75,7 +75,7 @@ export default function MessagingPage() {
     }
 
     setSending(true);
-    setStatusMessage(null);
+    setStatusMessage({ type: 'info', text: 'Sending messages... This may take up to 60 seconds for large groups.' });
 
     try {
       const request: BroadcastMessageRequest = {
@@ -84,7 +84,8 @@ export default function MessagingPage() {
         subjectId: sendToAll ? undefined : (selectedSubject ? parseInt(selectedSubject) : undefined),
       };
       
-      await api.post('/admin/messaging/broadcast', request);
+      // Use messagingApi with extended timeout for broadcast operations
+      await messagingApi.post('/admin/messaging/broadcast', request);
       setStatusMessage({ type: 'success', text: 'Message sent successfully to parents!' });
       setMessage('');
       
@@ -92,7 +93,14 @@ export default function MessagingPage() {
       setTimeout(() => setStatusMessage(null), 5000);
     } catch (error: any) {
       console.error('Failed to send broadcast:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to send message. Please try again.';
+      let errorMessage = 'Failed to send message. Please try again.';
+      
+      if (error.code === 'ECONNABORTED' && error.message?.includes('timeout')) {
+        errorMessage = 'Message sending is taking longer than expected. It may still complete in the background. Please check with parents to confirm delivery.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
       setStatusMessage({ type: 'error', text: errorMessage });
     } finally {
       setSending(false);

@@ -3,7 +3,6 @@ package com.usa.attendancesystem.service;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -72,22 +71,32 @@ public class AttendanceService {
             throw new IllegalStateException("Student is not enrolled in the selected subject.");
         }
 
-        // 3. Check for duplicate attendance
-        Instant startOfDay = LocalDate.now().atStartOfDay(ZoneOffset.UTC).toInstant();
-        Instant endOfDay = LocalDate.now().plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        // 3. Check for duplicate attendance - use system timezone for accurate day boundaries
+        ZoneId zoneId = ZoneId.systemDefault();
+        Instant startOfDay = LocalDate.now().atStartOfDay(zoneId).toInstant();
+        Instant endOfDay = LocalDate.now().plusDays(1).atStartOfDay(zoneId).toInstant();
         if (attendanceRepository.hasStudentMarkedAttendanceToday(student.getId(), subject.getId(), startOfDay, endOfDay)) {
             throw new DuplicateResourceException("Attendance already marked for this student today.");
         }
 
         // 4. Create and save the record
-        AttendanceRecord record = new AttendanceRecord();
-        record.setStudent(student);
-        record.setSubject(subject);
-        record.setAttendanceTimestamp(Instant.now());
-        attendanceRepository.save(record);
+        Instant attendanceTime = Instant.now();
+        LocalDate attendanceDate = LocalDate.now();
+        try {
+            AttendanceRecord record = new AttendanceRecord();
+            record.setStudent(student);
+            record.setSubject(subject);
+            record.setAttendanceTimestamp(attendanceTime);
+            record.setAttendanceDate(attendanceDate);
+            attendanceRepository.save(record);
+            attendanceRepository.flush(); // Force immediate constraint check
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            log.warn("Duplicate attendance prevented by database constraint for student: {}", student.getStudentIdCode());
+            throw new DuplicateResourceException("Attendance already marked for this student today.");
+        }
 
         // 5. Send SMS notification
-        sendAttendanceSms(student, subject, record.getAttendanceTimestamp());
+        sendAttendanceSms(student, subject, attendanceTime);
     }
 
     @Transactional
@@ -131,8 +140,10 @@ public class AttendanceService {
                 if (student != null) {
                     AttendanceSession session = sessionRepository.findActiveSessionById(request.sessionId()).orElse(null);
                     if (session != null) {
-                        Instant startOfDay = session.getSessionDate().atStartOfDay(ZoneOffset.UTC).toInstant();
-                        Instant endOfDay = session.getSessionDate().plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+                        // Use system timezone for consistent day boundary calculation
+                        ZoneId zoneId = ZoneId.systemDefault();
+                        Instant startOfDay = session.getSessionDate().atStartOfDay(zoneId).toInstant();
+                        Instant endOfDay = session.getSessionDate().plusDays(1).atStartOfDay(zoneId).toInstant();
 
                         Optional<AttendanceRecord> existingRecord = attendanceRepository.findStudentAttendanceToday(
                                 student.getId(), session.getSubject().getId(), startOfDay, endOfDay);
@@ -141,7 +152,7 @@ public class AttendanceService {
                         if (existingRecord.isPresent()) {
                             return AttendanceValidationResponseDto.alreadyMarked(
                                     "Attendance already marked for " + student.getFullName() + " at "
-                                    + ZonedDateTime.ofInstant(existingRecord.get().getAttendanceTimestamp(), ZoneId.systemDefault())
+                                    + ZonedDateTime.ofInstant(existingRecord.get().getAttendanceTimestamp(), zoneId)
                                             .format(DateTimeFormatter.ofPattern("hh:mm a")),
                                     studentDto,
                                     existingRecord.get().getAttendanceTimestamp()
@@ -175,7 +186,7 @@ public class AttendanceService {
         }
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void markAttendanceByIndex(AttendanceMarkByIndexRequest request) {
         // 1. Find and validate active session
         AttendanceSession session = sessionRepository.findActiveSessionById(request.sessionId())
@@ -207,21 +218,37 @@ public class AttendanceService {
         }
 
         // 4. Check for duplicate attendance for this session date
-        Instant startOfDay = session.getSessionDate().atStartOfDay(ZoneOffset.UTC).toInstant();
-        Instant endOfDay = session.getSessionDate().plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        // Use system default timezone for accurate day boundary calculation
+        ZoneId zoneId = ZoneId.systemDefault();
+        Instant startOfDay = session.getSessionDate().atStartOfDay(zoneId).toInstant();
+        Instant endOfDay = session.getSessionDate().plusDays(1).atStartOfDay(zoneId).toInstant();
+
+        // Check if already marked (application-level check)
         if (attendanceRepository.hasStudentMarkedAttendanceToday(student.getId(), session.getSubject().getId(), startOfDay, endOfDay)) {
             throw new DuplicateResourceException("Attendance already marked for this student today in " + session.getSubject().getName());
         }
 
         // 5. Create and save the record
-        AttendanceRecord record = new AttendanceRecord();
-        record.setStudent(student);
-        record.setSubject(session.getSubject());
-        record.setAttendanceTimestamp(Instant.now());
-        attendanceRepository.save(record);
+        // The database unique constraint will also prevent duplicates in case of race conditions
+        AttendanceRecord record;
+        Instant attendanceTime = Instant.now();
+        LocalDate attendanceDate = session.getSessionDate(); // Use session date for consistency
+        try {
+            record = new AttendanceRecord();
+            record.setStudent(student);
+            record.setSubject(session.getSubject());
+            record.setAttendanceTimestamp(attendanceTime);
+            record.setAttendanceDate(attendanceDate);
+            attendanceRepository.save(record);
+            attendanceRepository.flush(); // Force immediate constraint check
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            // Database constraint caught a race condition - attendance was already marked
+            log.warn("Duplicate attendance prevented by database constraint for student: {}", student.getIndexNumber());
+            throw new DuplicateResourceException("Attendance already marked for this student today in " + session.getSubject().getName());
+        }
 
         // 6. Send enhanced SMS notification
-        sendAttendanceSms(student, session.getSubject(), record.getAttendanceTimestamp());
+        sendAttendanceSms(student, session.getSubject(), attendanceTime);
     }
 
     @Transactional(readOnly = true)
@@ -230,9 +257,10 @@ public class AttendanceService {
         AttendanceSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Session not found with ID: " + sessionId));
 
-        // Get date range for the session
-        Instant startOfDay = session.getSessionDate().atStartOfDay(ZoneOffset.UTC).toInstant();
-        Instant endOfDay = session.getSessionDate().plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        // Get date range for the session - use system timezone for consistency
+        ZoneId zoneId = ZoneId.systemDefault();
+        Instant startOfDay = session.getSessionDate().atStartOfDay(zoneId).toInstant();
+        Instant endOfDay = session.getSessionDate().plusDays(1).atStartOfDay(zoneId).toInstant();
 
         // Find all attendance records for this session
         List<AttendanceRecord> attendanceRecords = attendanceRepository.findSessionAttendanceRecords(
@@ -278,9 +306,10 @@ public class AttendanceService {
         // 1. Get all students who should be in the class
         List<Student> enrolledStudents = studentRepository.findActiveStudentsByBatchAndSubject(batchId, subjectId);
 
-        // 2. Get all attendance records for that day
-        Instant startOfDay = date.atStartOfDay(ZoneOffset.UTC).toInstant();
-        Instant endOfDay = date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        // 2. Get all attendance records for that day - use system timezone for consistency
+        ZoneId zoneId = ZoneId.systemDefault();
+        Instant startOfDay = date.atStartOfDay(zoneId).toInstant();
+        Instant endOfDay = date.plusDays(1).atStartOfDay(zoneId).toInstant();
         List<AttendanceRecord> presentRecords = attendanceRepository.findBySubjectAndDateRange(subjectId, startOfDay, endOfDay);
 
         Set<UUID> presentStudentIds = presentRecords.stream()

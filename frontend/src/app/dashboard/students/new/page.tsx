@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { useToast } from '@/contexts/toast';
 import { ArrowLeft, Save, Upload, UserPlus, Sparkles, Users, BookOpen, Phone, IdCard, RefreshCw, MapPin, CreditCard, GraduationCap, Calendar } from 'lucide-react';
 import api from '@/lib/api';
 import type { BatchDto, SubjectDto, CreateStudentRequest, StudentDto } from '@/types';
 
 export default function NewStudentPage() {
+  const { addToast } = useToast();
   const router = useRouter();
   const [batches, setBatches] = useState<BatchDto[]>([]);
   const [subjects, setSubjects] = useState<SubjectDto[]>([]);
@@ -47,7 +49,7 @@ export default function NewStudentPage() {
       setBatches(batchesRes.data);
       setSubjects(subjectsRes.data);
     } catch (error) {
-      console.error('Failed to fetch initial data:', error);
+      // Silent fail for initial data - UI will handle missing data gracefully
     } finally {
       setLoading(false);
     }
@@ -58,7 +60,7 @@ export default function NewStudentPage() {
       const response = await api.get<string>('/admin/students/next-student-id');
       setNextStudentId(response.data);
     } catch (error) {
-      console.error('Failed to fetch next student ID:', error);
+      // Use fallback student ID
       setNextStudentId('STU001'); // fallback
     }
   };
@@ -76,7 +78,7 @@ export default function NewStudentPage() {
         const response = await api.get<string>(`/admin/students/next-index-number/${batchId}`);
         return response.data || '';
       } catch (error) {
-        console.warn('Could not get next index number from backend, calculating locally:', error);
+        // Backend unavailable, calculate locally
         
         // Fallback: get existing students and calculate locally
         const studentsResponse = await api.get<StudentDto[]>(`/admin/students?batchId=${batchId}`);
@@ -90,7 +92,6 @@ export default function NewStudentPage() {
         return indexNumber.toString();
       }
     } catch (error) {
-      console.error('Failed to generate index number:', error);
       // Ultimate fallback: use batch year last digit + 001
       const batch = batches.find(b => b.id.toString() === batchId);
       if (batch) {
@@ -195,8 +196,12 @@ export default function NewStudentPage() {
       setShowSuccessModal(true);
       
     } catch (error: any) {
-      console.error('Failed to create student:', error);
-      alert('Failed to create student. Please try again.');
+      addToast({
+        type: 'error',
+        title: 'Failed to Create Student',
+        message: error.response?.data?.message || 'Unable to create student. Please try again.',
+        duration: 6000
+      });
     } finally {
       setSubmitting(false);
     }

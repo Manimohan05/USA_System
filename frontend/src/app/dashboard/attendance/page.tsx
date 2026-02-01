@@ -4,7 +4,8 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Calendar, Users, CheckCircle, XCircle, Download, Search, Play, Pause, Settings, Clock, BookOpen, GraduationCap, User, ExternalLink, AlertTriangle } from 'lucide-react';
+import { useToast } from '@/contexts/toast';
+import { Calendar, Users, CheckCircle, XCircle, Download, Search, Play, Pause, Settings, Clock, BookOpen, GraduationCap, User, ExternalLink, AlertTriangle, RotateCcw } from 'lucide-react';
 import api from '@/lib/api';
 import { formatDate, formatDateForAPI } from '@/lib/utils';
 import type { 
@@ -23,6 +24,7 @@ import type {
 type TabType = 'sessions' | 'mark' | 'report';
 
 function AttendancePageContent() {
+  const { addToast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -59,6 +61,13 @@ function AttendancePageContent() {
   const [reportSubject, setReportSubject] = useState<string>('');
   const [attendanceReport, setAttendanceReport] = useState<AttendanceReportDto | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
+  
+  // Confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const [confirmTitle, setConfirmTitle] = useState('');
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+  const [confirmButtonText, setConfirmButtonText] = useState('Yes, Confirm');
 
   useEffect(() => {
     fetchInitialData();
@@ -93,6 +102,9 @@ function AttendancePageContent() {
     try {
       setLoadingSessions(true);
       const response = await api.get<AttendanceSessionDto[]>('/admin/attendance/sessions/today');
+      console.log('Fetched sessions:', response.data);
+      console.log('Active sessions:', response.data.filter(s => s.isActive));
+      console.log('Ended sessions:', response.data.filter(s => !s.isActive));
       setSessions(response.data);
       
       // Auto-select session from URL parameter if available
@@ -134,11 +146,17 @@ function AttendancePageContent() {
     e.preventDefault();
     
     if (!sessionBatch || !sessionSubject || !sessionDate) {
-      alert('Please fill in all fields');
+      addToast({
+        type: 'warning',
+        title: 'Missing Information',
+        message: 'Please fill in all fields to create a session.',
+        duration: 4000
+      });
       return;
     }
 
-    // Check if there's already an active session for this batch/subject/date
+    // Check if there's already an ACTIVE session for this batch/subject/date
+    // We allow creating new sessions if the previous one was ended (accidentally)
     const selectedBatch = batches.find(b => b.id === parseInt(sessionBatch));
     const selectedSubject = subjects.find(s => s.id === parseInt(sessionSubject));
     const existingSession = sessions.find(s => 
@@ -153,7 +171,12 @@ function AttendancePageContent() {
       const subjectName = selectedSubject?.name || 'Unknown Subject';
       const formattedDate = formatDate(sessionDate);
       
-      alert(`⚠️ Session Already Exists!\n\nThere is already an active attendance session for:\n• ${batchName}\n• Subject: ${subjectName}\n• Date: ${formattedDate}\n\nPlease end the existing session first or select a different date/batch/subject combination.`);
+      addToast({
+        type: 'warning',
+        title: '⚠️ Active Session Exists!',
+        message: `There is already an ACTIVE attendance session running for:\n\n• ${batchName}\n• Subject: ${subjectName}\n• Date: ${formattedDate}.`,
+        duration: 8000
+      });
       return;
     }
 
@@ -179,24 +202,88 @@ function AttendancePageContent() {
       
       const batchName = `Batch ${selectedBatch?.batchYear}`;
       const subjectName = selectedSubject?.name || 'Unknown Subject';
-      alert(`✅ Session Created Successfully!\n\n${batchName} - ${subjectName}\nDate: ${formatDate(sessionDate)}\n\nStudents can now mark their attendance for this session.`);
-    } catch (error: any) {
-      console.error('Failed to create session:', error);
       
+      addToast({
+        type: 'success',
+        title: '✅ Session Created Successfully!',
+        message: `${batchName} - ${subjectName}\nDate: ${formatDate(sessionDate)}\n\nStudents can now mark their attendance for this session.`,
+        duration: 6000
+      });
+    } catch (error: any) {
       // Handle specific error types with meaningful messages
-      if (error.response?.data?.message?.includes('already exists')) {
+      if (error.response?.status === 409 || error.response?.data?.message?.includes('already exists')) {
+        // Don't log 409 errors as they are expected business logic conflicts
         const batchName = `Batch ${selectedBatch?.batchYear}`;
         const subjectName = selectedSubject?.name || 'Unknown Subject';
         const formattedDate = formatDate(sessionDate);
         
-        alert(`⚠️ Session Already Exists!\n\nA session for ${batchName} - ${subjectName} on ${formattedDate} has already been created.\n\nThis could be:\n• An active session that is currently running\n• A completed session that has ended\n\nPlease check the sessions list or choose a different date.`);
+        // Debug: Check what sessions actually exist
+        console.log('Session creation failed - Current sessions:', sessions);
+        console.log('Looking for:', { batchId: parseInt(sessionBatch), subjectId: parseInt(sessionSubject), sessionDate });
+        
+        // Check if this might be an ended session that can be recreated
+        const endedSession = sessions.find(s => 
+          s.batchId === parseInt(sessionBatch) && 
+          s.subjectId === parseInt(sessionSubject) && 
+          s.sessionDate === sessionDate &&
+          !s.isActive
+        );
+        
+        const activeSession = sessions.find(s => 
+          s.batchId === parseInt(sessionBatch) && 
+          s.subjectId === parseInt(sessionSubject) && 
+          s.sessionDate === sessionDate &&
+          s.isActive
+        );
+        
+        if (activeSession) {
+          addToast({
+            type: 'warning',
+            title: '⚠️ Active Session Exists!',
+            message: `There is already an ACTIVE session running for:\n\n• ${batchName}\n• Subject: ${subjectName}\n• Date: ${formattedDate}\n\nPlease end the current session first before creating a new one.`,
+            duration: 8000
+          });
+        } else if (endedSession) {
+          addToast({
+            type: 'info',
+            title: '🔄 Session Already Exists (Ended)',
+            message: `A session for ${batchName} - ${subjectName} on ${formattedDate} was already created but ended.\n\n💡 You can reopen the existing session instead of creating a new one:\n\n• Look for "Ended Sessions" section below\n• Click "Reopen Session" for ${formattedDate}\n\nThis will reactivate the same session ID.`,
+            duration: 12000
+          });
+        } else {
+          addToast({
+            type: 'error',
+            title: '❌ Unexpected Session Conflict',
+            message: `Session creation blocked for ${batchName} - ${subjectName} on ${formattedDate}.\n\nThis might be a database inconsistency. Please refresh the page and try again.\n\nIf the problem persists, contact support.`,
+            duration: 10000
+          });
+        }
       } else if (error.response?.data?.message?.includes('Batch not found')) {
-        alert('❌ Error: Selected batch not found. Please refresh the page and try again.');
+        console.error('Batch not found error:', error);
+        addToast({
+          type: 'error',
+          title: '❌ Batch Not Found',
+          message: 'Selected batch not found. Please refresh the page and try again.',
+          duration: 5000
+        });
       } else if (error.response?.data?.message?.includes('Subject not found')) {
-        alert('❌ Error: Selected subject not found. Please refresh the page and try again.');
+        console.error('Subject not found error:', error);
+        addToast({
+          type: 'error',
+          title: '❌ Subject Not Found',
+          message: 'Selected subject not found. Please refresh the page and try again.',
+          duration: 5000
+        });
       } else {
+        // Only log unexpected errors
+        console.error('Unexpected error creating session:', error);
         const errorMessage = error.response?.data?.message || 'Failed to create session. Please try again.';
-        alert(`❌ Failed to Create Session\n\n${errorMessage}\n\nPlease try again or contact support if the problem persists.`);
+        addToast({
+          type: 'error',
+          title: '❌ Failed to Create Session',
+          message: `${errorMessage}\n\nPlease try again or contact support if the problem persists.`,
+          duration: 7000
+        });
       }
     } finally {
       setCreatingSession(false);
@@ -209,15 +296,23 @@ function AttendancePageContent() {
       ? `Batch ${sessionToEnd.batchYear} - ${sessionToEnd.subjectName} (${formatDate(sessionToEnd.sessionDate)})`
       : 'this session';
 
-    if (!confirm(`🛑 END Attendance Session PERMANENTLY?\n\nSession: ${sessionInfo}\n\n⚠️ CRITICAL ACTION - This will:\n• PERMANENTLY end the attendance session\n• Send SMS notifications to parents of absent students\n• Allow 10-minute recovery window for accidental clicks\n• Cannot be reopened after 10 minutes\n\n📱 Parents will receive meaningful messages about their child's absence from today's class.\n\nAre you absolutely sure you want to END this session?`)) {
-      return;
-    }
+    // Show confirmation modal
+    setConfirmTitle('🎯 End Session Confirmation');
+    setConfirmMessage(`**${sessionInfo}**\n\n✨ This will complete the attendance session and notify parents of absent students.\n\n🕒 10-minute recovery window available.`);
+    setConfirmButtonText('Yes, End Session');
+    setConfirmAction(() => async () => {
+      setShowConfirmModal(false);
+      await performEndSession(sessionId, sessionInfo);
+    });
+    setShowConfirmModal(true);
+    return;
+  };
+  
+  const performEndSession = async (sessionId: number, sessionInfo: string) => {
 
     try {
-      console.log('Attempting to end session permanently:', sessionId, 'for session:', sessionInfo);
       await api.put(`/admin/attendance/sessions/${sessionId}/end`);
       
-      console.log('Session ended successfully, refreshing sessions list');
       // Refresh sessions list
       await fetchTodaysSessions();
       
@@ -227,21 +322,13 @@ function AttendancePageContent() {
         setSessionStatus(null);
       }
       
-      alert(`✅ Session Ended Successfully!\n\nSession: ${sessionInfo}\n\n📋 Summary:\n• The attendance session has been permanently ended\n• SMS notifications have been sent to parents of absent students\n• 10-minute recovery window is now active\n\n⏱️ You have 10 minutes to reactivate if this was accidental.\n📱 Parents received meaningful messages about their child's absence.`);
-    } catch (error: any) {
-      console.error('Failed to end session:', error);
-      console.error('Error details:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        message: error.message,
-        config: {
-          method: error.config?.method,
-          url: error.config?.url,
-          baseURL: error.config?.baseURL
-        }
+      addToast({
+        type: 'success',
+        title: '🎉 Session Completed Successfully!',
+        message: `${sessionInfo} has been ended.\n\n📱 Parents have been notified about absent students.\n⏰ 10-minute recovery window is active.`,
+        duration: 90000
       });
-      
+    } catch (error: any) {
       let errorMessage = 'Failed to end session. Please try again.';
       let debugInfo = '';
       
@@ -254,7 +341,86 @@ function AttendancePageContent() {
         errorMessage = error.response.data.message;
       }
       
-      alert(`❌ Failed to End Session\n\nSession: ${sessionInfo}\n\nError: ${errorMessage}${debugInfo}\n\n🔍 Debug Info:\nStatus: ${error.response?.status || 'Unknown'}\nURL: ${error.config?.url || 'Unknown'}\nSessionID: ${sessionId}\n\nNote: If the session was partially ended, some SMS notifications may have been sent. Please check the backend logs for more details.`);
+      addToast({
+        type: 'error',
+        title: '❌ Failed to End Session',
+        message: `Could not end ${sessionInfo}.\n\n${errorMessage}\n\nPlease try again or contact support if the issue persists.`,
+        duration: 8000
+      });
+    }
+  };
+
+  const reopenSession = async (sessionId: number) => {
+    try {
+      const session = sessions.find(s => s.id === sessionId);
+      if (!session) {
+        console.error('Session not found in local state:', sessionId);
+        return;
+      }
+      
+      const batchName = `Batch ${session.batchYear}`;
+      const subjectName = session.subjectName;
+      const sessionInfo = `${batchName} - ${subjectName} (${formatDate(session.sessionDate)})`;
+      
+      // Show confirmation modal - make sure this is for REOPENING, not ending
+      setConfirmTitle('🔄 Reopen Session Confirmation');
+      setConfirmMessage(`**${sessionInfo}**\n\n✨ This will REACTIVATE the session for continued attendance marking.\n.`);
+      setConfirmButtonText('Yes, Reopen Session');
+      setConfirmAction(() => async () => {
+        console.log('Executing REOPEN action for session:', sessionId);
+        setShowConfirmModal(false);
+        await performReopenSession(sessionId, sessionInfo);
+      });
+      setShowConfirmModal(true);
+    } catch (error: any) {
+      console.error('Error preparing reopen session:', error);
+      addToast({
+        type: 'error',
+        title: '❌ Error',
+        message: 'Failed to prepare session reopening. Please try again.',
+        duration: 5000
+      });
+    }
+  };
+  
+  const performReopenSession = async (sessionId: number, sessionInfo: string) => {
+    try {
+      await api.put(`/admin/attendance/sessions/${sessionId}/reopen`);
+      
+      // Refresh sessions list
+      await fetchTodaysSessions();
+      
+      // Auto-select the reopened session
+      const updatedSessions = await api.get<AttendanceSessionDto[]>('/admin/attendance/sessions/today');
+      const reopenedSession = updatedSessions.data.find(s => s.id === sessionId);
+      if (reopenedSession) {
+        setCurrentSession(reopenedSession);
+        await fetchSessionStatus(reopenedSession.id);
+      }
+      
+      addToast({
+        type: 'success',
+        title: '🎉 Session Reopened Successfully!',
+        message: `**${sessionInfo}** is now active again.\n\n✅ Students can mark attendance using the **same session ID**.\n🔄 All existing attendance records are preserved.`,
+        duration: 8000
+      });
+    } catch (error: any) {
+      let errorMessage = 'Failed to reopen session. Please try again.';
+      
+      if (error.response?.status === 404) {
+        errorMessage = 'Session not found. It may have been deleted.';
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response?.data?.message || 'Session cannot be reopened.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
+      addToast({
+        type: 'error',
+        title: '❌ Failed to Reopen Session',
+        message: `Could not reopen ${sessionInfo}.\n\n${errorMessage}\n\nPlease try again or contact support if needed.`,
+        duration: 7000
+      });
     }
   };
 
@@ -293,18 +459,24 @@ function AttendancePageContent() {
       
       if (response.data.success) {
         setIndexInput('');
-        // Refresh session status to show the new attendance
-        await fetchSessionStatus(currentSession!.id);
-        
         // Auto-clear success message after 5 seconds
         setTimeout(() => setValidationResponse(null), 5000);
       }
-    } catch (error: any) {
-      console.error('Failed to mark attendance:', error);
       
+      // Always refresh session status to show current state
+      // Add small delay to ensure backend transaction has completed
+      setTimeout(async () => {
+        await fetchSessionStatus(currentSession!.id);
+      }, 100);
+    } catch (error: any) {
       // Handle server validation response in error case
       if (error.response?.data && typeof error.response.data === 'object' && 'success' in error.response.data) {
         setValidationResponse(error.response.data as AttendanceValidationResponseDto);
+        // Refresh session status even for structured error responses (like ALREADY_MARKED)
+        // Add small delay to ensure backend transaction has completed
+        setTimeout(async () => {
+          await fetchSessionStatus(currentSession!.id);
+        }, 100);
       } else {
         const errorMessage = error.response?.data?.message || 'Failed to mark attendance. Please try again.';
         setValidationResponse({
@@ -322,7 +494,12 @@ function AttendancePageContent() {
 
   const fetchAttendanceReport = async () => {
     if (!reportDate || !reportBatch || !reportSubject) {
-      alert('Please select date, batch, and subject');
+      addToast({
+        type: 'warning',
+        title: 'Missing Information',
+        message: 'Please select date, batch, and subject to generate a report.',
+        duration: 4000
+      });
       return;
     }
 
@@ -337,8 +514,12 @@ function AttendancePageContent() {
       const response = await api.get<AttendanceReportDto>(`/admin/attendance/report?${params.toString()}`);
       setAttendanceReport(response.data);
     } catch (error) {
-      console.error('Failed to fetch attendance report:', error);
-      alert('Failed to fetch attendance report. Please try again.');
+      addToast({
+        type: 'error',
+        title: 'Failed to Generate Report',
+        message: 'Unable to fetch attendance report. Please try again.',
+        duration: 5000
+      });
     } finally {
       setLoadingReport(false);
     }
@@ -600,7 +781,7 @@ function AttendancePageContent() {
                 </div>
 
                 <div className="p-6">
-                  {sessions.length === 0 ? (
+                  {sessions.filter(session => session.isActive).length === 0 ? (
                     <div className="text-center py-12">
                       <div className="mx-auto w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-4">
                         <Calendar className="h-12 w-12 text-gray-400" />
@@ -611,7 +792,7 @@ function AttendancePageContent() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {sessions.map((session) => (
+                      {sessions.filter(session => session.isActive).map((session) => (
                         <div
                           key={session.id}
                           className={`group relative p-6 rounded-2xl border-2 transition-all duration-300 hover:shadow-lg ${
@@ -682,439 +863,107 @@ function AttendancePageContent() {
                   )}
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* Reports Tab */}
-          {/* Reports Tab */}
-          {activeTab === 'report' && (
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                  {/* Attendance Marking Form */}
-                  <div className="xl:col-span-2">
-                    <div className="bg-white backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                      {/* Current Session Info */}
-                      <div className="mb-6 bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="flex items-center space-x-2 mb-3">
-                              <div className="p-2 bg-white/10 rounded-xl">
-                                <Users className="h-5 w-5" />
-                              </div>
-                              <h3 className="text-lg font-bold">Current Session</h3>
-                            </div>
-                            <div className="space-y-2 text-indigo-100">
-                              <div className="flex items-center space-x-2">
-                                <GraduationCap className="h-4 w-4" />
-                                <span><span className="font-medium">Batch:</span> {currentSession?.batchYear}</span>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <BookOpen className="h-4 w-4" />
-                                <span><span className="font-medium">Subject:</span> {currentSession?.subjectName}</span>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <Clock className="h-4 w-4" />
-                                <span><span className="font-medium">Date:</span> {currentSession?.sessionDate ? formatDate(currentSession.sessionDate) : 'N/A'}</span>
-                              </div>
-                            </div>
-                          </div>
-                          {currentSession && currentSession.isActive && (
-                            <button
-                              onClick={() => endSession(currentSession.id)}
-                              className="group bg-red-500/20 text-white border border-red-300/30 rounded-xl px-4 py-3 text-sm font-semibold hover:bg-red-500/30 hover:border-red-300/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-400 transition-all duration-200 transform hover:scale-105"
-                            >
-                              <Pause className="w-4 h-4 inline mr-2 group-hover:animate-pulse" />
-                              End Session
-                            </button>
-                          )}
-                        </div>
+              {/* Ended Sessions - Can be Reopened */}
+              {sessions.filter(session => !session.isActive).length > 0 && (
+                <div className="bg-white backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+                  <div className="px-6 py-6 bg-gradient-to-r from-orange-500 to-amber-600 flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-white/10 rounded-xl">
+                        <RotateCcw className="h-6 w-6 text-white" />
                       </div>
-
-                      <div className="p-6">
-                        <div className="flex items-center space-x-3 mb-6">
-                          <div className="p-2 bg-emerald-100 rounded-xl">
-                            <CheckCircle className="h-6 w-6 text-emerald-600" />
-                          </div>
-                          <h2 className="text-2xl font-bold text-gray-900">Mark Your Attendance</h2>
-                        </div>
-                        
-                        <form onSubmit={handleSessionAttendance} className="space-y-6">
-                          {/* Student ID/Index Input */}
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-800 mb-2">
-                              Student ID or Index Number
-                            </label>
-                            <p className="text-xs text-gray-600 mb-3">
-                              💡 Enter your Student ID (e.g., STU001, STU123) or Index Number (e.g., IDX001, IDX123)
-                            </p>
-                            <div className="relative group">
-                              <input
-                                type="text"
-                                value={indexInput}
-                                onChange={(e) => {
-                                  // Auto-format input - convert to uppercase for consistency
-                                  const value = e.target.value.toUpperCase().trim();
-                                  setIndexInput(value);
-                                }}
-                                placeholder="STU001, IDX123, or similar format"
-                                className="w-full px-4 py-4 pr-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-lg font-mono bg-gray-50 hover:bg-white transition-all duration-200 group-hover:border-indigo-300"
-                                required
-                                autoComplete="off"
-                                spellCheck="false"
-                              />
-                              <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-                                <div className="p-1 bg-indigo-100 rounded-lg group-focus-within:bg-indigo-200 transition-colors">
-                                  <Search className="h-5 w-5 text-indigo-600" />
-                                </div>
-                              </div>
-                            </div>
-                            {indexInput && (
-                              <div className="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
-                                <p className="text-xs text-blue-700">
-                                  Looking for: <span className="font-mono font-bold">{indexInput}</span>
-                                </p>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Submit Button */}
-                          <button
-                            type="submit"
-                            disabled={marking}
-                            className="group w-full flex items-center justify-center py-4 px-6 border border-transparent rounded-xl shadow-lg text-lg font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 focus:outline-none focus:ring-4 focus:ring-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 active:scale-95 disabled:hover:scale-100"
-                          >
-                            {marking ? (
-                              <>
-                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
-                                <span className="animate-pulse">Marking Attendance...</span>
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle className="h-6 w-6 mr-3 group-hover:animate-bounce" />
-                                <span>Mark Present</span>
-                              </>
-                            )}
-                          </button>
-                        </form>
-
-                        {/* Validation Response */}
-                        {validationResponse && (
-                          <div
-                            className={`mt-6 p-6 rounded-2xl border-2 shadow-lg ${
-                              validationResponse.success
-                                ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200'
-                                : validationResponse.errorCode === 'ALREADY_MARKED'
-                                ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200'
-                                : 'bg-gradient-to-br from-red-50 to-rose-50 border-red-200'
-                            }`}
-                          >
-                            <div className="flex items-start space-x-4">
-                              <div className={`p-3 rounded-xl ${
-                                validationResponse.success
-                                  ? 'bg-emerald-100'
-                                  : validationResponse.errorCode === 'ALREADY_MARKED'
-                                  ? 'bg-amber-100'
-                                  : 'bg-red-100'
-                              }`}>
-                                {validationResponse.success ? (
-                                  <CheckCircle className="h-6 w-6 text-emerald-600" />
-                                ) : validationResponse.errorCode === 'ALREADY_MARKED' ? (
-                                  <Clock className="h-6 w-6 text-amber-600" />
-                                ) : validationResponse.errorCode === 'STUDENT_NOT_FOUND' ? (
-                                  <User className="h-6 w-6 text-red-600" />
-                                ) : validationResponse.errorCode === 'STUDENT_INACTIVE' ? (
-                                  <AlertTriangle className="h-6 w-6 text-red-600" />
-                                ) : validationResponse.errorCode === 'WRONG_BATCH' || validationResponse.errorCode === 'WRONG_SUBJECT' ? (
-                                  <ExternalLink className="h-6 w-6 text-red-600" />
-                                ) : (
-                                  <XCircle className="h-6 w-6 text-red-600" />
-                                )}
-                              </div>
-                              <div className="flex-1">
-                                <h3 className={`text-lg font-bold mb-2 ${
-                                  validationResponse.success
-                                    ? 'text-emerald-900'
-                                    : validationResponse.errorCode === 'ALREADY_MARKED'
-                                    ? 'text-amber-900'
-                                    : 'text-red-900'
-                                }`}>
-                                  {validationResponse.success 
-                                    ? '✅ Attendance Marked Successfully!' 
-                                    : validationResponse.errorCode === 'ALREADY_MARKED'
-                                    ? '⏰ Already Marked Today'
-                                    : validationResponse.errorCode === 'STUDENT_NOT_FOUND'
-                                    ? '🔍 Student ID Not Found'
-                                    : validationResponse.errorCode === 'STUDENT_INACTIVE'
-                                    ? '⚠️ Student Account Inactive'
-                                    : validationResponse.errorCode === 'WRONG_BATCH'
-                                    ? '📚 Wrong Batch'
-                                    : validationResponse.errorCode === 'WRONG_SUBJECT'
-                                    ? '📖 Wrong Subject'
-                                    : validationResponse.errorCode === 'SESSION_NOT_FOUND'
-                                    ? '🏫 No Active Session'
-                                    : validationResponse.errorCode === 'EMPTY_INPUT'
-                                    ? '📝 ID Required'
-                                    : validationResponse.errorCode === 'NO_SESSION'
-                                    ? '🎯 Select Session First'
-                                    : '❌ Validation Error'
-                                  }
-                                </h3>
-                                <div className={`text-sm ${
-                                  validationResponse.success
-                                    ? 'text-emerald-800'
-                                    : validationResponse.errorCode === 'ALREADY_MARKED'
-                                    ? 'text-amber-800'
-                                    : 'text-red-800'
-                                }`}>
-                                  <p className="font-medium">{validationResponse.message}</p>
-                                  
-                                  {/* Enhanced error help messages */}
-                                  {!validationResponse.success && (
-                                    <div className="mt-3 p-3 bg-white/60 backdrop-blur rounded-lg border border-white/50">
-                                      {validationResponse.errorCode === 'STUDENT_NOT_FOUND' && (
-                                        <div className="space-y-2">
-                                          <p className="text-xs font-semibold text-red-700">💡 What to check:</p>
-                                          <ul className="text-xs text-red-600 space-y-1 ml-4">
-                                            <li>• Make sure you entered the correct Student ID or Index Number</li>
-                                            <li>• Check for typos (letters vs numbers)</li>
-                                            <li>• Ensure you're registered for this class</li>
-                                            <li>• Contact your instructor if the problem persists</li>
-                                          </ul>
-                                        </div>
-                                      )}
-                                      {validationResponse.errorCode === 'WRONG_BATCH' && (
-                                        <div className="space-y-2">
-                                          <p className="text-xs font-semibold text-red-700">💡 Batch mismatch:</p>
-                                          <p className="text-xs text-red-600">You're not enrolled in this batch. Please check with your instructor or join the correct class session.</p>
-                                        </div>
-                                      )}
-                                      {validationResponse.errorCode === 'WRONG_SUBJECT' && (
-                                        <div className="space-y-2">
-                                          <p className="text-xs font-semibold text-red-700">💡 Subject mismatch:</p>
-                                          <p className="text-xs text-red-600">You're not enrolled in this subject. Please verify you're in the correct class or contact your instructor.</p>
-                                        </div>
-                                      )}
-                                      {validationResponse.errorCode === 'STUDENT_INACTIVE' && (
-                                        <div className="space-y-2">
-                                          <p className="text-xs font-semibold text-red-700">💡 Account status:</p>
-                                          <p className="text-xs text-red-600">Your student account is inactive. Please contact the administration office to reactivate your account.</p>
-                                        </div>
-                                      )}
-                                      {validationResponse.errorCode === 'SESSION_NOT_FOUND' && (
-                                        <div className="space-y-2">
-                                          <p className="text-xs font-semibold text-red-700">💡 Session status:</p>
-                                          <p className="text-xs text-red-600">No active attendance session found. Please wait for your instructor to start the session or contact them directly.</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  
-                                  {/* Show student info if available */}
-                                  {validationResponse.student && (
-                                    <div className="mt-3 p-4 bg-white/60 backdrop-blur rounded-xl border border-white/50">
-                                      <div className="flex items-center space-x-2 mb-2">
-                                        <User className="h-4 w-4 text-gray-600" />
-                                        <p className="font-bold text-gray-900">{validationResponse.student.fullName}</p>
-                                        {validationResponse.errorCode === 'ALREADY_MARKED' && validationResponse.markedAt && (
-                                          <span className="ml-2 px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full font-medium">
-                                            Marked at {new Date(validationResponse.markedAt).toLocaleTimeString('en-US', {
-                                              hour: '2-digit',
-                                              minute: '2-digit',
-                                              hour12: true
-                                            })}
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="flex items-center space-x-4 text-xs text-gray-600">
-                                        <span className="flex items-center space-x-1">
-                                          <span className="font-medium">ID:</span> 
-                                          <span className="font-mono bg-gray-100 px-2 py-1 rounded">{validationResponse.student.studentIdCode}</span>
-                                        </span>
-                                        <span className="flex items-center space-x-1">
-                                          <span className="font-medium">Index:</span> 
-                                          <span className="font-mono bg-gray-100 px-2 py-1 rounded">{validationResponse.student.indexNumber}</span>
-                                        </span>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Instructions */}
-                        <div className="mt-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-6 shadow-md">
-                          <div className="flex items-center space-x-2 mb-4">
-                            <div className="p-2 bg-blue-100 rounded-xl">
-                              <BookOpen className="h-5 w-5 text-blue-600" />
-                            </div>
-                            <h4 className="text-lg font-bold text-blue-900">How to Mark Attendance</h4>
-                          </div>
-                          <ul className="space-y-3 text-sm text-blue-800">
-                            <li className="flex items-start space-x-3">
-                              <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                              <span>Enter your <strong>Student ID</strong> (e.g., STU001) or <strong>Index Number</strong> (e.g., IDX001)</span>
-                            </li>
-                            <li className="flex items-start space-x-3">
-                              <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                              <span>Ensure you're enrolled in this batch and subject</span>
-                            </li>
-                            <li className="flex items-start space-x-3">
-                              <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                              <span>You can only mark attendance <strong>once per session</strong></span>
-                            </li>
-                            <li className="flex items-start space-x-3">
-                              <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                              <span>Parents will receive SMS notification upon successful attendance</span>
-                            </li>
-                          </ul>
-                        </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-white">Ended Sessions - Can Reopen</h2>
+                        <p className="text-orange-100 text-sm">Click to reactivate and continue marking attendance</p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Session Status - Marked Students */}
-                  <div className="xl:col-span-1">
-                    <div className="bg-white backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                      <div className="px-6 py-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex items-center justify-between">
-                        <div>
-                          <div className="flex items-center space-x-3 mb-2">
-                            <div className="p-2 bg-white/10 rounded-xl">
-                              <Users className="h-6 w-6" />
-                            </div>
-                            <h3 className="text-xl font-bold">Session Attendance Status</h3>
-                          </div>
-                          <p className="text-purple-100">
-                            {sessionStatus?.sessionInfo || "Live attendance tracking"}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => currentSession && fetchSessionStatus(currentSession.id)}
-                          disabled={loadingStatus}
-                          className="group flex items-center px-4 py-2 text-sm font-medium bg-white/10 hover:bg-white/20 rounded-xl transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                  <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {sessions.filter(session => !session.isActive).map((session) => (
+                        <div
+                          key={`ended-${session.id}`}
+                          className="group relative p-6 rounded-2xl border-2 border-orange-100 bg-gradient-to-br from-orange-50 to-amber-50 hover:border-orange-200 transition-all duration-300 hover:shadow-lg"
                         >
-                          {loadingStatus ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                          ) : (
-                            <Play className="h-4 w-4 mr-2 group-hover:animate-pulse" />
-                          )}
-                          Refresh
-                        </button>
-                      </div>
-
-                      <div className="p-6">
-                        {loadingStatus ? (
-                          <div className="flex flex-col items-center justify-center py-12">
-                            <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                            <p className="text-gray-600 animate-pulse">Loading attendance status...</p>
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center space-x-2">
+                              <div className="p-2 rounded-lg bg-orange-100">
+                                <Users className="h-5 w-5 text-orange-600" />
+                              </div>
+                              <h3 className="font-bold text-gray-900">
+                                Batch {session.batchYear}
+                              </h3>
+                            </div>
+                            <span className="px-3 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800 ring-1 ring-gray-200">
+                              ○ Ended
+                            </span>
                           </div>
-                        ) : sessionStatus ? (
-                          <>
-                            {/* Stats */}
-                            <div className="grid grid-cols-2 gap-6 mb-8">
-                              <div className="group bg-gradient-to-br from-emerald-50 to-green-100 border-2 border-emerald-200 rounded-2xl p-6 text-center hover:shadow-lg transition-all duration-200">
-                                <div className="flex items-center justify-center mb-2">
-                                  <div className="p-3 bg-emerald-100 rounded-xl">
-                                    <CheckCircle className="h-8 w-8 text-emerald-600" />
-                                  </div>
-                                </div>
-                                <div className="text-3xl font-bold text-emerald-700 mb-1">{sessionStatus.presentCount}</div>
-                                <div className="text-sm font-semibold text-emerald-600">Students Present</div>
-                              </div>
-                              <div className="group bg-gradient-to-br from-slate-50 to-gray-100 border-2 border-slate-200 rounded-2xl p-6 text-center hover:shadow-lg transition-all duration-200">
-                                <div className="flex items-center justify-center mb-2">
-                                  <div className="p-3 bg-slate-100 rounded-xl">
-                                    <Users className="h-8 w-8 text-slate-600" />
-                                  </div>
-                                </div>
-                                <div className="text-3xl font-bold text-slate-700 mb-1">{sessionStatus.totalEnrolledStudents}</div>
-                                <div className="text-sm font-semibold text-slate-600">Total Enrolled</div>
-                              </div>
-                            </div>
-
-                            {/* Marked Students List */}
-                            <div>
-                              <div className="flex items-center space-x-2 mb-6">
-                                <div className="p-2 bg-indigo-100 rounded-xl">
-                                  <CheckCircle className="h-5 w-5 text-indigo-600" />
-                                </div>
-                                <h4 className="text-lg font-bold text-gray-900">
-                                  Students Present ({sessionStatus.presentCount})
-                                </h4>
-                              </div>
-                              {sessionStatus.markedStudents.length === 0 ? (
-                                <div className="text-center py-12">
-                                  <div className="mx-auto w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-4">
-                                    <Users className="h-10 w-10 text-gray-400" />
-                                  </div>
-                                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Attendance Marked Yet</h3>
-                                  <p className="text-gray-500">Students will appear here as they mark their attendance.</p>
-                                </div>
-                              ) : (
-                                <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
-                                  {sessionStatus.markedStudents.map((student, index) => (
-                                    <div key={`${student.studentIdCode}-${student.indexNumber}`} 
-                                         className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors">
-                                      <div className="flex-1">
-                                        <div className="font-semibold text-gray-900 text-sm">{student.fullName}</div>
-                                        <div className="text-xs text-gray-600 font-mono">{student.studentIdCode}</div>
-                                      </div>
-                                      <div className="text-right">
-                                        <div className="text-xs font-medium text-emerald-700">
-                                          {formatDate(student.markedAt, 'time')}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-center py-12">
-                            <div className="mx-auto w-20 h-20 bg-gradient-to-br from-red-100 to-rose-200 rounded-full flex items-center justify-center mb-4">
-                              <Users className="h-10 w-10 text-red-500" />
-                            </div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Unable to Load Status</h3>
-                            <p className="text-gray-500 mb-1">Could not retrieve session attendance status.</p>
-                            <p className="text-sm text-gray-400">Please try refreshing or contact support if the issue persists.</p>
+                          
+                          <div className="space-y-2 mb-4">
+                            <p className="font-medium text-gray-800">{session.subjectName}</p>
+                            <p className="text-sm text-gray-500 flex items-center">
+                              <Clock className="h-4 w-4 mr-1" />
+                              {formatDate(session.sessionDate)}
+                            </p>
                           </div>
-                        )}
-                      </div>
+                          
+                          <div className="space-y-2">
+                            <button
+                              onClick={() => reopenSession(session.id)}
+                              className="group w-full bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-orange-100 hover:to-amber-100 hover:border-orange-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
+                            >
+                              <RotateCcw className="w-4 h-4 inline mr-2 group-hover:animate-spin" />
+                              Reopen Session
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
               )}
             </div>
+          )}
 
           {/* Reports Tab */}
           {activeTab === 'report' && (
             <div className="space-y-6">
               {/* Report Filters */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">Attendance Report</h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-8">
+                <div className="flex items-center space-x-4 mb-6">
+                  <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Calendar className="h-6 w-6 text-white" />
+                  </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Date
+                    <h2 className="text-2xl font-bold text-gray-900">Attendance Reports</h2>
+                    <p className="text-gray-600">Generate and download attendance reports for specific sessions</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="group">
+                    <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                      <Calendar className="h-4 w-4 text-indigo-500" />
+                      <span>Date</span>
                     </label>
                     <input
                       type="date"
                       value={reportDate}
                       onChange={(e) => setReportDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
                     />
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Batch
+                  <div className="group">
+                    <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                      <Users className="h-4 w-4 text-indigo-500" />
+                      <span>Batch</span>
                     </label>
                     <select
                       value={reportBatch}
                       onChange={(e) => setReportBatch(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
                     >
                       <option value="">Select batch</option>
                       {batches.map((batch) => (
@@ -1125,14 +974,15 @@ function AttendancePageContent() {
                     </select>
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Subject
+                  <div className="group">
+                    <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                      <BookOpen className="h-4 w-4 text-indigo-500" />
+                      <span>Subject</span>
                     </label>
                     <select
                       value={reportSubject}
                       onChange={(e) => setReportSubject(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
                     >
                       <option value="">Select subject</option>
                       {subjects.map((subject) => (
@@ -1147,12 +997,18 @@ function AttendancePageContent() {
                     <button
                       onClick={fetchAttendanceReport}
                       disabled={loadingReport}
-                      className="w-full flex items-center justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                      className="group w-full flex items-center justify-center py-3 px-6 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-xl active:scale-95"
                     >
                       {loadingReport ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <>
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
+                          <span className="animate-pulse">Generating...</span>
+                        </>
                       ) : (
-                        'Generate Report'
+                        <>
+                          <Settings className="h-5 w-5 mr-3 group-hover:animate-bounce" />
+                          <span>Generate Report</span>
+                        </>
                       )}
                     </button>
                   </div>
@@ -1161,41 +1017,54 @@ function AttendancePageContent() {
 
               {/* Report Results */}
               {attendanceReport && (
-                <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
                   {/* Report Header */}
-                  <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-medium text-gray-900">
-                        Attendance Report - {formatDate(attendanceReport.date)}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        Batch {batches.find(b => b.id.toString() === reportBatch)?.batchYear} - {' '}
-                        {subjects.find(s => s.id.toString() === reportSubject)?.name}
-                      </p>
+                  <div className="px-8 py-6 bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="p-3 bg-white/20 rounded-xl">
+                        <Calendar className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-bold text-white">
+                          Attendance Report
+                        </h3>
+                        <p className="text-emerald-100">
+                          {formatDate(attendanceReport.date)} • Batch {batches.find(b => b.id.toString() === reportBatch)?.batchYear} • {subjects.find(s => s.id.toString() === reportSubject)?.name}
+                        </p>
+                      </div>
                     </div>
                     <button
                       onClick={downloadReport}
-                      className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      className="flex items-center px-6 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-200 text-white font-semibold hover:scale-105 shadow-lg"
                     >
-                      <Download className="h-4 w-4 mr-2" />
+                      <Play className="h-5 w-5 mr-2" />
                       Download CSV
                     </button>
                   </div>
 
                   {/* Summary Stats */}
-                  <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                    <div className="grid grid-cols-3 gap-6">
+                  <div className="px-8 py-6 bg-gradient-to-br from-gray-50 to-indigo-50">
+                    <div className="grid grid-cols-3 gap-8">
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">{attendanceReport.presentStudents.length + attendanceReport.absentStudents.length}</div>
-                        <div className="text-sm text-gray-500">Total Students</div>
+                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                          <Users className="h-8 w-8 text-white" />
+                        </div>
+                        <div className="text-3xl font-bold text-gray-900">{attendanceReport.presentStudents.length + attendanceReport.absentStudents.length}</div>
+                        <div className="text-sm font-medium text-gray-600">Total Students</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">{attendanceReport.presentStudents.length}</div>
-                        <div className="text-sm text-gray-500">Present</div>
+                        <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                          <CheckCircle className="h-8 w-8 text-white" />
+                        </div>
+                        <div className="text-3xl font-bold text-emerald-600">{attendanceReport.presentStudents.length}</div>
+                        <div className="text-sm font-medium text-gray-600">Present</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-red-600">{attendanceReport.absentStudents.length}</div>
-                        <div className="text-sm text-gray-500">Absent</div>
+                        <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                          <XCircle className="h-8 w-8 text-white" />
+                        </div>
+                        <div className="text-3xl font-bold text-red-600">{attendanceReport.absentStudents.length}</div>
+                        <div className="text-sm font-medium text-gray-600">Absent</div>
                       </div>
                     </div>
                   </div>
@@ -1203,20 +1072,28 @@ function AttendancePageContent() {
                   {/* Student Lists */}
                   <div className="grid grid-cols-1 lg:grid-cols-2">
                     {/* Present Students */}
-                    <div className="p-6 border-r border-gray-200">
-                      <h4 className="text-sm font-medium text-green-700 uppercase tracking-wide mb-4 flex items-center">
-                        <CheckCircle className="h-4 w-4 mr-2" />
+                    <div className="p-8 border-r border-gray-200">
+                      <h4 className="text-lg font-bold text-emerald-700 mb-6 flex items-center">
+                        <CheckCircle className="h-6 w-6 mr-3" />
                         Present Students ({attendanceReport.presentStudents.length})
                       </h4>
-                      <div className="space-y-3">
+                      <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                         {attendanceReport.presentStudents.map((student) => (
-                          <div key={student.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                            <div>
-                              <div className="font-medium text-gray-900">{student.fullName}</div>
-                              <div className="text-sm text-gray-500">{student.studentIdCode}</div>
+                          <div key={student.id} className="flex items-center justify-between p-4 bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl border border-emerald-200 hover:from-emerald-100 hover:to-green-100 transition-all duration-200">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
+                                <span className="text-white font-semibold text-sm">{student.fullName.charAt(0)}</span>
+                              </div>
+                              <div>
+                                <div className="font-semibold text-gray-900">{student.fullName}</div>
+                                <div className="text-sm text-gray-600">{student.studentIdCode}</div>
+                              </div>
                             </div>
-                            <div className="text-sm text-green-600">
-                              {formatDate(student.markedAt, 'time')}
+                            <div className="text-right">
+                              <div className="text-sm font-bold text-emerald-700">
+                                {formatDate(student.markedAt, 'time')}
+                              </div>
+                              <div className="text-xs text-emerald-600">Marked</div>
                             </div>
                           </div>
                         ))}
@@ -1224,19 +1101,27 @@ function AttendancePageContent() {
                     </div>
 
                     {/* Absent Students */}
-                    <div className="p-6">
-                      <h4 className="text-sm font-medium text-red-700 uppercase tracking-wide mb-4 flex items-center">
-                        <XCircle className="h-4 w-4 mr-2" />
+                    <div className="p-8">
+                      <h4 className="text-lg font-bold text-red-700 mb-6 flex items-center">
+                        <XCircle className="h-6 w-6 mr-3" />
                         Absent Students ({attendanceReport.absentStudents.length})
                       </h4>
-                      <div className="space-y-3">
+                      <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                         {attendanceReport.absentStudents.map((student) => (
-                          <div key={student.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
-                            <div>
-                              <div className="font-medium text-gray-900">{student.fullName}</div>
-                              <div className="text-sm text-gray-500">{student.studentIdCode}</div>
+                          <div key={student.id} className="flex items-center justify-between p-4 bg-gradient-to-br from-red-50 to-rose-50 rounded-xl border border-red-200 hover:from-red-100 hover:to-rose-100 transition-all duration-200">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center">
+                                <span className="text-white font-semibold text-sm">{student.fullName.charAt(0)}</span>
+                              </div>
+                              <div>
+                                <div className="font-semibold text-gray-900">{student.fullName}</div>
+                                <div className="text-sm text-gray-600">{student.studentIdCode}</div>
+                              </div>
                             </div>
-                            <div className="text-sm text-red-600">Not marked</div>
+                            <div className="text-right">
+                              <div className="text-sm font-bold text-red-700">Not Marked</div>
+                              <div className="text-xs text-red-600">Absent</div>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1246,8 +1131,62 @@ function AttendancePageContent() {
               )}
             </div>
           )}
-        
+        </div>
       </DashboardLayout>
+      
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <CheckCircle className="h-6 w-6 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-white">{confirmTitle}</h3>
+              </div>
+            </div>
+            
+            {/* Body */}
+            <div className="p-6">
+              <div className="text-gray-700 mb-6 whitespace-pre-line leading-relaxed">
+                {confirmMessage.split('\n').map((line, index) => {
+                  if (line.startsWith('**') && line.endsWith('**')) {
+                    return <p key={index} className="font-bold text-gray-900 mb-3 text-lg">{line.slice(2, -2)}</p>;
+                  }
+                  if (line.startsWith('✨')) {
+                    return <p key={index} className="text-purple-700 font-medium mb-2">{line}</p>;
+                  }
+                  if (line.startsWith('🕒')) {
+                    return <p key={index} className="text-amber-700 font-medium">{line}</p>;
+                  }
+                  return <p key={index} className="mb-2">{line}</p>;
+                })}
+              </div>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    if (confirmAction) {
+                      confirmAction();
+                    }
+                  }}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 font-semibold shadow-lg"
+                >
+                  {confirmButtonText}
+                </button>
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </ProtectedRoute>
   );
 }

@@ -66,21 +66,20 @@ export default function LoginPage() {
         ))}
       </div>
 
-      <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
+      <div className="relative z-10 min-h-screen flex items-center justify-center p-2">
         <div className="max-w-md w-full space-y-8">
           {/* Modern Glass Card */}
           <div className="bg-white/10 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-8 transform hover:scale-105 transition-all duration-300">
             {/* Header with Enhanced Branding */}
-            <div className="text-center mb-8">
-              <div className="mx-auto h-20 w-20 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mb-6 shadow-2xl transform rotate-3 hover:rotate-0 transition-transform duration-300">
-                <GraduationCap className="h-10 w-10 text-white" />
+            <div className="text-center mb-4">
+              <div className="mx-auto mb-2 flex items-center justify-center">
+                <img src="/usa-logo.png" alt="USA Institute Logo" className="h-60 w-60 object-contain" />
               </div>
               <div className="space-y-2">
                 <h1 className="text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-indigo-200 bg-clip-text text-transparent">
-                  USA Institute
+                  Attendance System
                 </h1>
-                <h2 className="text-2xl font-semibold text-white/90">Welcome Back</h2>
-                <p className="text-white/70 text-lg">Access your admin dashboard</p>
+                
               </div>
               <div className="flex items-center justify-center mt-4 space-x-2">
                 <Shield className="h-4 w-4 text-green-400" />
@@ -174,13 +173,6 @@ export default function LoginPage() {
                   )}
                 </div>
               </button>
-
-              {/* Additional Security Info */}
-              <div className="text-center pt-4">
-                <p className="text-white/50 text-xs">
-                  🔒 This is a secure admin portal. Only authorized personnel may access.
-                </p>
-              </div>
             </form>
           </div>
 
