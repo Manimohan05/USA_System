@@ -250,7 +250,7 @@ export default function DashboardPage() {
                       <h1 className="text-4xl font-bold text-white">Dashboard</h1>
                       <div className="flex items-center space-x-2 mt-1">
                         <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                        <p className="text-white/90">USA Attendance Management System</p>
+                        <p className="text-white/90">USA Student Management System</p>
                       </div>
                     </div>
                   </div>

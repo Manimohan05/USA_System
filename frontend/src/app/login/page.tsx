@@ -35,12 +35,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
+    <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
       {/* Animated Background Elements */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-10 left-10 w-72 h-72 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-pulse"></div>
         <div className="absolute top-40 right-10 w-72 h-72 bg-gradient-to-r from-yellow-400 to-red-400 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-pulse animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-20 w-72 h-72 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-pulse animation-delay-4000"></div>
+        <div className="absolute bottom-10 left-20 w-72 h-72 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-pulse animation-delay-4000"></div>
       </div>
 
       {/* Floating Particles */}
@@ -66,34 +66,31 @@ export default function LoginPage() {
         ))}
       </div>
 
-      <div className="relative z-10 min-h-screen flex items-center justify-center p-2">
-        <div className="max-w-md w-full space-y-8">
+      <div className="relative z-10 h-full flex items-center justify-center p-4">
+        <div className="max-w-md w-full space-y-4">
           {/* Modern Glass Card */}
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-8 transform hover:scale-105 transition-all duration-300">
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-6 transform hover:scale-105 transition-all duration-300">
             {/* Header with Enhanced Branding */}
-            <div className="text-center mb-4">
+            <div className="text-center mb-3">
               <div className="mx-auto mb-2 flex items-center justify-center">
-                <img src="/usa-logo.png" alt="USA Institute Logo" className="h-60 w-60 object-contain" />
+                <img src="/usa-logo.png" alt="USA Institute Logo" className="h-40 w-40 object-contain" />
               </div>
-              <div className="space-y-2">
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-indigo-200 bg-clip-text text-transparent">
-                  Attendance System
-                </h1>
+              <div className="space-y-1">
+                <h4 className="text-3xl font-bold bg-gradient-to-r from-white via-purple-200 to-indigo-200 bg-clip-text text-transparent">
+                  Student Management System
+                </h4>
                 
               </div>
-              <div className="flex items-center justify-center mt-4 space-x-2">
-                <Shield className="h-4 w-4 text-green-400" />
-                <span className="text-green-400 text-sm font-medium">Secure Login</span>
-              </div>
+              
             </div>
 
             {/* Modern Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
               {/* Enhanced Username Field */}
               <div className="space-y-2">
                 <label htmlFor="username" className="block text-sm font-semibold text-white/90 flex items-center">
                   <User className="h-4 w-4 mr-2 text-indigo-400" />
-                  Administrator Username
+                  Username
                 </label>
                 <div className="relative group">
                   <input
@@ -102,8 +99,8 @@ export default function LoginPage() {
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full px-4 py-4 bg-white/10 border-2 border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-white/50 backdrop-blur-sm transition-all duration-300 group-hover:bg-white/15"
-                    placeholder="Enter your admin username"
+                    className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-white/50 backdrop-blur-sm transition-all duration-300 group-hover:bg-white/15"
+                    placeholder="Enter your username"
                   />
                   <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
                     <User className="h-5 w-5 text-white/40" />
@@ -115,7 +112,7 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <label htmlFor="password" className="block text-sm font-semibold text-white/90 flex items-center">
                   <Lock className="h-4 w-4 mr-2 text-indigo-400" />
-                  Secure Password
+                  Password
                 </label>
                 <div className="relative group">
                   <input
@@ -124,8 +121,8 @@ export default function LoginPage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-4 pr-12 bg-white/10 border-2 border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-white/50 backdrop-blur-sm transition-all duration-300 group-hover:bg-white/15"
-                    placeholder="Enter your secure password"
+                    className="w-full px-4 py-3 pr-12 bg-white/10 border-2 border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-white/50 backdrop-blur-sm transition-all duration-300 group-hover:bg-white/15"
+                    placeholder="Enter your password"
                   />
                   <button
                     type="button"
@@ -155,7 +152,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full relative overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 text-white font-bold py-4 px-6 rounded-xl shadow-2xl hover:shadow-purple-500/25 focus:outline-none focus:ring-4 focus:ring-purple-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] group"
+                className="w-full relative overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 text-white font-bold py-3 px-6 rounded-xl shadow-2xl hover:shadow-purple-500/25 focus:outline-none focus:ring-4 focus:ring-purple-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] group"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
                 <div className="relative flex items-center justify-center text-lg">
@@ -178,13 +175,10 @@ export default function LoginPage() {
 
           {/* Footer Branding */}
           <div className="text-center">
-            <p className="text-white/40 text-sm">
-              © 2025 USA Institute Management System
+            <p className="text-white/40 text-xs">
+              © 2026 USA Institute Management System
             </p>
-            <div className="flex items-center justify-center mt-2 space-x-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-xs">System Online</span>
-            </div>
+            
           </div>
         </div>
       </div>
