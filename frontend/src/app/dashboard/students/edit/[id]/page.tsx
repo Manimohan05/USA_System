@@ -28,7 +28,6 @@ export default function EditStudentPage() {
     nic: '',
     school: '',
     phoneNo: '',
-    studentPhone: '',
     subjectIds: [] as string[],
   });
 
@@ -62,7 +61,6 @@ export default function EditStudentPage() {
         nic: studentData.nic || '',
         school: studentData.school || '',
         phoneNo: studentData.parentPhone,
-        studentPhone: studentData.studentPhone || '',
         subjectIds: studentData.subjects.map(s => s.id.toString()),
       });
     } catch (error) {
@@ -99,14 +97,14 @@ export default function EditStudentPage() {
       newErrors.school = 'School is required';
     }
 
-    if (!formData.phoneNo?.trim()) {
-      newErrors.phoneNo = 'Parent phone number is required';
-    } else if (!/^[0-9+\-\s()]+$/.test(formData.phoneNo)) {
-      newErrors.phoneNo = 'Please enter a valid phone number';
-    }
-
-    if (formData.studentPhone && !/^[0-9+\-\s()]+$/.test(formData.studentPhone)) {
-      newErrors.studentPhone = 'Please enter a valid phone number';
+    if (!formData.phoneNo.trim()) {
+      newErrors.phoneNo = 'Phone number is required';
+    } else {
+      const cleanPhone = formData.phoneNo.replace(/\D/g, '');
+      // Sri Lankan phone validation: 07XXXXXXXX (mobile) or 0XXXXXXXX (landline)
+      if (!/^0[1-9]\d{7,8}$/.test(cleanPhone)) {
+        newErrors.phoneNo = 'Please enter a valid Sri Lankan phone number (e.g., 0771234567)';
+      }
     }
 
     if (formData.nic && !/^(\d{9}[VXvx]|\d{12})$/.test(formData.nic)) {
@@ -132,8 +130,7 @@ export default function EditStudentPage() {
     try {
       const updateRequest: UpdateStudentRequest = {
         fullName: formData.fullName.trim(),
-        parentPhone: formData.phoneNo.trim(),
-        studentPhone: formData.studentPhone.trim() || undefined,
+        parentPhone: formData.phoneNo.trim(), // Keep original format for backend processing
         batchId: parseInt(formData.batchId),
         subjectIds: formData.subjectIds.map(id => parseInt(id)),
         address: formData.address.trim(),
@@ -449,11 +446,11 @@ export default function EditStudentPage() {
                   )}
                 </div>
 
-                {/* 8. Parent Phone Number */}
+                {/* 8. Phone Number */}
                 <div className="space-y-3">
                   <label className="flex items-center text-lg font-semibold text-gray-800">
                     <Phone className="h-5 w-5 mr-2 text-green-600" />
-                    Parent Phone No *
+                    Phone No *
                   </label>
                   <div className="relative group">
                     <input
@@ -474,32 +471,7 @@ export default function EditStudentPage() {
                   )}
                 </div>
 
-                {/* 9. Student Phone Number */}
-                <div className="space-y-3">
-                  <label className="flex items-center text-lg font-semibold text-gray-800">
-                    <Phone className="h-5 w-5 mr-2 text-cyan-600" />
-                    Student Phone No (Optional)
-                  </label>
-                  <div className="relative group">
-                    <input
-                      type="tel"
-                      value={formData.studentPhone}
-                      onChange={(e) => setFormData(prev => ({ ...prev, studentPhone: e.target.value }))}
-                      placeholder="0771234567"
-                      className={`w-full px-4 py-4 bg-white/60 border-2 rounded-xl backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 text-lg ${
-                        errors.studentPhone ? 'border-red-300 bg-red-50/60' : 'border-gray-200 group-hover:border-cyan-300'
-                      }`}
-                    />
-                  </div>
-                  {errors.studentPhone && (
-                    <p className="text-red-500 text-sm font-medium flex items-center">
-                      <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
-                      {errors.studentPhone}
-                    </p>
-                  )}
-                </div>
-
-                {/* 10. Subject Selection */}
+                {/* 9. Subject Selection */}
                 <div className="space-y-4">
                   <label className="flex items-center text-lg font-semibold text-gray-800">
                     <BookOpen className="h-5 w-5 mr-2 text-green-600" />

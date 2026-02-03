@@ -69,8 +69,71 @@ function AttendancePageContent() {
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [confirmButtonText, setConfirmButtonText] = useState('Yes, Confirm');
 
+  // Helper function to check if session has expired (60 minutes from creation)
+  const isSessionExpired = (session: AttendanceSessionDto): boolean => {
+    try {
+      // Add extensive logging to debug
+      console.log('=== CHECKING SESSION EXPIRATION ===');
+      console.log('Session ID:', session.id);
+      console.log('Session createdAt (raw):', session.createdAt);
+      console.log('Session sessionDate:', session.sessionDate);
+      console.log('Session batch/subject:', `Batch ${session.batchYear} ${session.subjectName}`);
+      
+      const sessionCreatedAt = new Date(session.createdAt).getTime();
+      const now = Date.now();
+      const sessionDuration = 60 * 60 * 1000; // 60 minutes in milliseconds
+      const elapsed = now - sessionCreatedAt;
+      const isExpired = elapsed > sessionDuration;
+      
+      // More detailed logging
+      console.log('Created timestamp:', sessionCreatedAt);
+      console.log('Current timestamp:', now);
+      console.log('Created Date:', new Date(sessionCreatedAt).toISOString());
+      console.log('Current Date:', new Date(now).toISOString());
+      console.log('Elapsed milliseconds:', elapsed);
+      console.log('Elapsed minutes:', Math.round(elapsed / 60000));
+      console.log('Duration limit (60 min in ms):', sessionDuration);
+      console.log('Is Expired?', isExpired);
+      console.log('=====================================');
+      
+      return isExpired;
+    } catch (error) {
+      console.error('Error checking session expiration:', error, session);
+      return false; // Don't remove sessions if there's an error parsing dates
+    }
+  };
+
+  // Filter sessions to exclude expired ones
+  const getValidSessions = (sessions: AttendanceSessionDto[]): AttendanceSessionDto[] => {
+    const validSessions = sessions.filter(session => {
+      const isValid = !isSessionExpired(session);
+      if (!isValid) {
+        console.log(`Filtering out expired session: ${session.id} - Batch ${session.batchYear} ${session.subjectName}`);
+      }
+      return isValid;
+    });
+    
+    if (validSessions.length !== sessions.length) {
+      console.log(`Filtered ${sessions.length - validSessions.length} expired sessions out of ${sessions.length} total`);
+    }
+    
+    return validSessions;
+  };
+
   useEffect(() => {
     fetchInitialData();
+    
+    // Immediately filter out any expired sessions that might be in state
+    setTimeout(() => {
+      console.log('Component mounted - forcing expired session cleanup');
+      setSessions(prevSessions => {
+        const validSessions = getValidSessions(prevSessions);
+        if (validSessions.length !== prevSessions.length) {
+          console.log(`Removed ${prevSessions.length - validSessions.length} expired sessions on mount`);
+        }
+        return validSessions;
+      });
+    }, 1000);
   }, []);
 
   useEffect(() => {
@@ -79,6 +142,42 @@ function AttendancePageContent() {
       fetchSessionStatus(currentSession.id);
     }
   }, [currentSession]);
+
+  useEffect(() => {
+    // Periodically check and remove expired sessions
+    const checkExpiredSessions = () => {
+      setSessions(prevSessions => {
+        const validSessions = getValidSessions(prevSessions);
+        // Only update state if there are changes to avoid unnecessary re-renders
+        if (validSessions.length !== prevSessions.length) {
+          console.log('Expired sessions removed:', prevSessions.length - validSessions.length);
+          const expiredCount = prevSessions.length - validSessions.length;
+          if (expiredCount > 0) {
+            addToast({
+              type: 'warning',
+              title: '⏰ Sessions Expired',
+              message: `${expiredCount} session${expiredCount > 1 ? 's' : ''} exceeded the 60-minute limit and ${expiredCount > 1 ? 'have' : 'has'} been removed.`,
+              duration: 6000
+            });
+          }
+          return validSessions;
+        }
+        return prevSessions;
+      });
+    };
+    
+    // Check immediately on mount
+    console.log('Initial expired session check on component mount');
+    checkExpiredSessions();
+    
+    // Then check every 5 seconds for immediate feedback
+    const interval = setInterval(() => {
+      console.log('Periodic check for expired sessions...');
+      checkExpiredSessions();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchInitialData = async () => {
     try {
@@ -102,14 +201,42 @@ function AttendancePageContent() {
     try {
       setLoadingSessions(true);
       const response = await api.get<AttendanceSessionDto[]>('/admin/attendance/sessions/today');
-      console.log('Fetched sessions:', response.data);
-      console.log('Active sessions:', response.data.filter(s => s.isActive));
-      console.log('Ended sessions:', response.data.filter(s => !s.isActive));
-      setSessions(response.data);
+      console.log('Raw sessions from backend:', response.data);
+      
+      // Log each session's details for debugging
+      response.data.forEach((session, index) => {
+        console.log(`Session ${index + 1}:`, {
+          id: session.id,
+          batch: `Batch ${session.batchYear}`,
+          subject: session.subjectName,
+          createdAt: session.createdAt,
+          isActive: session.isActive,
+          sessionDate: session.sessionDate
+        });
+      });
+      
+      // Immediately filter out expired sessions
+      const validSessions = getValidSessions(response.data);
+      console.log('Valid (non-expired) sessions after filtering:', validSessions);
+      console.log('Expired sessions removed:', response.data.length - validSessions.length);
+      
+      if (response.data.length > validSessions.length) {
+        const expiredCount = response.data.length - validSessions.length;
+        addToast({
+          type: 'info',
+          title: '🧹 Cleaned Up Sessions',
+          message: `Removed ${expiredCount} expired session${expiredCount > 1 ? 's' : ''} that exceeded 60 minutes.`,
+          duration: 5000
+        });
+      }
+      
+      console.log('Active valid sessions:', validSessions.filter(s => s.isActive));
+      console.log('Ended valid sessions:', validSessions.filter(s => !s.isActive));
+      setSessions(validSessions);
       
       // Auto-select session from URL parameter if available
       if (sessionIdFromUrl) {
-        const targetSession = response.data.find(s => s.id === parseInt(sessionIdFromUrl));
+        const targetSession = validSessions.find(s => s.id === parseInt(sessionIdFromUrl));
         if (targetSession) {
           setCurrentSession(targetSession);
           await fetchSessionStatus(targetSession.id);
@@ -118,9 +245,10 @@ function AttendancePageContent() {
       }
       
       // Auto-select the first active session if available and no URL param
-      if (response.data.length > 0 && !currentSession) {
-        setCurrentSession(response.data[0]);
-        await fetchSessionStatus(response.data[0].id);
+      if (validSessions.length > 0 && !currentSession) {
+        const firstActiveSession = validSessions.find(s => s.isActive) || validSessions[0];
+        setCurrentSession(firstActiveSession);
+        await fetchSessionStatus(firstActiveSession.id);
       }
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
@@ -159,7 +287,10 @@ function AttendancePageContent() {
     // We allow creating new sessions if the previous one was ended (accidentally)
     const selectedBatch = batches.find(b => b.id === parseInt(sessionBatch));
     const selectedSubject = subjects.find(s => s.id === parseInt(sessionSubject));
-    const existingSession = sessions.find(s => 
+    
+    // Filter out expired sessions before checking for conflicts
+    const validSessions = getValidSessions(sessions);
+    const existingSession = validSessions.find(s => 
       s.batchId === parseInt(sessionBatch) && 
       s.subjectId === parseInt(sessionSubject) && 
       s.sessionDate === sessionDate &&
@@ -292,13 +423,31 @@ function AttendancePageContent() {
   const endSession = async (sessionId: number) => {
     // Find the session being ended for better confirmation message
     const sessionToEnd = sessions.find(s => s.id === sessionId);
+    if (!sessionToEnd) {
+      console.error('Session not found in local state:', sessionId);
+      return;
+    }
+    
+    // Check if session has expired
+    if (isSessionExpired(sessionToEnd)) {
+      addToast({
+        type: 'warning',
+        title: '⏰ Session Already Expired',
+        message: 'This session has exceeded the 60-minute limit and will be removed automatically.',
+        duration: 5000
+      });
+      // Remove expired session from state
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      return;
+    }
+
     const sessionInfo = sessionToEnd 
       ? `Batch ${sessionToEnd.batchYear} - ${sessionToEnd.subjectName} (${formatDate(sessionToEnd.sessionDate)})`
       : 'this session';
 
     // Show confirmation modal
     setConfirmTitle('🎯 End Session Confirmation');
-    setConfirmMessage(`**${sessionInfo}**\n\n✨ This will complete the attendance session and notify parents of absent students.\n\n🕒 10-minute recovery window available.`);
+    setConfirmMessage(`**${sessionInfo}**\n\n✨ This will complete the attendance session and notify parents of absent students.`);
     setConfirmButtonText('Yes, End Session');
     setConfirmAction(() => async () => {
       setShowConfirmModal(false);
@@ -325,7 +474,7 @@ function AttendancePageContent() {
       addToast({
         type: 'success',
         title: '🎉 Session Completed Successfully!',
-        message: `${sessionInfo} has been ended.\n\n📱 Parents have been notified about absent students.\n⏰ 10-minute recovery window is active.`,
+        message: `${sessionInfo} has been ended.\n\n📱 Parents have been notified about absent students.`,
         duration: 90000
       });
     } catch (error: any) {
@@ -350,11 +499,56 @@ function AttendancePageContent() {
     }
   };
 
+  const fullyEndSession = async (sessionId: number, session: AttendanceSessionDto) => {
+    const sessionInfo = `Batch ${session.batchYear} - ${session.subjectName} (${formatDate(session.sessionDate)})`;
+
+    setConfirmTitle('🔒 Fully End Session?');
+    setConfirmMessage(`Are you sure you want to FULLY END this session?\n\n${sessionInfo}\n\n⚠️ This action cannot be undone and will:\n• Permanently close the session\n• Send SMS notifications to parents of absent students\n• Prevent any future reopening`);
+    setConfirmButtonText('Yes, Fully End');
+    setConfirmAction(() => async () => {
+      setShowConfirmModal(false);
+      try {
+        await api.delete(`/admin/attendance/sessions/${sessionId}/fully-end`);
+        
+        // Remove the session from the list since it's now fully ended
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        
+        addToast({
+          type: 'success',
+          title: '✅ Session Fully Ended',
+          message: 'The session has been permanently closed.\n\n📱 SMS notifications have been sent to parents of absent students.',
+          duration: 10000
+        });
+      } catch (error: any) {
+        addToast({
+          type: 'error',
+          title: '❌ Failed to Fully End Session',
+          message: `Error: ${error.response?.data?.message || 'Please try again.'}`,
+          duration: 6000
+        });
+      }
+    });
+    setShowConfirmModal(true);
+  };
+
   const reopenSession = async (sessionId: number) => {
     try {
       const session = sessions.find(s => s.id === sessionId);
       if (!session) {
         console.error('Session not found in local state:', sessionId);
+        return;
+      }
+      
+      // Check if session has expired before allowing reopen
+      if (isSessionExpired(session)) {
+        addToast({
+          type: 'error',
+          title: '⏰ Session Expired',
+          message: 'This session has exceeded the 60-minute limit and can no longer be reopened.',
+          duration: 6000
+        });
+        // Remove expired session from state
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
         return;
       }
       
@@ -364,7 +558,7 @@ function AttendancePageContent() {
       
       // Show confirmation modal - make sure this is for REOPENING, not ending
       setConfirmTitle('🔄 Reopen Session Confirmation');
-      setConfirmMessage(`**${sessionInfo}**\n\n✨ This will REACTIVATE the session for continued attendance marking.\n.`);
+      setConfirmMessage(`**${sessionInfo}**\n\n✨ This will REACTIVATE the session for continued attendance marking.\n\n⏱️ **Note:** Timer will continue from original creation time.`);
       setConfirmButtonText('Yes, Reopen Session');
       setConfirmAction(() => async () => {
         console.log('Executing REOPEN action for session:', sessionId);
@@ -439,7 +633,7 @@ function AttendancePageContent() {
     if (!indexInput.trim()) {
       setValidationResponse({
         success: false,
-        message: 'Please enter your student ID or index number.',
+        message: 'Please enter your Index Number.',
         errorCode: 'EMPTY_INPUT'
       });
       return;
@@ -626,40 +820,6 @@ function AttendancePageContent() {
           {/* Sessions Management Tab */}
           {activeTab === 'sessions' && (
             <div className="space-y-6">
-              {/* Multi-Session Capability Notice */}
-              <div className="relative overflow-hidden bg-gradient-to-br from-emerald-50 via-white to-teal-50 rounded-xl shadow-lg border border-emerald-200 p-6">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-200 to-teal-200 rounded-full -translate-y-16 translate-x-16 opacity-20"></div>
-                
-                <div className="relative">
-                  <div className="flex items-start space-x-4">
-                    <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
-                      <ExternalLink className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-900 mb-2">✨ Multi-Session Support</h3>
-                      <p className="text-gray-700 mb-3">
-                        You can now run multiple attendance sessions simultaneously! Open different sessions in separate tabs 
-                        to handle concurrent classes at the same time.
-                      </p>
-                      <div className="flex flex-wrap gap-2 text-sm text-emerald-700">
-                        <span className="flex items-center space-x-1 bg-emerald-100 px-2 py-1 rounded-full">
-                          <ExternalLink className="h-3 w-3" />
-                          <span>Open sessions in new tabs</span>
-                        </span>
-                        <span className="flex items-center space-x-1 bg-emerald-100 px-2 py-1 rounded-full">
-                          <Users className="h-3 w-3" />
-                          <span>Handle multiple classes</span>
-                        </span>
-                        <span className="flex items-center space-x-1 bg-emerald-100 px-2 py-1 rounded-full">
-                          <CheckCircle className="h-3 w-3" />
-                          <span>No need to switch between sessions</span>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               {/* Create New Session */}
               <div className="relative overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-xl shadow-lg border border-indigo-100 p-6">
                 {/* Background Pattern */}
@@ -767,9 +927,21 @@ function AttendancePageContent() {
                     <h2 className="text-xl font-bold text-white">Today's Active Sessions</h2>
                   </div>
                   <button
-                    onClick={fetchTodaysSessions}
+                    onClick={() => {
+                      console.log('Manual refresh clicked - checking for expired sessions');
+                      // Force immediate expiration check
+                      setSessions(prevSessions => {
+                        const validSessions = getValidSessions(prevSessions);
+                        if (validSessions.length !== prevSessions.length) {
+                          console.log('Removed expired sessions on manual refresh:', prevSessions.length - validSessions.length);
+                        }
+                        return validSessions;
+                      });
+                      // Then fetch fresh data
+                      fetchTodaysSessions();
+                    }}
                     disabled={loadingSessions}
-                    className="group flex items-center px-4 py-2 text-sm font-medium bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                    className="group flex items-center px-4 py-2 text-sm font-medium bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 mr-2"
                   >
                     {loadingSessions ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
@@ -778,10 +950,11 @@ function AttendancePageContent() {
                     )}
                     Refresh
                   </button>
-                </div>
+                  
+                   </div>
 
                 <div className="p-6">
-                  {sessions.filter(session => session.isActive).length === 0 ? (
+                  {getValidSessions(sessions).filter(session => session.isActive).length === 0 ? (
                     <div className="text-center py-12">
                       <div className="mx-auto w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-4">
                         <Calendar className="h-12 w-12 text-gray-400" />
@@ -792,7 +965,7 @@ function AttendancePageContent() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {sessions.filter(session => session.isActive).map((session) => (
+                      {getValidSessions(sessions).filter(session => session.isActive).map((session) => (
                         <div
                           key={session.id}
                           className={`group relative p-6 rounded-2xl border-2 transition-all duration-300 hover:shadow-lg ${
@@ -865,7 +1038,7 @@ function AttendancePageContent() {
               </div>
 
               {/* Ended Sessions - Can be Reopened */}
-              {sessions.filter(session => !session.isActive).length > 0 && (
+              {getValidSessions(sessions).filter(session => !session.isActive).length > 0 && (
                 <div className="bg-white backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
                   <div className="px-6 py-6 bg-gradient-to-r from-orange-500 to-amber-600 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
@@ -881,7 +1054,7 @@ function AttendancePageContent() {
 
                   <div className="p-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {sessions.filter(session => !session.isActive).map((session) => (
+                      {getValidSessions(sessions).filter(session => !session.isActive).map((session) => (
                         <div
                           key={`ended-${session.id}`}
                           className="group relative p-6 rounded-2xl border-2 border-orange-100 bg-gradient-to-br from-orange-50 to-amber-50 hover:border-orange-200 transition-all duration-300 hover:shadow-lg"
@@ -915,6 +1088,14 @@ function AttendancePageContent() {
                             >
                               <RotateCcw className="w-4 h-4 inline mr-2 group-hover:animate-spin" />
                               Reopen Session
+                            </button>
+                            <button
+                              onClick={() => fullyEndSession(session.id, session)}
+                              className="group w-full bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-red-100 hover:to-rose-100 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
+                              title="Permanently end session and send SMS notifications"
+                            >
+                              <XCircle className="w-4 h-4 inline mr-2 group-hover:animate-pulse" />
+                              Fully End
                             </button>
                           </div>
                         </div>

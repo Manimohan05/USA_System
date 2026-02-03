@@ -8,6 +8,13 @@ import { Plus, BookOpen, Users, Trash2, Edit, Search, Filter, Sparkles, Graduati
 import api from '@/lib/api';
 import type { SubjectDto, CreateSubjectRequest } from '@/types';
 
+const PREDEFINED_SUBJECTS = [
+  'Combined Maths',
+  'Biology', 
+  'Physics',
+  'Chemistry'
+];
+
 export default function SubjectsPage() {
   const { addToast } = useToast();
   const [subjects, setSubjects] = useState<SubjectDto[]>([]);
@@ -15,6 +22,7 @@ export default function SubjectsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingSubject, setEditingSubject] = useState<SubjectDto | null>(null);
   const [newSubjectName, setNewSubjectName] = useState('');
+  const [useCustomName, setUseCustomName] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; subject: SubjectDto | null }>({
     show: false,
@@ -91,6 +99,8 @@ export default function SubjectsPage() {
   const handleEditSubject = (subject: SubjectDto) => {
     setEditingSubject(subject);
     setNewSubjectName(subject.name);
+    // Check if it's a predefined subject or custom
+    setUseCustomName(!PREDEFINED_SUBJECTS.includes(subject.name));
     setShowForm(true);
   };
 
@@ -126,6 +136,7 @@ export default function SubjectsPage() {
     setShowForm(false);
     setEditingSubject(null);
     setNewSubjectName('');
+    setUseCustomName(false);
   };
 
   if (loading) {
@@ -198,20 +209,61 @@ export default function SubjectsPage() {
                     <label className="block text-sm font-semibold text-gray-800 mb-3">
                       Subject Name *
                     </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={newSubjectName}
-                        onChange={(e) => setNewSubjectName(e.target.value)}
-                        placeholder="Enter subject name (e.g., Chemistry, Physics, Mathematics)"
-                        required
-                        className="w-full px-4 py-4 pr-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white text-lg"
-                      />
-                      <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-                        <BookOpen className="h-5 w-5 text-indigo-500" />
+                    
+                    {/* Dropdown for predefined subjects */}
+                    <div className="space-y-4">
+                      <div className="relative">
+                        <select
+                          value={useCustomName ? 'custom' : newSubjectName}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === 'custom') {
+                              setUseCustomName(true);
+                              setNewSubjectName('');
+                            } else {
+                              setUseCustomName(false);
+                              setNewSubjectName(value);
+                            }
+                          }}
+                          className="w-full px-4 py-4 pr-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white text-lg appearance-none"
+                        >
+                          <option value="">Select a subject...</option>
+                          {PREDEFINED_SUBJECTS.map((subject) => (
+                            <option key={subject} value={subject}>
+                              {subject}
+                            </option>
+                          ))}
+                          <option value="custom">Other (Custom Name)</option>
+                        </select>
+                        <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <BookOpen className="h-5 w-5 text-indigo-500" />
+                        </div>
                       </div>
+
+                      {/* Custom input field - only shown when 'Other' is selected */}
+                      {useCustomName && (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={newSubjectName}
+                            onChange={(e) => setNewSubjectName(e.target.value)}
+                            placeholder="Enter custom subject name"
+                            required={useCustomName}
+                            className="w-full px-4 py-4 pr-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white text-lg"
+                          />
+                          <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                            <Edit className="h-5 w-5 text-indigo-500" />
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">Choose a clear and descriptive name for the subject</p>
+                    
+                    <p className="text-xs text-gray-500 mt-2">
+                      {useCustomName 
+                        ? 'Enter a custom subject name'
+                        : 'Select from predefined subjects or choose "Other" for custom input'
+                      }
+                    </p>
                   </div>
                   <div className="flex justify-end space-x-4 pt-4">
                     <button

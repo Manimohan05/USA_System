@@ -77,7 +77,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <img src="/usa-logo.png" alt="USA Institute Logo" className="h-8 w-8 object-contain" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">USA Attendance</h1>
+              <h1 className="text-xl font-bold text-white">USA Student</h1>
               <p className="text-xs text-slate-400">Management System</p>
             </div>
           </div>
@@ -146,7 +146,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-800"></div>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">Admin User</p>
+                <p className="text-sm font-semibold text-white truncate">USA Admin</p>
                 <p className="text-xs text-slate-400">Administrator</p>
                 <div className="flex items-center space-x-1 mt-1">
                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -179,17 +179,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </button>
             
             <div className="flex items-center space-x-4">
-              {/* Notifications */}
-              <button className="relative p-3 text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-all duration-200 hover:scale-105 group">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full animate-pulse"></span>
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">3</span>
-              </button>
-              
               {/* User Profile */}
               <div className="flex items-center space-x-3 bg-gray-50 rounded-xl px-3 py-2 hover:bg-gray-100 transition-colors cursor-pointer">
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-semibold text-gray-900">Admin User</p>
+                  <p className="text-sm font-semibold text-gray-900">USA Admin</p>
                   <p className="text-xs text-gray-500">Administrator</p>
                 </div>
                 <div className="relative">
@@ -199,6 +192,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
                 </div>
               </div>
+              {/* Notifications */}
+              <button className="relative p-3 text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-all duration-200 hover:scale-105 group">
+                <Bell className="h-5 w-5" />
+                <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full animate-pulse"></span>
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">3</span>
+              </button>
             </div>
           </div>
         </div>

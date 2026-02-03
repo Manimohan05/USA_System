@@ -111,8 +111,7 @@ export default function StudentsPage() {
   };
 
   const filteredStudents = students.filter(student =>
-    student.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.studentIdCode.toLowerCase().includes(searchTerm.toLowerCase())
+    student.fullName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading && students.length === 0) {
@@ -211,7 +210,7 @@ export default function StudentsPage() {
                   <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-indigo-500 transition-colors" />
                   <input
                     type="text"
-                    placeholder="Name, ID, or phone..."
+                    placeholder="Name or phone..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 hover:border-indigo-300"
@@ -312,9 +311,6 @@ export default function StudentsPage() {
                         Student
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        ID Code
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Index Number
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -356,16 +352,13 @@ export default function StudentsPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {student.studentIdCode}
-                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             {student.indexNumber}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          Batch {student.batch.batchYear}
+                           {student.batch.batchYear}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex flex-wrap gap-1">
@@ -491,7 +484,7 @@ export default function StudentsPage() {
                 <h2 className="text-lg font-medium text-gray-900">Archive Student</h2>
               </div>
               <p className="text-gray-600 mb-6">
-                Are you sure you want to archive student "{deleteConfirm.student.fullName}" ({deleteConfirm.student.studentIdCode})? 
+                Are you sure you want to archive student "{deleteConfirm.student.fullName}"? 
                 This will move them to the archived section but their data will be preserved.
               </p>
               <div className="flex justify-end space-x-3">

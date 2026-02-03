@@ -130,41 +130,6 @@ export default function AttendanceSessionPage() {
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Fully end session permanently (sends SMS notifications)
-  const fullyEndSession = async () => {
-    if (!session) return;
-    
-    const sessionInfo = `Batch ${session.batchYear} - ${session.subjectName} (${formatDate(session.sessionDate)})`;
-
-    setConfirmTitle('Fully End Session?');
-    setConfirmMessage(`Are you sure you want to FULLY END this session?\n\n${sessionInfo}\n\n⚠️ This action cannot be undone and will:\n• Permanently close the session\n• Send SMS notifications to parents of absent students\n• Prevent any future reopening`);
-    setConfirmAction(() => async () => {
-      try {
-        console.log('Fully ending session:', sessionId);
-        await api.delete(`/admin/attendance/sessions/${sessionId}/fully-end`);
-        
-        console.log('Session fully ended successfully, refreshing session data');
-        await fetchSessionData();
-        
-        addToast({
-          type: 'success',
-          title: '✅ Session Fully Ended',
-          message: 'The session has been permanently closed.\n\n📱 SMS notifications have been sent to parents of absent students.',
-          duration: 10000
-        });
-      } catch (error: any) {
-        console.error('Failed to fully end session:', error);
-        addToast({
-          type: 'error',
-          title: '❌ Failed to Fully End Session',
-          message: `Error: ${error.response?.data?.message || 'Please try again.'}`,
-          duration: 6000
-        });
-      }
-    });
-    setShowConfirmModal(true);
-  };
-
   // Auto-end session function (for manual session ending)
   const autoEndSession = async () => {
     if (!session) return;
@@ -303,7 +268,6 @@ export default function AttendanceSessionPage() {
       
       // Show success overlay instead of alert
       setSuccessTitle(`${sessionInfo} - Successfully Closed!`);
-      setSuccessMessage('The session has been paused temporarily and can be reopened from the attendance page.');
       setShowSuccessOverlay(true);
       
     } catch (error: any) {
@@ -409,7 +373,7 @@ export default function AttendanceSessionPage() {
       <DashboardLayout>
         <div className="space-y-8">
           {/* Header Section */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 rounded-2xl shadow-2xl">
+          <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-violet-700 rounded-2xl shadow-2xl">
             {/* Background Elements */}
             <div className="absolute inset-0 bg-black/10"></div>
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32"></div>
@@ -482,14 +446,6 @@ export default function AttendanceSessionPage() {
                       >
                         <Pause className="h-4 w-4 mr-2" />
                         Close Session
-                      </button>                      
-                      <button
-                        onClick={fullyEndSession}
-                        className="flex items-center px-4 py-2 bg-red-500/80 hover:bg-red-500 text-white rounded-xl transition-colors"
-                        title="Permanently end session and send SMS notifications"
-                      >
-                        <XCircle className="h-4 w-4 mr-2" />
-                        Fully End
                       </button>                    </>
                   )}
                   
@@ -640,24 +596,13 @@ export default function AttendanceSessionPage() {
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">Session Temporarily Closed</h3>
                     <p className="text-gray-600 mb-4">This session has been temporarily closed by an administrator. It can be reopened anytime or fully ended.</p>
                     
-                    <div className="flex space-x-4">
-                      <button
-                        onClick={() => router.push('/dashboard/attendance')}
-                        className="flex-1 flex items-center justify-center px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-colors"
-                      >
-                        <ArrowLeft className="h-5 w-5 mr-2" />
-                        Back to Attendance
-                      </button>
-                      
-                      <button
-                        onClick={fullyEndSession}
-                        className="flex-1 flex items-center justify-center px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors font-medium"
-                        title="Permanently end session and send SMS notifications"
-                      >
-                        <XCircle className="h-5 w-5 mr-2" />
-                        Fully End
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => router.push('/dashboard/attendance')}
+                      className="w-full flex items-center justify-center px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-colors"
+                    >
+                      <ArrowLeft className="h-5 w-5 mr-2" />
+                      Back to Attendance
+                    </button>
                   </div>
                 ) : session.canReactivate ? (
                   <div className="text-center py-8">
@@ -676,24 +621,13 @@ export default function AttendanceSessionPage() {
                         </div>
                       </div>
                       
-                      <div className="flex space-x-4">
-                        <button
-                          onClick={reactivateSession}
-                          className="flex-1 flex items-center justify-center px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl transition-colors font-medium"
-                        >
-                          <Play className="h-5 w-5 mr-2" />
-                          Reopen Session
-                        </button>
-                        
-                        <button
-                          onClick={fullyEndSession}
-                          className="flex-1 flex items-center justify-center px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors font-medium"
-                          title="Permanently end session and send SMS notifications"
-                        >
-                          <XCircle className="h-5 w-5 mr-2" />
-                          Fully End
-                        </button>
-                      </div>
+                      <button
+                        onClick={reactivateSession}
+                        className="w-full flex items-center justify-center px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl transition-colors font-medium"
+                      >
+                        <Play className="h-5 w-5 mr-2" />
+                        Reopen Session
+                      </button>
                       
                       <p className="text-sm text-gray-500 text-center">💡 Reopen preserves all existing attendance. Fully End sends SMS notifications.</p>
                     </div>
@@ -715,7 +649,7 @@ export default function AttendanceSessionPage() {
 
             {/* Session Status Section */}
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-              <div className="px-6 py-6 bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-between">
+              <div className="px-6 py-6 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 bg-white/10 rounded-xl">
                     <Users className="h-6 w-6 text-white" />
@@ -836,15 +770,7 @@ export default function AttendanceSessionPage() {
                 >
                   Close Tab
                 </button>
-                <button
-                  onClick={() => {
-                    setShowSuccessOverlay(false);
-                    router.push('/dashboard/attendance');
-                  }}
-                  className="px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all"
-                >
-                  Go to Attendance Page
-                </button>
+
               </div>
             </div>
           </div>

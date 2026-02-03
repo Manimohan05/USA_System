@@ -27,8 +27,65 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Helper function to check if session has expired (60 minutes from creation)
+  const isSessionExpired = (session: AttendanceSessionDto): boolean => {
+    try {
+      const sessionCreatedAt = new Date(session.createdAt).getTime();
+      const now = Date.now();
+      const sessionDuration = 60 * 60 * 1000; // 60 minutes in milliseconds
+      const elapsed = now - sessionCreatedAt;
+      const isExpired = elapsed > sessionDuration;
+      
+      console.log(`Dashboard - Session ${session.id} (Batch ${session.batchYear} ${session.subjectName}) - Elapsed: ${Math.round(elapsed / 60000)}min, Expired: ${isExpired}`);
+      
+      return isExpired;
+    } catch (error) {
+      console.error('Dashboard - Error checking session expiration:', error, session);
+      return false;
+    }
+  };
+
+  // Filter sessions to exclude expired ones
+  const getValidSessions = (sessions: AttendanceSessionDto[]): AttendanceSessionDto[] => {
+    const validSessions = sessions.filter(session => !isSessionExpired(session));
+    
+    if (validSessions.length !== sessions.length) {
+      console.log(`Dashboard - Filtered ${sessions.length - validSessions.length} expired sessions out of ${sessions.length} total`);
+    }
+    
+    return validSessions;
+  };
+
   useEffect(() => {
     fetchDashboardData();
+  }, []);
+
+  useEffect(() => {
+    // Periodically check and remove expired sessions on dashboard
+    const checkExpiredSessions = () => {
+      setActiveSessions(prevSessions => {
+        if (prevSessions.length === 0) return prevSessions;
+        
+        const validSessions = getValidSessions(prevSessions);
+        if (validSessions.length !== prevSessions.length) {
+          console.log('Dashboard - Removed expired sessions:', prevSessions.length - validSessions.length);
+          // Update stats as well
+          setStats(prevStats => ({
+            ...prevStats,
+            todayAttendance: validSessions.length
+          }));
+          return validSessions;
+        }
+        return prevSessions;
+      });
+    };
+    
+    // Check immediately on mount
+    setTimeout(checkExpiredSessions, 2000);
+    
+    // Then check every 30 seconds
+    const interval = setInterval(checkExpiredSessions, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchDashboardData = async (isRefresh = false) => {
@@ -47,14 +104,19 @@ export default function DashboardPage() {
         api.get<AttendanceSessionDto[]>('/admin/attendance/sessions/today'),
       ]);
 
+      // Filter out expired sessions before setting state
+      const validSessions = getValidSessions(sessionsRes.data);
+      console.log('Dashboard - Raw sessions from backend:', sessionsRes.data.length);
+      console.log('Dashboard - Valid (non-expired) sessions:', validSessions.length);
+
       setStats({
         totalStudents: studentsRes.data.length,
         totalBatches: batchesRes.data.length,
         totalSubjects: subjectsRes.data.length,
-        todayAttendance: sessionsRes.data.length, // Number of active sessions today
+        todayAttendance: validSessions.length, // Use filtered sessions count
       });
       
-      setActiveSessions(sessionsRes.data);
+      setActiveSessions(validSessions);
       setError(null);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
