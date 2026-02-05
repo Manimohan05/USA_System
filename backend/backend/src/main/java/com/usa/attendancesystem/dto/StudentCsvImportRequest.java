@@ -29,6 +29,8 @@ public record StudentCsvImportRequest(
         String phoneNumber,
         @NotNull(message = "Batch year is required")
         Integer batchYear,
+        @NotNull(message = "Day batch flag is required")
+        boolean isDayBatch,
         @NotBlank(message = "Subject names are required")
         String subjectNames // Comma-separated subject names
         ) {

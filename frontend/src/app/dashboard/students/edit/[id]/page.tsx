@@ -284,7 +284,7 @@ export default function EditStudentPage() {
                       <option value="">Select a batch</option>
                       {batches.map((batch) => (
                         <option key={batch.id} value={batch.id.toString()}>
-                          Batch {batch.batchYear}
+                          {batch.displayName}
                         </option>
                       ))}
                     </select>

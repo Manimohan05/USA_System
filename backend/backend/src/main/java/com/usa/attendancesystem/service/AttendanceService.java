@@ -16,8 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.usa.attendancesystem.dto.AttendanceMarkByIndexRequest;
 import com.usa.attendancesystem.dto.AttendanceMarkRequest;
+import com.usa.attendancesystem.dto.AttendanceRecordDto;
 import com.usa.attendancesystem.dto.AttendanceReportDto;
+import com.usa.attendancesystem.dto.AttendanceReportRequest;
 import com.usa.attendancesystem.dto.AttendanceValidationResponseDto;
+import com.usa.attendancesystem.dto.EnhancedAttendanceReportDto;
 import com.usa.attendancesystem.dto.PresentStudentDto;
 import com.usa.attendancesystem.dto.SessionAttendanceStatusDto;
 import com.usa.attendancesystem.dto.StudentDto;
@@ -394,6 +397,154 @@ public class AttendanceService {
             log.error("Error: {}", e.getMessage());
             log.error("Full stack trace:", e);
             // Don't throw exception to avoid breaking attendance flow
+        }
+    }
+
+    /**
+     * Enhanced report generation method that supports filtering by student ID
+     * and preserves existing single-day functionality.
+     */
+    @Transactional(readOnly = true)
+    public EnhancedAttendanceReportDto getEnhancedAttendanceReport(AttendanceReportRequest request) {
+        // Validate request
+        if (!request.hasValidDateRange()) {
+            throw new IllegalArgumentException("Either date or both startDate and endDate must be provided");
+        }
+
+        // Handle student-specific reports
+        if (request.isStudentSpecificRequest()) {
+            return generateStudentSpecificReport(request);
+        }
+
+        // Handle single-date reports (backward compatibility)
+        return generateSingleDateReport(request);
+    }
+
+    private EnhancedAttendanceReportDto generateStudentSpecificReport(AttendanceReportRequest request) {
+        // Find the student
+        Student student = findStudentFromRequest(request);
+
+        // Determine date range
+        LocalDate startDate = request.isDateRangeRequest() ? request.getStartDate() : request.getDate();
+        LocalDate endDate = request.isDateRangeRequest() ? request.getEndDate() : request.getDate();
+
+        // Convert to Instant range
+        ZoneId zoneId = ZoneId.systemDefault();
+        Instant startTime = startDate.atStartOfDay(zoneId).toInstant();
+        Instant endTime = endDate.plusDays(1).atStartOfDay(zoneId).toInstant();
+
+        List<AttendanceRecord> attendanceRecords;
+        List<AttendanceSession> classSessions;
+        String subjectName;
+
+        if (request.getSubjectId() != null) {
+            // Student-specific report for a particular subject
+            Subject subject = subjectRepository.findById(request.getSubjectId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Subject not found with ID: " + request.getSubjectId()));
+
+            attendanceRecords = attendanceRepository.findByStudentAndSubjectAndDateRange(
+                    student.getId(), request.getSubjectId(), startTime, endTime
+            );
+
+            classSessions = sessionRepository.findBySubjectAndDateRange(
+                    request.getSubjectId(), startDate, endDate
+            );
+
+            subjectName = subject.getName();
+        } else {
+            // Student-specific report across all subjects
+            attendanceRecords = attendanceRepository.findByStudentAndDateRange(
+                    student.getId(), startTime, endTime
+            );
+
+            classSessions = List.of(); // Can't calculate total class days without a specific subject
+            subjectName = "All Subjects";
+        }
+
+        // Convert to DTOs
+        List<AttendanceRecordDto> recordDtos = attendanceRecords.stream()
+                .map(record -> AttendanceRecordDto.createPresentRecord(
+                record.getStudent().getId(),
+                record.getStudent().getStudentIdCode(),
+                record.getStudent().getFullName(),
+                record.getSubject().getName(),
+                record.getAttendanceTimestamp().atZone(zoneId).toLocalDate(),
+                record.getAttendanceTimestamp()
+        ))
+                .toList();
+
+        // Calculate attendance statistics
+        int totalPresentDays = recordDtos.size();
+        int totalClassDays = classSessions.size();
+
+        return EnhancedAttendanceReportDto.createStudentReport(
+                startDate,
+                endDate,
+                student.getFullName(),
+                student.getStudentIdCode(),
+                String.valueOf(student.getBatch().getBatchYear()),
+                subjectName,
+                recordDtos,
+                totalPresentDays,
+                totalClassDays
+        );
+    }
+
+    private EnhancedAttendanceReportDto generateSingleDateReport(AttendanceReportRequest request) {
+        // Use existing logic but return in new format
+        AttendanceReportDto legacyReport = getAttendanceReport(
+                request.getDate(),
+                request.getBatchId(),
+                request.getSubjectId()
+        );
+
+        // Convert legacy format to enhanced format
+        List<AttendanceRecordDto> recordDtos = legacyReport.presentStudents().stream()
+                .map(student -> AttendanceRecordDto.createPresentRecord(
+                student.id(),
+                student.studentIdCode(),
+                student.fullName(),
+                "", // Subject name not available in legacy format
+                request.getDate(),
+                student.checkInTime()
+        ))
+                .collect(Collectors.toList());
+
+        // Add absent students as records
+        legacyReport.absentStudents().forEach(student
+                -> recordDtos.add(AttendanceRecordDto.createAbsentRecord(
+                        student.id(),
+                        student.studentIdCode(),
+                        student.fullName(),
+                        "", // Subject name not available in legacy format
+                        request.getDate()
+                ))
+        );
+
+        // Get subject name
+        String subjectName = request.getSubjectId() != null
+                ? subjectRepository.findById(request.getSubjectId())
+                        .map(Subject::getName)
+                        .orElse("Unknown Subject")
+                : "Unknown Subject";
+
+        return EnhancedAttendanceReportDto.createSingleDateReport(
+                request.getDate(),
+                "Batch " + request.getBatchId(),
+                subjectName,
+                recordDtos
+        );
+    }
+
+    private Student findStudentFromRequest(AttendanceReportRequest request) {
+        if (request.getStudentId() != null) {
+            return studentRepository.findById(request.getStudentId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + request.getStudentId()));
+        } else if (request.getStudentIdCode() != null && !request.getStudentIdCode().trim().isEmpty()) {
+            return studentRepository.findByStudentIdCode(request.getStudentIdCode())
+                    .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID Code: " + request.getStudentIdCode()));
+        } else {
+            throw new IllegalArgumentException("Either studentId or studentIdCode must be provided for student-specific reports");
         }
     }
 }

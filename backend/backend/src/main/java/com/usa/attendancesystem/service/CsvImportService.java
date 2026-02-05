@@ -173,9 +173,10 @@ public class CsvImportService {
     @Transactional
     private StudentDto createStudentFromRequest(StudentCsvImportRequest studentRequest) {
         try {
-            // Find batch
-            Batch batch = batchRepository.findByBatchYear(studentRequest.batchYear())
-                    .orElseThrow(() -> new RuntimeException("Batch not found: " + studentRequest.batchYear()));
+            // Find batch using the isDayBatch flag from the request
+            Batch batch = batchRepository.findByBatchYearAndIsDayBatch(studentRequest.batchYear(), studentRequest.isDayBatch())
+                    .orElseThrow(() -> new RuntimeException("Batch not found for year " + studentRequest.batchYear()
+                    + (studentRequest.isDayBatch() ? " (Day Batch)" : "")));
 
             // Parse selected subjects and find subject entities
             Set<Subject> subjects = parseSubjects(studentRequest.subjectNames());
@@ -335,10 +336,16 @@ public class CsvImportService {
 
             String subjectNames = String.join(", ", selectedSubjects);
 
-            // Validate and parse batch year
+            // Validate and parse batch year (handle day batch format like "2028Day")
             Integer batchYear;
+            boolean isDayBatch = false;
             try {
-                batchYear = Integer.parseInt(batchYearStr);
+                String cleanBatchYear = batchYearStr.trim();
+                if (cleanBatchYear.endsWith("Day")) {
+                    isDayBatch = true;
+                    cleanBatchYear = cleanBatchYear.substring(0, cleanBatchYear.length() - 3);
+                }
+                batchYear = Integer.parseInt(cleanBatchYear);
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("Invalid batch year format: " + batchYearStr);
             }
@@ -371,6 +378,7 @@ public class CsvImportService {
                     admissionDate,
                     cleanPhone,
                     batchYear,
+                    isDayBatch,
                     subjectNames
             );
         } catch (Exception e) {
@@ -436,10 +444,16 @@ public class CsvImportService {
 
             String subjectNames = String.join(", ", selectedSubjects);
 
-            // Validate and parse batch year
+            // Validate and parse batch year (handle day batch format like "2028Day")
             Integer batchYear;
+            boolean isDayBatch = false;
             try {
-                batchYear = Integer.parseInt(batchYearStr.trim());
+                String cleanBatchYear = batchYearStr.trim();
+                if (cleanBatchYear.endsWith("Day")) {
+                    isDayBatch = true;
+                    cleanBatchYear = cleanBatchYear.substring(0, cleanBatchYear.length() - 3);
+                }
+                batchYear = Integer.parseInt(cleanBatchYear);
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("Invalid batch year format: " + batchYearStr);
             }
@@ -496,6 +510,7 @@ public class CsvImportService {
                     admissionDate,
                     cleanPhone,
                     batchYear,
+                    isDayBatch,
                     subjectNames
             );
         } catch (Exception e) {
@@ -529,8 +544,8 @@ public class CsvImportService {
     }
 
     private StudentDto createStudentFromCsv(StudentCsvImportRequest request) {
-        // Find or validate batch
-        Batch batch = batchRepository.findByBatchYear(request.batchYear())
+        // Find or validate batch (defaults to non-day batch)
+        Batch batch = batchRepository.findByBatchYearAndIsDayBatch(request.batchYear(), false)
                 .orElseThrow(() -> new ResourceNotFoundException(
                 "Batch with year " + request.batchYear() + " not found"));
 
@@ -809,6 +824,8 @@ public class CsvImportService {
                 new BatchDto(
                         student.getBatch().getId(),
                         student.getBatch().getBatchYear(),
+                        student.getBatch().isDayBatch(),
+                        student.getBatch().getDisplayName(),
                         0L // We don't need exact count for import, so set to 0
                 ),
                 student.getSubjects().stream()

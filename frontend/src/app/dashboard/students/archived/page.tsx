@@ -189,7 +189,7 @@ export default function ArchivedStudentsPage() {
                   <option value="">All Batches</option>
                   {batches.map((batch) => (
                     <option key={batch.id} value={batch.id.toString()}>
-                      Batch {batch.batchYear}
+                      {batch.displayName}
                     </option>
                   ))}
                 </select>
@@ -319,7 +319,7 @@ export default function ArchivedStudentsPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        Batch {student.batch.batchYear}
+                        {student.batch.displayName}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex flex-wrap gap-1">

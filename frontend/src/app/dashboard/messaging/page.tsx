@@ -309,7 +309,7 @@ export default function MessagingPage() {
                               <option value="">All Batches</option>
                               {batches.map((batch) => (
                                 <option key={batch.id} value={batch.id.toString()}>
-                                  Batch {batch.batchYear}
+                                  {batch.batchYear}{batch.dayBatch ? ' Day' : ''}
                                 </option>
                               ))}
                             </select>

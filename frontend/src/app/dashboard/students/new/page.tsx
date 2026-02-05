@@ -321,7 +321,7 @@ export default function NewStudentPage() {
                       <option value="">Select a batch</option>
                       {batches.map((batch) => (
                         <option key={batch.id} value={batch.id.toString()}>
-                          Batch {batch.batchYear}
+                          {batch.displayName}
                         </option>
                       ))}
                     </select>
@@ -362,7 +362,7 @@ export default function NewStudentPage() {
                 <div className="space-y-3">
                   <label className="flex items-center text-lg font-semibold text-gray-800">
                     <IdCard className="h-5 w-5 mr-2 text-indigo-600" />
-                    Index Number *
+                    Student ID*
                   </label>
                   <div className="relative group">
                     <input

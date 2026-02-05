@@ -1,0 +1,68 @@
+package com.usa.attendancesystem.controller;
+
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.usa.attendancesystem.dto.FeePaymentRequest;
+import com.usa.attendancesystem.dto.FeeReportDto;
+import com.usa.attendancesystem.dto.FeeReportRequest;
+import com.usa.attendancesystem.service.FeeService;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@RestController
+@RequestMapping("/admin/fees")
+@RequiredArgsConstructor
+@Slf4j
+public class FeeController {
+
+    private final FeeService feeService;
+
+    @PostMapping("/mark-payment")
+    public ResponseEntity<String> markFeePayment(@Valid @RequestBody FeePaymentRequest request) {
+
+        log.info("Received fee payment request for student: {} for {}/{}",
+                request.studentIdCode(), request.month(), request.year());
+
+        try {
+            feeService.markFeePayment(request);
+
+            String message = String.format("Fee payment marked successfully for student %s for %s/%s",
+                    request.studentIdCode(), request.month(), request.year());
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(message);
+
+        } catch (Exception e) {
+            log.error("Error marking fee payment for student {}: {}",
+                    request.studentIdCode(), e.getMessage());
+            throw e;
+        }
+    }
+
+    @PostMapping("/report")
+    public ResponseEntity<List<FeeReportDto>> generateFeeReport(@Valid @RequestBody FeeReportRequest request) {
+
+        log.info("Generating fee report for {}/{} with filters - batch: {}, subject: {}, student: {}",
+                request.month(), request.year(), request.batchId(),
+                request.subjectId(), request.studentIdCode());
+
+        try {
+            List<FeeReportDto> report = feeService.generateFeeReport(request);
+
+            log.info("Fee report generated successfully with {} records", report.size());
+            return ResponseEntity.ok(report);
+
+        } catch (Exception e) {
+            log.error("Error generating fee report: {}", e.getMessage());
+            throw e;
+        }
+    }
+}

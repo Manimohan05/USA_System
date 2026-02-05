@@ -140,12 +140,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="relative p-3 flex-shrink-0">
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-3">
             <div className="flex items-center space-x-3 mb-3">
-              <div className="h-10 w-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+              <div className="relative h-10 w-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Crown className="h-5 w-5 text-white" />
+                {/* Online indicator */}
+                <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-slate-800 rounded-full animate-pulse"></div>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white truncate">USA Admin</p>
-                
+              
               </div>
             </div>
             
@@ -177,11 +179,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="flex items-center space-x-3 bg-gray-50 rounded-xl px-3 py-2 hover:bg-gray-100 transition-colors cursor-pointer">
                 <div className="text-right hidden sm:block">
                   <p className="text-sm font-semibold text-gray-900">USA Admin</p>
-                </div>
+               </div>
                 <div className="relative">
                   <div className="h-10 w-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
                     <Crown className="h-5 w-5 text-white" />
                   </div>
+                  {/* Online indicator */}
+                  <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-white rounded-full animate-pulse shadow-sm"></div>
                 </div>
               </div>
               {/* Notifications */}

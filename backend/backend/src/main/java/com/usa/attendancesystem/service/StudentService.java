@@ -79,14 +79,33 @@ public class StudentService {
      */
     private void validateIndexNumberForBatch(String indexNumber, Batch batch) {
         try {
-            int indexNum = Integer.parseInt(indexNumber);
+            // Handle day batch index numbers (e.g., D5001) vs regular (e.g., 5001)
+            String numericPart = indexNumber;
+            if (batch.isDayBatch()) {
+                if (!indexNumber.startsWith("D")) {
+                    throw new IllegalArgumentException(
+                            String.format("Day batch index number must start with 'D'. Expected format: D%d001, D%d002, etc.",
+                                    batch.getBatchYear() % 10, batch.getBatchYear() % 10));
+                }
+                numericPart = indexNumber.substring(1); // Remove 'D' prefix
+            } else {
+                if (indexNumber.startsWith("D")) {
+                    throw new IllegalArgumentException(
+                            String.format("Regular batch index number cannot start with 'D'. Expected format: %d001, %d002, etc.",
+                                    batch.getBatchYear() % 10, batch.getBatchYear() % 10));
+                }
+            }
+
+            int indexNum = Integer.parseInt(numericPart);
             int lastDigit = batch.getBatchYear() % 10;
             int baseNumber = lastDigit * 1000;
 
             if (indexNum < baseNumber || indexNum >= baseNumber + 1000) {
+                String expectedPrefix = batch.isDayBatch() ? "D" : "";
                 throw new IllegalArgumentException(
-                        String.format("Index number %s is not valid for batch %d. Expected range: %d-%d",
-                                indexNumber, batch.getBatchYear(), baseNumber + 1, baseNumber + 999));
+                        String.format("Index number %s is not valid for batch %d. Expected range: %s%d-%s%d",
+                                indexNumber, batch.getBatchYear(),
+                                expectedPrefix, baseNumber + 1, expectedPrefix, baseNumber + 999));
             }
 
             // Check if index number already exists
@@ -94,7 +113,10 @@ public class StudentService {
                 throw new IllegalArgumentException("Index number " + indexNumber + " already exists");
             }
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Index number must be a valid number");
+            String expectedFormat = batch.isDayBatch()
+                    ? String.format("D%d001, D%d002, etc.", batch.getBatchYear() % 10, batch.getBatchYear() % 10)
+                    : String.format("%d001, %d002, etc.", batch.getBatchYear() % 10, batch.getBatchYear() % 10);
+            throw new IllegalArgumentException("Index number must be in valid format: " + expectedFormat);
         }
     }
 
@@ -130,38 +152,13 @@ public class StudentService {
     }
 
     /**
-     * Generate next index number for a specific batch following the format:
-     * Batch 2027 -> 7001, 7002, 7003... Batch 2028 -> 8001, 8002, 8003...
+     * Generate next index number for a specific batch. Since student ID and
+     * index numbers are the same in this system, this method returns the same
+     * value as getNextStudentIdForBatch. Format: For regular batches: 5001,
+     * 6001... For day batches: D5001, D6001...
      */
     public String getNextIndexNumberForBatch(Integer batchId) {
-        Batch batch = batchRepository.findById(batchId)
-                .orElseThrow(() -> new ResourceNotFoundException("Batch not found with ID: " + batchId));
-
-        // Get the last digit of the batch year
-        int lastDigit = batch.getBatchYear() % 10;
-        int baseNumber = lastDigit * 1000;
-
-        // Get existing students in this batch ordered by index number
-        List<Student> studentsInBatch = studentRepository.findByBatchIdOrderByIndexNumberDesc(batchId);
-
-        int nextSequence = 1; // Start from 1
-
-        if (!studentsInBatch.isEmpty()) {
-            // Find the highest sequence number for this batch
-            for (Student student : studentsInBatch) {
-                try {
-                    int indexNum = Integer.parseInt(student.getIndexNumber());
-                    if (indexNum >= baseNumber && indexNum < baseNumber + 1000) {
-                        int sequence = indexNum - baseNumber;
-                        nextSequence = Math.max(nextSequence, sequence + 1);
-                    }
-                } catch (NumberFormatException e) {
-                    // Skip invalid index numbers
-                }
-            }
-        }
-
-        return String.valueOf(baseNumber + nextSequence);
+        return getNextStudentIdForBatch(batchId);
     }
 
     /**
@@ -176,7 +173,9 @@ public class StudentService {
     /**
      * Generates the next student ID based on batch year and student sequence.
      * Format: [last digit of year][sequence number] E.g., for batch 2026: 6001,
-     * 6002, 6003... E.g., for batch 2025: 5001, 5002, 5003...
+     * Generates the next student ID for a given batch, handling day batch
+     * prefix. For day batches, adds 'D' prefix: D5001, D5002... For regular:
+     * 5001, 5002...
      */
     public String getNextStudentIdForBatch(Integer batchId) {
         // Get the batch
@@ -185,7 +184,8 @@ public class StudentService {
 
         int batchYear = batch.getBatchYear();
         int lastDigit = batchYear % 10;
-        String prefix = String.valueOf(lastDigit);
+        String basePrefix = String.valueOf(lastDigit);
+        String fullPrefix = batch.isDayBatch() ? "D" + basePrefix : basePrefix;
 
         // Find the highest student ID for this batch prefix across all students
         List<Student> allStudents = studentRepository.findAll();
@@ -193,10 +193,14 @@ public class StudentService {
 
         for (Student student : allStudents) {
             String studentId = student.getStudentIdCode();
-            if (studentId != null && studentId.startsWith(prefix) && studentId.length() == 4) {
+            if (studentId != null && studentId.startsWith(fullPrefix)) {
                 try {
-                    int sequence = Integer.parseInt(studentId.substring(1)); // Get last 3 digits
-                    maxSequence = Math.max(maxSequence, sequence);
+                    // Extract sequence number: for "D5001" -> "001", for "5001" -> "001"
+                    String sequencePart = studentId.substring(fullPrefix.length());
+                    if (sequencePart.length() == 3) {
+                        int sequence = Integer.parseInt(sequencePart);
+                        maxSequence = Math.max(maxSequence, sequence);
+                    }
                 } catch (NumberFormatException e) {
                     // Skip invalid format
                 }
@@ -211,8 +215,8 @@ public class StudentService {
             nextSequence = 1;
         }
 
-        // Format: last digit + sequence (padded to 3 digits)
-        return String.format("%d%03d", lastDigit, nextSequence);
+        // Format: [D]lastDigit + sequence (padded to 3 digits)
+        return String.format("%s%03d", fullPrefix, nextSequence);
     }
 
     /**
@@ -357,7 +361,7 @@ public class StudentService {
      */
     public StudentDto mapToStudentDto(Student student) {
         long batchStudentCount = studentRepository.countActiveStudentsByBatch(student.getBatch().getId());
-        BatchDto batchDto = new BatchDto(student.getBatch().getId(), student.getBatch().getBatchYear(), batchStudentCount);
+        BatchDto batchDto = new BatchDto(student.getBatch().getId(), student.getBatch().getBatchYear(), student.getBatch().isDayBatch(), student.getBatch().getDisplayName(), batchStudentCount);
         Set<SubjectDto> subjectDtos = student.getSubjects().stream()
                 .map(subject -> {
                     Long studentCount = studentRepository.countActiveStudentsBySubject(subject.getId());

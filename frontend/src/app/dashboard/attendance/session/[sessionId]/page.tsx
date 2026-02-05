@@ -130,25 +130,25 @@ export default function AttendanceSessionPage() {
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Auto-end session function (for manual session ending)
+  // Auto-end session function (for timer expiration - sends SMS)
   const autoEndSession = async () => {
     if (!session) return;
     
     try {
-      console.log('Ending session:', sessionId);
-      await api.put(`/admin/attendance/sessions/${sessionId}/deactivate`);
+      console.log('Auto-ending session (with SMS):', sessionId);
+      await api.put(`/admin/attendance/sessions/${sessionId}/auto-end`);
       
-      console.log('Session ended successfully, refreshing session data');
+      console.log('Session auto-ended successfully, refreshing session data');
       await fetchSessionData();
       
       addToast({
         type: 'warning',
-        title: '⏰ Session Timer Expired',
-        message: 'The 60-minute session timer has expired. Session temporarily ended.\n\n💡 You can reopen this session anytime or click "Fully End" to send SMS notifications.',
-        duration: 8000
+        title: '⏰ Session Auto-Ended (SMS Sent)',
+        message: 'The 60-minute session timer has expired and the session has been automatically ended.\n\n📱 SMS notifications have been sent to parents of absent students.\n\n💡 You can still reopen this session if needed.',
+        duration: 12000
       });
     } catch (error: any) {
-      console.error('Failed to end session:', error);
+      console.error('Failed to auto-end session:', error);
     } finally {
       setIsAutoEnding(false);
     }
@@ -267,7 +267,8 @@ export default function AttendanceSessionPage() {
       await api.put(`/admin/attendance/sessions/${sessionId}/close`);
       
       // Show success overlay instead of alert
-      setSuccessTitle(`${sessionInfo} - Successfully Closed!`);
+      setSuccessTitle(`⏸️ ${sessionInfo} - Temporarily Closed!`);
+      setSuccessMessage('Session has been temporarily closed (no SMS sent).\n\nYou can reopen this session anytime or use "Fully End" to send SMS notifications to parents of absent students.');
       setShowSuccessOverlay(true);
       
     } catch (error: any) {
@@ -314,8 +315,8 @@ export default function AttendanceSessionPage() {
       setIsAutoEnding(false);
       
       // Show success overlay
-      setSuccessTitle(`✅ Session Reactivated Successfully!`);
-      setSuccessMessage(`${sessionInfo}\n\nThe session is now active again and students can mark attendance.`);
+      setSuccessTitle(`🔄 Session Reactivated Successfully!`);
+      setSuccessMessage(`${sessionInfo}\n\nThe session is now active again and students can mark attendance.\n\n💡 When ready to end permanently, use \"Fully End\" to send SMS notifications to parents of absent students.`);
       setShowSuccessOverlay(true);
     } catch (error: any) {
       console.error('Failed to reactivate session:', error);
@@ -442,10 +443,10 @@ export default function AttendanceSessionPage() {
                       <button
                         onClick={closeSession}
                         className="flex items-center px-4 py-2 bg-yellow-500/80 hover:bg-yellow-500 text-white rounded-xl transition-colors"
-                        title="Temporarily close session (can be reopened) - NO SMS sent"
+                        title="Temporarily end session (can be reopened) - NO SMS sent"
                       >
                         <Pause className="h-4 w-4 mr-2" />
-                        Close Session
+                        End Session
                       </button>                    </>
                   )}
                   
@@ -594,7 +595,7 @@ export default function AttendanceSessionPage() {
                       <Pause className="h-8 w-8 text-yellow-500" />
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">Session Temporarily Closed</h3>
-                    <p className="text-gray-600 mb-4">This session has been temporarily closed by an administrator. It can be reopened anytime or fully ended.</p>
+                    <p className="text-gray-600 mb-4">This session has been temporarily closed (no SMS sent). It can be reopened anytime or permanently ended with SMS notifications.</p>
                     
                     <button
                       onClick={() => router.push('/dashboard/attendance')}
@@ -617,7 +618,7 @@ export default function AttendanceSessionPage() {
                         <h4 className="font-medium text-blue-800 mb-2">📋 Reopen Options:</h4>
                         <div className="text-sm text-blue-700 space-y-1">
                           <p>• <strong>Reopen Session:</strong> Continue attendance marking with same session ID</p>
-                          <p>• <strong>Fully End:</strong> Permanently close and send SMS notifications</p>
+                          <p>• <strong>Fully End:</strong> Permanently close and send SMS notifications to absent students</p>
                         </div>
                       </div>
                       
@@ -629,7 +630,7 @@ export default function AttendanceSessionPage() {
                         Reopen Session
                       </button>
                       
-                      <p className="text-sm text-gray-500 text-center">💡 Reopen preserves all existing attendance. Fully End sends SMS notifications.</p>
+                      <p className="text-sm text-gray-500 text-center">💡 "End Session" allows reopening without SMS. "Fully End" sends SMS to absent students' parents.</p>
                     </div>
                   </div>
                 ) : (

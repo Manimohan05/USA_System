@@ -137,17 +137,24 @@ public class AttendanceSessionService {
 
     @Transactional
     public void deactivateSession(Long sessionId) {
-        System.out.println("AttendanceSessionService - Starting deactivation for session: " + sessionId);
+        deactivateSession(sessionId, false); // Default: no SMS for manual end
+    }
+
+    @Transactional
+    public void deactivateSession(Long sessionId, boolean sendSms) {
+        System.out.println("AttendanceSessionService - Starting deactivation for session: " + sessionId + ", sendSms: " + sendSms);
 
         AttendanceSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Session not found with ID: " + sessionId));
 
         System.out.println("AttendanceSessionService - Found session: " + session.getId() + ", isActive: " + session.isActive());
 
-        // Only send notifications if the session is currently active (to avoid duplicate notifications)
-        if (session.isActive()) {
-            System.out.println("AttendanceSessionService - Session is active, sending absence notifications");
+        // Send notifications only if requested and session is currently active
+        if (sendSms && session.isActive()) {
+            System.out.println("AttendanceSessionService - Session is active, sending absence notifications (SMS requested)");
             sendAbsenceNotifications(session);
+        } else if (!sendSms) {
+            System.out.println("AttendanceSessionService - SMS not requested, skipping notifications");
         } else {
             System.out.println("AttendanceSessionService - Session is already inactive, skipping notifications");
         }

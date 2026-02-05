@@ -229,7 +229,7 @@ export default function StudentsPage() {
                   <option value="">All Batches</option>
                   {batches.map((batch) => (
                     <option key={batch.id} value={batch.id.toString()}>
-                      Batch {batch.batchYear}
+                      {batch.displayName}
                     </option>
                   ))}
                 </select>
@@ -358,7 +358,7 @@ export default function StudentsPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                           {student.batch.batchYear}
+                          {student.batch.displayName}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex flex-wrap gap-1">
@@ -416,19 +416,19 @@ export default function StudentsPage() {
                 <p className="mt-1 text-sm text-gray-500">
                   {(() => {
                     if (searchTerm && (selectedBatch || selectedSubject)) {
-                      const batchText = selectedBatch ? `Batch ${batches.find(b => b.id.toString() === selectedBatch)?.batchYear || selectedBatch}` : '';
+                      const batchText = selectedBatch ? `Batch ${batches.find(b => b.id.toString() === selectedBatch)?.displayName || selectedBatch}` : '';
                       const subjectText = selectedSubject ? `Subject ${subjects.find(s => s.id.toString() === selectedSubject)?.name || selectedSubject}` : '';
                       const filterText = [batchText, subjectText].filter(Boolean).join(' and ');
                       return `No students found matching "${searchTerm}" in ${filterText}.`;
                     } else if (searchTerm) {
                       return `No students found matching "${searchTerm}". Try a different search term.`;
                     } else if (selectedBatch && selectedSubject) {
-                      const batchYear = batches.find(b => b.id.toString() === selectedBatch)?.batchYear || selectedBatch;
+                      const batchName = batches.find(b => b.id.toString() === selectedBatch)?.displayName || selectedBatch;
                       const subjectName = subjects.find(s => s.id.toString() === selectedSubject)?.name || selectedSubject;
-                      return `No students found in Batch ${batchYear} enrolled in ${subjectName}.`;
+                      return `No students found in Batch ${batchName} enrolled in ${subjectName}.`;
                     } else if (selectedBatch) {
-                      const batchYear = batches.find(b => b.id.toString() === selectedBatch)?.batchYear || selectedBatch;
-                      return `No students found in Batch ${batchYear}. This batch may not have any enrolled students yet.`;
+                      const batchName = batches.find(b => b.id.toString() === selectedBatch)?.displayName || selectedBatch;
+                      return `No students found in Batch ${batchName}. This batch may not have any enrolled students yet.`;
                     } else if (selectedSubject) {
                       const subjectName = subjects.find(s => s.id.toString() === selectedSubject)?.name || selectedSubject;
                       return `No students found enrolled in ${subjectName}. This subject may not have any students assigned yet.`;

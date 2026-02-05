@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.usa.attendancesystem.dto.AttendanceMarkByIndexRequest;
 import com.usa.attendancesystem.dto.AttendanceMarkRequest;
 import com.usa.attendancesystem.dto.AttendanceReportDto;
+import com.usa.attendancesystem.dto.AttendanceReportRequest;
+import com.usa.attendancesystem.dto.EnhancedAttendanceReportDto;
 import com.usa.attendancesystem.dto.AttendanceSessionCreateRequest;
 import com.usa.attendancesystem.dto.AttendanceSessionDto;
 import com.usa.attendancesystem.dto.AttendanceValidationResponseDto;
@@ -125,12 +127,22 @@ public class AttendanceController {
     }
 
     /**
-     * ADMIN endpoint to permanently end a session with SMS notifications. This
-     * is an alias for deactivateSession for better API clarity.
+     * ADMIN endpoint to end a session manually (NO SMS notifications).
+     * This is for when admin manually ends a session.
      */
     @PutMapping("/admin/attendance/sessions/{sessionId}/end")
     public ResponseEntity<Void> endSession(@PathVariable Long sessionId) {
-        sessionService.deactivateSession(sessionId);
+        sessionService.deactivateSession(sessionId, false); // No SMS for manual end
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * ADMIN endpoint to auto-end a session with SMS notifications.
+     * This is for when sessions are automatically ended (1-hour timer).
+     */
+    @PutMapping("/admin/attendance/sessions/{sessionId}/auto-end")
+    public ResponseEntity<Void> autoEndSession(@PathVariable Long sessionId) {
+        sessionService.deactivateSession(sessionId, true); // SMS for auto-end
         return ResponseEntity.ok().build();
     }
 
@@ -205,6 +217,17 @@ public class AttendanceController {
             @RequestParam Integer batchId,
             @RequestParam Integer subjectId) {
         AttendanceReportDto report = attendanceService.getAttendanceReport(date, batchId, subjectId);
+        return ResponseEntity.ok(report);
+    }
+
+    /**
+     * ADMIN endpoint for enhanced attendance reports with advanced filtering.
+     * Supports filtering by student ID, date ranges, and maintains backward compatibility.
+     */
+    @PostMapping("/admin/attendance/enhanced-report")
+    public ResponseEntity<EnhancedAttendanceReportDto> getEnhancedAttendanceReport(
+            @Valid @RequestBody AttendanceReportRequest request) {
+        EnhancedAttendanceReportDto report = attendanceService.getEnhancedAttendanceReport(request);
         return ResponseEntity.ok(report);
     }
 

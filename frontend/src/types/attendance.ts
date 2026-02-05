@@ -44,6 +44,46 @@ export interface AttendanceReportDto {
   absentStudents: StudentDto[];
 }
 
+export interface AttendanceReportRequest {
+  // Single date (for existing functionality - backward compatibility)
+  date?: string; // ISO date string (YYYY-MM-DD)
+  
+  // Date range filtering (new functionality)
+  startDate?: string; // ISO date string (YYYY-MM-DD)
+  endDate?: string; // ISO date string (YYYY-MM-DD)
+  
+  // Batch and subject filtering (existing functionality)
+  batchId?: number;
+  subjectId?: number;
+  
+  // Student-specific filtering (new functionality)
+  studentId?: string; // UUID
+  studentIdCode?: string; // Alternative to studentId for convenience
+}
+
+export interface AttendanceRecordDto {
+  studentId: string;
+  studentIdCode: string;
+  studentName: string;
+  subjectName: string;
+  sessionDate: string; // ISO date string
+  markedAt?: string; // ISO datetime string, null for absent records
+  status: 'Present' | 'Absent';
+}
+
+export interface EnhancedAttendanceReportDto {
+  startDate: string; // ISO date string
+  endDate: string; // ISO date string
+  studentName?: string; // Present if this is a student-specific report
+  studentIdCode?: string; // Present if this is a student-specific report
+  batchName: string; // Name/year of the batch
+  subjectName: string; // Name of the subject
+  attendanceRecords: AttendanceRecordDto[]; // All attendance records in the date range
+  totalPresentDays: number; // Number of days student was present (for student-specific reports)
+  totalClassDays: number; // Total number of class days in the period
+  attendancePercentage: number; // Attendance percentage (for student-specific reports)
+}
+
 export interface AttendanceValidationResponseDto {
   success: boolean;
   message: string;

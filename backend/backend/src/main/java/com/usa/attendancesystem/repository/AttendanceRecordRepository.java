@@ -67,4 +67,37 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("startOfDay") Instant startOfDay,
             @Param("endOfDay") Instant endOfDay
     );
+
+    /**
+     * Finds all attendance records for a specific student within a date range.
+     * Used for student-specific attendance reports.
+     */
+    @Query("SELECT ar FROM AttendanceRecord ar "
+            + "WHERE ar.student.id = :studentId "
+            + "AND ar.attendanceTimestamp >= :startTime "
+            + "AND ar.attendanceTimestamp < :endTime "
+            + "ORDER BY ar.attendanceTimestamp ASC")
+    List<AttendanceRecord> findByStudentAndDateRange(
+            @Param("studentId") UUID studentId,
+            @Param("startTime") Instant startTime,
+            @Param("endTime") Instant endTime
+    );
+
+    /**
+     * Finds all attendance records for a specific student and subject within a
+     * date range. Used for student-specific subject attendance reports.
+     */
+    @Query("SELECT ar FROM AttendanceRecord ar "
+            + "WHERE ar.student.id = :studentId "
+            + "AND ar.subject.id = :subjectId "
+            + "AND ar.attendanceTimestamp >= :startTime "
+            + "AND ar.attendanceTimestamp < :endTime "
+            + "ORDER BY ar.attendanceTimestamp ASC")
+    List<AttendanceRecord> findByStudentAndSubjectAndDateRange(
+            @Param("studentId") UUID studentId,
+            @Param("subjectId") Integer subjectId,
+            @Param("startTime") Instant startTime,
+            @Param("endTime") Instant endTime
+    );
+
 }

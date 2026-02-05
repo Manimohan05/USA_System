@@ -34,14 +34,17 @@ public class InstituteManagementService {
     // --- Batch Methods ---
     @Transactional
     public BatchDto createBatch(CreateBatchRequest request) {
-        batchRepository.findByBatchYear(request.batchYear()).ifPresent(b -> {
-            throw new DuplicateResourceException("Batch with year " + request.batchYear() + " already exists.");
+        // Check if batch with same year and day batch flag already exists
+        batchRepository.findByBatchYearAndIsDayBatch(request.batchYear(), request.isDayBatch()).ifPresent(b -> {
+            String batchType = request.isDayBatch() ? "Day batch" : "Batch";
+            throw new DuplicateResourceException(batchType + " with year " + request.batchYear() + " already exists.");
         });
 
-        Batch newBatch = new Batch(request.batchYear());
+        Batch newBatch = new Batch(request.batchYear(), request.isDayBatch());
         Batch savedBatch = batchRepository.save(newBatch);
         long studentCount = studentRepository.countActiveStudentsByBatch(savedBatch.getId());
-        return new BatchDto(savedBatch.getId(), savedBatch.getBatchYear(), studentCount);
+        return new BatchDto(savedBatch.getId(), savedBatch.getBatchYear(), savedBatch.isDayBatch(),
+                savedBatch.getDisplayName(), studentCount);
     }
 
     @Transactional(readOnly = true)
@@ -49,7 +52,8 @@ public class InstituteManagementService {
         return batchRepository.findAll().stream()
                 .map(batch -> {
                     long studentCount = studentRepository.countActiveStudentsByBatch(batch.getId());
-                    return new BatchDto(batch.getId(), batch.getBatchYear(), studentCount);
+                    return new BatchDto(batch.getId(), batch.getBatchYear(), batch.isDayBatch(),
+                            batch.getDisplayName(), studentCount);
                 })
                 .collect(Collectors.toList());
     }
@@ -120,7 +124,7 @@ public class InstituteManagementService {
         batch.setBatchYear(request.batchYear());
         Batch updatedBatch = batchRepository.save(batch);
         long studentCount = studentRepository.countActiveStudentsByBatch(updatedBatch.getId());
-        return new BatchDto(updatedBatch.getId(), updatedBatch.getBatchYear(), studentCount);
+        return new BatchDto(updatedBatch.getId(), updatedBatch.getBatchYear(), updatedBatch.isDayBatch(), updatedBatch.getDisplayName(), studentCount);
     }
 
     @Transactional

@@ -15,6 +15,7 @@ export default function BatchesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingBatch, setEditingBatch] = useState<BatchDto | null>(null);
   const [newBatchYear, setNewBatchYear] = useState('');
+  const [isDayBatch, setIsDayBatch] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; batch: BatchDto | null }>({ show: false, batch: null });
   const [deleting, setDeleting] = useState(false);
@@ -47,6 +48,7 @@ export default function BatchesPage() {
     try {
       const request: CreateBatchRequest = {
         batchYear: parseInt(newBatchYear),
+        isDayBatch: isDayBatch,
       };
       
       if (editingBatch) {
@@ -60,6 +62,7 @@ export default function BatchesPage() {
       }
       
       setNewBatchYear('');
+      setIsDayBatch(false);
       setShowForm(false);
       setEditingBatch(null);
     } catch (error: any) {
@@ -70,7 +73,7 @@ export default function BatchesPage() {
         addToast({
           type: 'warning',
           title: '⚠️ Batch Already Exists',
-          message: `Batch ${newBatchYear} already exists. Please use a different year or edit the existing batch.`,
+          message: `Batch ${newBatchYear}${isDayBatch ? ' Day' : ''} already exists. Please use a different combination or edit the existing batch.`,
           duration: 6000
         });
       } else if (errorMessage.includes('Batch not found')) {
@@ -97,6 +100,7 @@ export default function BatchesPage() {
   const handleEditBatch = (batch: BatchDto) => {
     setEditingBatch(batch);
     setNewBatchYear(batch.batchYear.toString());
+    setIsDayBatch(batch.isDayBatch);
     setShowForm(true);
   };
 
@@ -132,6 +136,7 @@ export default function BatchesPage() {
     setShowForm(false);
     setEditingBatch(null);
     setNewBatchYear('');
+    setIsDayBatch(false);
   };
 
   const currentYear = new Date().getFullYear();
@@ -225,6 +230,20 @@ export default function BatchesPage() {
                     </div>
                     <p className="text-xs text-gray-500 mt-2">Choose the year when students will be enrolled in this batch</p>
                   </div>
+                  
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      id="dayBatch"
+                      checked={isDayBatch}
+                      onChange={(e) => setIsDayBatch(e.target.checked)}
+                      className="w-5 h-5 text-indigo-600 border-2 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2"
+                    />
+                    <label htmlFor="dayBatch" className="text-sm font-medium text-gray-800">
+                      Day Batch
+                    </label>
+                    <p className="text-xs text-gray-500">Check if this is a day batch (vs regular batch)</p>
+                  </div>
                   <div className="flex justify-end space-x-4 pt-4">
                     <button
                       type="button"
@@ -268,7 +287,7 @@ export default function BatchesPage() {
                   <h2 className="text-lg font-medium text-gray-900">Delete Batch</h2>
                 </div>
                 <p className="text-gray-600 mb-6">
-                  Are you sure you want to delete batch "{deleteConfirm.batch.batchYear}"? 
+                  Are you sure you want to delete batch "{deleteConfirm.batch.displayName}"? 
                   This action cannot be undone and may affect related student records.
                 </p>
                 <div className="flex justify-end space-x-3">
@@ -317,8 +336,12 @@ export default function BatchesPage() {
                           <Calendar className="h-6 w-6 text-white" />
                         </div>
                         <div>
-                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-indigo-700 transition-colors">Batch {batch.batchYear}</h3>
-                          <p className="text-sm text-gray-500 font-medium">Academic Year {batch.batchYear}</p>
+                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-indigo-700 transition-colors">
+                            {batch.displayName}
+                          </h3>
+                          <p className="text-sm text-gray-500 font-medium">
+                            Academic Year {batch.batchYear} {batch.isDayBatch ? '(Day Batch)' : ''}
+                          </p>
                         </div>
                       </div>
                     </div>

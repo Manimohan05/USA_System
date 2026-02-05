@@ -13,15 +13,20 @@ import type {
   SubjectDto, 
   AttendanceMarkRequest, 
   AttendanceReportDto,
+  AttendanceReportRequest,
+  EnhancedAttendanceReportDto,
   AttendanceSessionDto,
   AttendanceSessionCreateRequest,
   AttendanceMarkByIndexRequest,
   AttendanceValidationResponseDto,
   SessionAttendanceStatusDto,
-  MarkedStudentDto
+  MarkedStudentDto,
+  StudentDto
 } from '@/types';
 
 type TabType = 'sessions' | 'mark' | 'report';
+
+type ReportMode = 'single' | 'student';
 
 function AttendancePageContent() {
   const { addToast } = useToast();
@@ -61,6 +66,17 @@ function AttendancePageContent() {
   const [reportSubject, setReportSubject] = useState<string>('');
   const [attendanceReport, setAttendanceReport] = useState<AttendanceReportDto | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
+  
+  // Enhanced Report State
+  const [reportMode, setReportMode] = useState<ReportMode>('single');
+  const [reportStartDate, setReportStartDate] = useState(formatDateForAPI(new Date()));
+  const [reportEndDate, setReportEndDate] = useState(formatDateForAPI(new Date()));
+  const [studentSearch, setStudentSearch] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState<StudentDto | null>(null);
+  const [students, setStudents] = useState<StudentDto[]>([]);
+  const [enhancedReport, setEnhancedReport] = useState<EnhancedAttendanceReportDto | null>(null);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
   
   // Confirmation modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -152,13 +168,17 @@ function AttendancePageContent() {
         if (validSessions.length !== prevSessions.length) {
           console.log('Expired sessions removed:', prevSessions.length - validSessions.length);
           const expiredCount = prevSessions.length - validSessions.length;
+          
+          // Schedule toast notification after state update completes
           if (expiredCount > 0) {
-            addToast({
-              type: 'warning',
-              title: '⏰ Sessions Expired',
-              message: `${expiredCount} session${expiredCount > 1 ? 's' : ''} exceeded the 60-minute limit and ${expiredCount > 1 ? 'have' : 'has'} been removed.`,
-              duration: 6000
-            });
+            setTimeout(() => {
+              addToast({
+                type: 'warning',
+                title: '⏰ Sessions Expired',
+                message: `${expiredCount} session${expiredCount > 1 ? 's' : ''} exceeded the 60-minute limit and ${expiredCount > 1 ? 'have' : 'has'} been removed.`,
+                duration: 6000
+              });
+            }, 0);
           }
           return validSessions;
         }
@@ -178,6 +198,24 @@ function AttendancePageContent() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Handle clicks outside student dropdown to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (showStudentDropdown && !target.closest('.student-search-container')) {
+        setShowStudentDropdown(false);
+      }
+    };
+
+    if (showStudentDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showStudentDropdown]);
 
   const fetchInitialData = async () => {
     try {
@@ -352,6 +390,22 @@ function AttendancePageContent() {
         console.log('Session creation failed - Current sessions:', sessions);
         console.log('Looking for:', { batchId: parseInt(sessionBatch), subjectId: parseInt(sessionSubject), sessionDate });
         
+        // Use the backend's error message if it's about active sessions
+        if (error.response?.data?.message?.includes('ACTIVE attendance session already exists')) {
+          const backendMessage = error.response.data.message;
+          // Extract session ID from message if present
+          const sessionIdMatch = backendMessage.match(/Session ID: (\d+)/);
+          const sessionId = sessionIdMatch ? sessionIdMatch[1] : null;
+          
+          addToast({
+            type: 'warning',
+            title: '⚠️ Active Session Already Running',
+            message: `There is already an ACTIVE session for:\n\n• ${batchName}\n• Subject: ${subjectName}\n• Date: ${formattedDate}${sessionId ? `\n• Session ID: ${sessionId}` : ''}\n\n💡 You need to END the current session first before creating a new one.\n\n🔍 Check the "Today's Active Sessions" section above.`,
+            duration: 12000
+          });
+          return;
+        }
+        
         // Check if this might be an ended session that can be recreated
         const endedSession = sessions.find(s => 
           s.batchId === parseInt(sessionBatch) && 
@@ -370,22 +424,23 @@ function AttendancePageContent() {
         if (activeSession) {
           addToast({
             type: 'warning',
-            title: '⚠️ Active Session Exists!',
-            message: `There is already an ACTIVE session running for:\n\n• ${batchName}\n• Subject: ${subjectName}\n• Date: ${formattedDate}\n\nPlease end the current session first before creating a new one.`,
-            duration: 8000
+            title: '⚠️ Active Session Detected',
+            message: `There is already an ACTIVE session running for:\n\n• ${batchName}\n• Subject: ${subjectName}\n• Date: ${formattedDate}\n• Session ID: ${activeSession.id}\n\n💡 Please END the current session first before creating a new one.\n\n🔍 Look in the "Today's Active Sessions" section above.`,
+            duration: 10000
           });
         } else if (endedSession) {
           addToast({
             type: 'info',
             title: '🔄 Session Already Exists (Ended)',
-            message: `A session for ${batchName} - ${subjectName} on ${formattedDate} was already created but ended.\n\n💡 You can reopen the existing session instead of creating a new one:\n\n• Look for "Ended Sessions" section below\n• Click "Reopen Session" for ${formattedDate}\n\nThis will reactivate the same session ID.`,
+            message: `A session for ${batchName} - ${subjectName} on ${formattedDate} was already created but ended.\n\n💡 You can REOPEN the existing session instead of creating a new one:\n\n• Look for "Ended Sessions" section below\n• Click "Reopen Session" for ${formattedDate}\n\nThis will reactivate the same session ID: ${endedSession.id}`,
             duration: 12000
           });
         } else {
+          // If we can't find the conflicting session in our current list, it might be a sync issue
           addToast({
-            type: 'error',
-            title: '❌ Unexpected Session Conflict',
-            message: `Session creation blocked for ${batchName} - ${subjectName} on ${formattedDate}.\n\nThis might be a database inconsistency. Please refresh the page and try again.\n\nIf the problem persists, contact support.`,
+            type: 'warning',
+            title: '🔄 Session Data Out of Sync',
+            message: `Unable to create session for ${batchName} - ${subjectName} on ${formattedDate}.\n\n🔄 The session list might be outdated. Please:\n\n1. Refresh the page\n2. Check for any existing sessions\n3. Try creating the session again\n\nIf the problem persists, there might be a hidden active session.`,
             duration: 10000
           });
         }
@@ -446,9 +501,9 @@ function AttendancePageContent() {
       : 'this session';
 
     // Show confirmation modal
-    setConfirmTitle('🎯 End Session Confirmation');
-    setConfirmMessage(`**${sessionInfo}**\n\n✨ This will complete the attendance session and notify parents of absent students.`);
-    setConfirmButtonText('Yes, End Session');
+    setConfirmTitle('⏸️ End Session Confirmation');
+    setConfirmMessage(`**${sessionInfo}**\n\n⚠️ This will temporarily end the session WITHOUT sending SMS notifications.\n\n💡 To send SMS notifications to parents of absent students, use "Fully End" instead.\n\n🔄 Ended sessions can be reopened anytime from the recovery section.`);
+    setConfirmButtonText('Yes, End Session (No SMS)');
     setConfirmAction(() => async () => {
       setShowConfirmModal(false);
       await performEndSession(sessionId, sessionInfo);
@@ -473,9 +528,9 @@ function AttendancePageContent() {
       
       addToast({
         type: 'success',
-        title: '🎉 Session Completed Successfully!',
-        message: `${sessionInfo} has been ended.\n\n📱 Parents have been notified about absent students.`,
-        duration: 90000
+        title: '⏸️ Session Ended (No SMS Sent)',
+        message: `${sessionInfo} has been temporarily ended.\n\n📋 What's Next:\n• Session can be reopened anytime\n• Use "Fully End" to send SMS to parents of absent students\n• Check the "Ended Sessions" section below to manage this session`,
+        duration: 10000
       });
     } catch (error: any) {
       let errorMessage = 'Failed to end session. Please try again.';
@@ -502,9 +557,9 @@ function AttendancePageContent() {
   const fullyEndSession = async (sessionId: number, session: AttendanceSessionDto) => {
     const sessionInfo = `Batch ${session.batchYear} - ${session.subjectName} (${formatDate(session.sessionDate)})`;
 
-    setConfirmTitle('🔒 Fully End Session?');
-    setConfirmMessage(`Are you sure you want to FULLY END this session?\n\n${sessionInfo}\n\n⚠️ This action cannot be undone and will:\n• Permanently close the session\n• Send SMS notifications to parents of absent students\n• Prevent any future reopening`);
-    setConfirmButtonText('Yes, Fully End');
+    setConfirmTitle('🔒 Permanently End Session?');
+    setConfirmMessage(`Are you sure you want to PERMANENTLY END this session?\n\n${sessionInfo}\n\n📱 This action will:\n• Permanently close the session (cannot be reopened)\n• Send SMS notifications to parents of absent students\n• Remove the session from the dashboard\n\n⚠️ This action cannot be undone!`);
+    setConfirmButtonText('Yes, Permanently End & Send SMS');
     setConfirmAction(() => async () => {
       setShowConfirmModal(false);
       try {
@@ -515,9 +570,9 @@ function AttendancePageContent() {
         
         addToast({
           type: 'success',
-          title: '✅ Session Fully Ended',
-          message: 'The session has been permanently closed.\n\n📱 SMS notifications have been sent to parents of absent students.',
-          duration: 10000
+          title: '🔒 Session Permanently Ended (SMS Sent)',
+          message: 'The session has been permanently closed and removed.\n\n📱 SMS notifications have been sent to parents of absent students.\n\n⚠️ This action cannot be undone.',
+          duration: 12000
         });
       } catch (error: any) {
         addToast({
@@ -594,9 +649,9 @@ function AttendancePageContent() {
       
       addToast({
         type: 'success',
-        title: '🎉 Session Reopened Successfully!',
-        message: `**${sessionInfo}** is now active again.\n\n✅ Students can mark attendance using the **same session ID**.\n🔄 All existing attendance records are preserved.`,
-        duration: 8000
+        title: '🔄 Session Reopened Successfully!',
+        message: `**${sessionInfo}** is now active again.\n\n✅ Students can mark attendance using the **same session ID**.\n🔄 All existing attendance records are preserved.\n\n💡 When ready to end permanently, use \"Fully End\" to send SMS notifications.`,
+        duration: 10000
       });
     } catch (error: any) {
       let errorMessage = 'Failed to reopen session. Please try again.';
@@ -750,6 +805,154 @@ function AttendancePageContent() {
     URL.revokeObjectURL(url);
   };
 
+  // Enhanced Report Functions
+  const loadStudents = async () => {
+    try {
+      setLoadingStudents(true);
+      const response = await api.get<StudentDto[]>('/admin/students');
+      setStudents(response.data);
+    } catch (error) {
+      addToast({
+        type: 'error',
+        title: 'Failed to Load Students',
+        message: 'Unable to fetch students list. Please try again.',
+        duration: 5000
+      });
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
+  const fetchEnhancedReport = async () => {
+    // Validate inputs based on report mode
+    if (reportMode === 'student') {
+      console.log('Validating student report fields:', {
+        selectedStudent,
+        reportStartDate,
+        reportEndDate,
+        studentIdCode: selectedStudent?.studentIdCode
+      });
+      
+      if (!selectedStudent) {
+        addToast({
+          type: 'warning',
+          title: 'Missing Information',
+          message: 'Please select a student for the report.',
+          duration: 4000
+        });
+        return;
+      }
+      
+      if (!reportStartDate || !reportEndDate) {
+        addToast({
+          type: 'warning',
+          title: 'Missing Information',
+          message: 'Please select both start and end dates for the report.',
+          duration: 4000
+        });
+        return;
+      }
+      
+      if (new Date(reportStartDate) > new Date(reportEndDate)) {
+        addToast({
+          type: 'warning',
+          title: 'Invalid Date Range',
+          message: 'Start date must be before or equal to end date.',
+          duration: 4000
+        });
+        return;
+      }
+    }
+
+    setLoadingReport(true);
+    try {
+      const requestBody: AttendanceReportRequest = {};
+
+      // Set date parameters for student mode
+      if (reportMode === 'student') {
+        requestBody.startDate = reportStartDate;
+        requestBody.endDate = reportEndDate;
+        requestBody.studentIdCode = selectedStudent?.studentIdCode;
+        if (reportSubject) {
+          requestBody.subjectId = parseInt(reportSubject);
+        }
+      }
+
+      console.log('Sending enhanced report request:', requestBody);
+      const response = await api.post<EnhancedAttendanceReportDto>('/admin/attendance/enhanced-report', requestBody);
+      setEnhancedReport(response.data);
+      setAttendanceReport(null); // Clear old report
+    } catch (error) {
+      console.error('Enhanced report error:', error);
+      addToast({
+        type: 'error',
+        title: 'Failed to Generate Enhanced Report',
+        message: 'Unable to fetch enhanced attendance report. Please try again.',
+        duration: 5000
+      });
+    } finally {
+      setLoadingReport(false);
+    }
+  };
+
+  const downloadEnhancedReport = () => {
+    if (!enhancedReport) return;
+    
+    // Create CSV content
+    const csvHeaders = ['Date', 'Student ID', 'Student Name', 'Subject', 'Status', 'Marked At'];
+    const csvRows = enhancedReport.attendanceRecords.map(record => [
+      record.sessionDate,
+      record.studentIdCode,
+      record.studentName,
+      record.subjectName,
+      record.status,
+      record.markedAt ? formatDate(record.markedAt, 'datetime') : '-'
+    ]);
+    
+    const csvContent = [csvHeaders, ...csvRows].map(row => row.join(',')).join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    
+    // Generate filename based on report type
+    let filename = 'attendance_report';
+    if (enhancedReport.studentName) {
+      filename += `_${enhancedReport.studentIdCode}_${enhancedReport.studentName.replace(/\s+/g, '_')}`;
+    } else {
+      filename += `_${enhancedReport.batchName}_${enhancedReport.subjectName.replace(/\s+/g, '_')}`;
+    }
+    filename += `_${enhancedReport.startDate}_to_${enhancedReport.endDate}.csv`;
+    
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const filterStudents = (searchTerm: string) => {
+    return students.filter(student =>
+      student.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.studentIdCode.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  };
+
+  const handleStudentSearch = (value: string) => {
+    setStudentSearch(value);
+    setShowStudentDropdown(true);
+    if (!students.length) {
+      loadStudents();
+    }
+  };
+
+  const selectStudent = (student: StudentDto) => {
+    setSelectedStudent(student);
+    setStudentSearch(student.fullName);
+    setShowStudentDropdown(false);
+  };
+
   if (loading) {
     return (
       <ProtectedRoute>
@@ -855,7 +1058,7 @@ function AttendancePageContent() {
                       <option value="">Select batch</option>
                       {batches.map((batch) => (
                         <option key={batch.id} value={batch.id.toString()}>
-                          Batch {batch.batchYear}
+                          {batch.displayName}
                         </option>
                       ))}
                     </select>
@@ -1024,6 +1227,7 @@ function AttendancePageContent() {
                                   endSession(session.id);
                                 }}
                                 className="group w-full bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-red-100 hover:to-rose-100 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
+                                title="End session without sending SMS (can be reopened)"
                               >
                                 <Pause className="w-4 h-4 inline mr-2 group-hover:animate-pulse" />
                                 END SESSION
@@ -1110,75 +1314,216 @@ function AttendancePageContent() {
           {/* Reports Tab */}
           {activeTab === 'report' && (
             <div className="space-y-6">
-              {/* Report Filters */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-8">
+              {/* Report Mode Selection */}
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-6">
                 <div className="flex items-center space-x-4 mb-6">
                   <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
                     <Calendar className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Attendance Reports</h2>
-                    <p className="text-gray-600">Generate and download attendance reports for specific sessions</p>
+                    <h2 className="text-2xl font-bold text-gray-900">Enhanced Attendance Reports</h2>
+                    <p className="text-gray-600">Generate comprehensive reports with advanced filtering options</p>
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  <div className="group">
-                    <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
-                      <Calendar className="h-4 w-4 text-indigo-500" />
-                      <span>Date</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={reportDate}
-                      onChange={(e) => setReportDate(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
-                    />
+                {/* Report Mode Tabs */}
+                <div className="flex space-x-1 mb-6 bg-gray-100 rounded-xl p-1">
+                  <button
+                    onClick={() => setReportMode('single')}
+                    className={`flex-1 py-3 px-4 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                      reportMode === 'single'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Single Day
+                  </button>
+                  <button
+                    onClick={() => setReportMode('student')}
+                    className={`flex-1 py-3 px-4 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                      reportMode === 'student'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Student Report
+                  </button>
+                </div>
+
+                {/* Single Day Report Form */}
+                {reportMode === 'single' && (
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="group">
+                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                        <Calendar className="h-4 w-4 text-indigo-500" />
+                        <span>Date</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={reportDate}
+                        onChange={(e) => setReportDate(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                      />
+                    </div>
+                    
+                    <div className="group">
+                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                        <Users className="h-4 w-4 text-indigo-500" />
+                        <span>Batch</span>
+                      </label>
+                      <select
+                        value={reportBatch}
+                        onChange={(e) => setReportBatch(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                      >
+                        <option value="">Select batch</option>
+                        {batches.map((batch) => (
+                          <option key={batch.id} value={batch.id.toString()}>
+                            {batch.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div className="group">
+                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                        <BookOpen className="h-4 w-4 text-indigo-500" />
+                        <span>Subject</span>
+                      </label>
+                      <select
+                        value={reportSubject}
+                        onChange={(e) => setReportSubject(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                      >
+                        <option value="">Select subject</option>
+                        {subjects.map((subject) => (
+                          <option key={subject.id} value={subject.id.toString()}>
+                            {subject.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div className="flex items-end">
+                      <button
+                        onClick={fetchAttendanceReport}
+                        disabled={loadingReport}
+                        className="group w-full flex items-center justify-center py-3 px-6 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-xl active:scale-95"
+                      >
+                        {loadingReport ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
+                            <span className="animate-pulse">Generating...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Settings className="h-5 w-5 mr-3 group-hover:animate-bounce" />
+                            <span>Generate Report</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
-                  
-                  <div className="group">
-                    <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
-                      <Users className="h-4 w-4 text-indigo-500" />
-                      <span>Batch</span>
-                    </label>
-                    <select
-                      value={reportBatch}
-                      onChange={(e) => setReportBatch(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
-                    >
-                      <option value="">Select batch</option>
-                      {batches.map((batch) => (
-                        <option key={batch.id} value={batch.id.toString()}>
-                          Batch {batch.batchYear}
-                        </option>
-                      ))}
-                    </select>
+                )}
+
+
+
+                {/* Student Report Form */}
+                {reportMode === 'student' && (
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="group relative">
+                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                        <User className="h-4 w-4 text-indigo-500" />
+                        <span>Student</span>
+                      </label>
+                      <div className="relative student-search-container">
+                        <input
+                          type="text"
+                          placeholder="Search student by name or ID..."
+                          value={studentSearch}
+                          onChange={(e) => handleStudentSearch(e.target.value)}
+                          onFocus={() => setShowStudentDropdown(true)}
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                        />
+                        <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                        
+                        {showStudentDropdown && studentSearch && (
+                          <div className="absolute z-10 w-full mt-1 bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto">
+                            {loadingStudents ? (
+                              <div className="p-4 text-center">
+                                <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                                <span className="text-sm text-gray-500">Loading students...</span>
+                              </div>
+                            ) : (
+                              filterStudents(studentSearch).slice(0, 10).map((student) => (
+                                <div
+                                  key={student.id}
+                                  onClick={() => selectStudent(student)}
+                                  className="p-4 hover:bg-indigo-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                >
+                                  <div className="font-semibold text-gray-900">{student.fullName}</div>
+                                  <div className="text-sm text-gray-600">{student.studentIdCode}</div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="group">
+                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                        <Calendar className="h-4 w-4 text-indigo-500" />
+                        <span>Start Date</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={reportStartDate}
+                        onChange={(e) => setReportStartDate(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                      />
+                    </div>
+                    
+                    <div className="group">
+                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                        <Calendar className="h-4 w-4 text-indigo-500" />
+                        <span>End Date</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={reportEndDate}
+                        onChange={(e) => setReportEndDate(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                      />
+                    </div>
+                    
+                    <div className="group">
+                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                        <BookOpen className="h-4 w-4 text-indigo-500" />
+                        <span>Subject (Optional)</span>
+                      </label>
+                      <select
+                        value={reportSubject}
+                        onChange={(e) => setReportSubject(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                      >
+                        <option value="">All subjects</option>
+                        {subjects.map((subject) => (
+                          <option key={subject.id} value={subject.id.toString()}>
+                            {subject.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  
-                  <div className="group">
-                    <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
-                      <BookOpen className="h-4 w-4 text-indigo-500" />
-                      <span>Subject</span>
-                    </label>
-                    <select
-                      value={reportSubject}
-                      onChange={(e) => setReportSubject(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
-                    >
-                      <option value="">Select subject</option>
-                      {subjects.map((subject) => (
-                        <option key={subject.id} value={subject.id.toString()}>
-                          {subject.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div className="flex items-end">
+                )}
+                
+                {reportMode === 'student' && (
+                  <div className="mt-6 flex justify-end">
                     <button
-                      onClick={fetchAttendanceReport}
+                      onClick={fetchEnhancedReport}
                       disabled={loadingReport}
-                      className="group w-full flex items-center justify-center py-3 px-6 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-xl active:scale-95"
+                      className="group flex items-center justify-center py-3 px-6 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-xl active:scale-95"
                     >
                       {loadingReport ? (
                         <>
@@ -1188,27 +1533,24 @@ function AttendancePageContent() {
                       ) : (
                         <>
                           <Settings className="h-5 w-5 mr-3 group-hover:animate-bounce" />
-                          <span>Generate Report</span>
+                          <span>Generate Student Report</span>
                         </>
                       )}
                     </button>
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* Report Results */}
+              {/* Legacy Report Results (Single Day) */}
               {attendanceReport && (
                 <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                  {/* Report Header */}
                   <div className="px-8 py-6 bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                       <div className="p-3 bg-white/20 rounded-xl">
                         <Calendar className="h-6 w-6 text-white" />
                       </div>
                       <div>
-                        <h3 className="text-2xl font-bold text-white">
-                          Attendance Report
-                        </h3>
+                        <h3 className="text-2xl font-bold text-white">Attendance Report</h3>
                         <p className="text-emerald-100">
                           {formatDate(attendanceReport.date)} • Batch {batches.find(b => b.id.toString() === reportBatch)?.batchYear} • {subjects.find(s => s.id.toString() === reportSubject)?.name}
                         </p>
@@ -1218,12 +1560,11 @@ function AttendancePageContent() {
                       onClick={downloadReport}
                       className="flex items-center px-6 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-200 text-white font-semibold hover:scale-105 shadow-lg"
                     >
-                      <Play className="h-5 w-5 mr-2" />
+                      <Download className="h-5 w-5 mr-2" />
                       Download CSV
                     </button>
                   </div>
 
-                  {/* Summary Stats */}
                   <div className="px-8 py-6 bg-gradient-to-br from-gray-50 to-indigo-50">
                     <div className="grid grid-cols-3 gap-8">
                       <div className="text-center">
@@ -1250,9 +1591,7 @@ function AttendancePageContent() {
                     </div>
                   </div>
 
-                  {/* Student Lists */}
                   <div className="grid grid-cols-1 lg:grid-cols-2">
-                    {/* Present Students */}
                     <div className="p-8 border-r border-gray-200">
                       <h4 className="text-lg font-bold text-emerald-700 mb-6 flex items-center">
                         <CheckCircle className="h-6 w-6 mr-3" />
@@ -1281,7 +1620,6 @@ function AttendancePageContent() {
                       </div>
                     </div>
 
-                    {/* Absent Students */}
                     <div className="p-8">
                       <h4 className="text-lg font-bold text-red-700 mb-6 flex items-center">
                         <XCircle className="h-6 w-6 mr-3" />
@@ -1305,6 +1643,128 @@ function AttendancePageContent() {
                             </div>
                           </div>
                         ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Enhanced Report Results */}
+              {enhancedReport && (
+                <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+                  <div className="px-8 py-6 bg-gradient-to-r from-purple-500 to-indigo-600 flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="p-3 bg-white/20 rounded-xl">
+                        <Calendar className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-bold text-white">
+                          {enhancedReport.studentName ? 'Student Attendance Report' : 'Enhanced Attendance Report'}
+                        </h3>
+                        <p className="text-purple-100">
+                          {formatDate(enhancedReport.startDate)} to {formatDate(enhancedReport.endDate)}
+                          {enhancedReport.studentName && ` • ${enhancedReport.studentName}`}
+                          {enhancedReport.batchName && ` • ${enhancedReport.batchName}`}
+                          {enhancedReport.subjectName && ` • ${enhancedReport.subjectName}`}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={downloadEnhancedReport}
+                      className="flex items-center px-6 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-200 text-white font-semibold hover:scale-105 shadow-lg"
+                    >
+                      <Download className="h-5 w-5 mr-2" />
+                      Download CSV
+                    </button>
+                  </div>
+
+                  {/* Student-specific stats */}
+                  {enhancedReport.studentName && enhancedReport.totalClassDays > 0 && (
+                    <div className="px-8 py-6 bg-gradient-to-br from-gray-50 to-purple-50">
+                      <div className="grid grid-cols-4 gap-8">
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                            <Calendar className="h-8 w-8 text-white" />
+                          </div>
+                          <div className="text-3xl font-bold text-gray-900">{enhancedReport.totalClassDays}</div>
+                          <div className="text-sm font-medium text-gray-600">Total Classes</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                            <CheckCircle className="h-8 w-8 text-white" />
+                          </div>
+                          <div className="text-3xl font-bold text-emerald-600">{enhancedReport.totalPresentDays}</div>
+                          <div className="text-sm font-medium text-gray-600">Present</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                            <XCircle className="h-8 w-8 text-white" />
+                          </div>
+                          <div className="text-3xl font-bold text-red-600">{enhancedReport.totalClassDays - enhancedReport.totalPresentDays}</div>
+                          <div className="text-sm font-medium text-gray-600">Absent</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                            <GraduationCap className="h-8 w-8 text-white" />
+                          </div>
+                          <div className="text-3xl font-bold text-purple-600">{enhancedReport.attendancePercentage.toFixed(1)}%</div>
+                          <div className="text-sm font-medium text-gray-600">Attendance Rate</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Attendance Records Table */}
+                  <div className="p-8">
+                    <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center">
+                      <Users className="h-6 w-6 mr-3" />
+                      Attendance Records ({enhancedReport.attendanceRecords.length})
+                    </h4>
+                    <div className="overflow-x-auto">
+                      <div className="max-h-96 overflow-y-auto">
+                        <table className="w-full table-auto">
+                          <thead className="bg-gray-50 sticky top-0">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Date</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Student</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Subject</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Marked At</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {enhancedReport.attendanceRecords.map((record, index) => (
+                              <tr key={index} className={`hover:bg-gray-50 ${record.status === 'Present' ? 'bg-green-50' : 'bg-red-50'}`}>
+                                <td className="px-4 py-3 text-sm text-gray-900">{formatDate(record.sessionDate)}</td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center space-x-3">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${record.status === 'Present' ? 'bg-green-500' : 'bg-red-500'}`}>
+                                      <span className="text-white font-semibold text-xs">{record.studentName.charAt(0)}</span>
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-semibold text-gray-900">{record.studentName}</div>
+                                      <div className="text-xs text-gray-500">{record.studentIdCode}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-900">{record.subjectName}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                    record.status === 'Present' 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : 'bg-red-100 text-red-800'
+                                  }`}>
+                                    {record.status === 'Present' ? <CheckCircle className="w-3 h-3 mr-1" /> : <XCircle className="w-3 h-3 mr-1" />}
+                                    {record.status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-900">
+                                  {record.markedAt ? formatDate(record.markedAt, 'time') : '-'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   </div>
