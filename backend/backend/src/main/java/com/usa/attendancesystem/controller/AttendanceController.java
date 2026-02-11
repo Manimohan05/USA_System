@@ -71,8 +71,8 @@ public class AttendanceController {
         List<AttendanceSessionDto> sessions = sessionService.getTodaysActiveSessions();
         System.out.println("AttendanceController - Found " + sessions.size() + " sessions");
         for (AttendanceSessionDto session : sessions) {
-            System.out.println("  Session " + session.id() + ": active=" + session.isActive() + 
-                             ", closed=" + session.isClosed() + ", canReactivate=" + session.canReactivate());
+            System.out.println("  Session " + session.id() + ": active=" + session.isActive()
+                    + ", closed=" + session.isClosed() + ", canReactivate=" + session.canReactivate());
         }
         return ResponseEntity.ok(sessions);
     }
@@ -133,8 +133,8 @@ public class AttendanceController {
     }
 
     /**
-     * ADMIN endpoint to end a session manually (NO SMS notifications).
-     * This is for when admin manually ends a session.
+     * ADMIN endpoint to end a session manually (NO SMS notifications). This is
+     * for when admin manually ends a session.
      */
     @PutMapping("/admin/attendance/sessions/{sessionId}/end")
     public ResponseEntity<Void> endSession(@PathVariable Long sessionId) {
@@ -143,8 +143,8 @@ public class AttendanceController {
     }
 
     /**
-     * ADMIN endpoint to auto-end a session with SMS notifications.
-     * This is for when sessions are automatically ended (1-hour timer).
+     * ADMIN endpoint to auto-end a session with SMS notifications. This is for
+     * when sessions are automatically ended (1-hour timer).
      */
     @PutMapping("/admin/attendance/sessions/{sessionId}/auto-end")
     public ResponseEntity<Void> autoEndSession(@PathVariable Long sessionId) {
@@ -228,7 +228,8 @@ public class AttendanceController {
 
     /**
      * ADMIN endpoint for enhanced attendance reports with advanced filtering.
-     * Supports filtering by student ID, date ranges, and maintains backward compatibility.
+     * Supports filtering by student ID, date ranges, and maintains backward
+     * compatibility.
      */
     @PostMapping("/admin/attendance/enhanced-report")
     public ResponseEntity<EnhancedAttendanceReportDto> getEnhancedAttendanceReport(

@@ -115,12 +115,10 @@ Before running the application, you need to set up PostgreSQL database and optio
 ##### **Windows Installation**
 
 1. **Download PostgreSQL:**
-
    - Visit: https://www.postgresql.org/download/windows/
    - Download the latest stable version (recommended: PostgreSQL 15 or higher)
 
 2. **Run the Installer:**
-
    - Run the downloaded `.exe` file as Administrator
    - Follow the installation wizard:
      - **Installation Directory:** Use default (`C:\Program Files\PostgreSQL\15`)
@@ -163,7 +161,6 @@ sudo -u postgres psql
 #### **Step 2: Create Database and User**
 
 1. **Open PostgreSQL Command Line:**
-
    - **Windows:** Search for "SQL Shell (psql)" in Start Menu
    - **macOS/Linux:** Open terminal and run `psql -U postgres`
 
@@ -198,14 +195,14 @@ sudo -u postgres psql
 pgAdmin is a web-based database administration tool for PostgreSQL.
 
 ##### **Windows Installation**
- helping guide youtube link = https://youtu.be/4qH-7w5LZsA?si=hN8hakY8faChuMrM
-1. **Download pgAdmin:**
 
+helping guide youtube link = https://youtu.be/4qH-7w5LZsA?si=hN8hakY8faChuMrM
+
+1. **Download pgAdmin:**
    - Visit: https://www.pgadmin.org/download/pgadmin-4-windows/
    - Download the latest version
 
 2. **Install pgAdmin:**
-
    - Run the installer and follow the wizard
    - Use default settings
 
@@ -237,7 +234,6 @@ sudo snap install pgadmin4
 1. **Open pgAdmin** (it runs as a web application)
 
 2. **Add New Server:**
-
    - Right-click "Servers" in the left panel
    - Select "Register" → "Server"
 
@@ -256,7 +252,6 @@ sudo snap install pgadmin4
    ```
 
 4. **Save Connection:**
-
    - Click "Save"
    - You should see your server appear in the left panel
 
@@ -340,7 +335,6 @@ netstat -an | findstr :5432
 #### **Database Management Tips**
 
 1. **Using pgAdmin:**
-
    - Browse tables: Server → Database → Schemas → public → Tables
    - Run queries: Tools → Query Tool
    - View data: Right-click table → View/Edit Data
@@ -434,13 +428,11 @@ netstat -an | findstr :5432
 ### Daily Operations
 
 1. **Mark Attendance**:
-
    - Select batch and subject for the class
    - Students enter their ID codes to mark present
    - Parents receive automatic SMS notifications
 
 2. **View Reports**:
-
    - Generate daily attendance reports
    - Download CSV files for record keeping
    - View present/absent student lists

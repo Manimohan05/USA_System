@@ -64,7 +64,6 @@ A robust, secure REST API for managing student attendance, built with **Spring B
 2. **Database Setup**
 
    **Install PostgreSQL:**
-
    - Download from [postgresql.org](https://www.postgresql.org/download/)
    - Create a database named `institute_db`
 

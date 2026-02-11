@@ -119,14 +119,14 @@ public class AttendanceSessionService {
         System.out.println("AttendanceSessionService - Getting today's sessions for date: " + LocalDate.now());
         List<AttendanceSession> allSessions = sessionRepository.findAllSessionsByDate(LocalDate.now());
         System.out.println("AttendanceSessionService - Found " + allSessions.size() + " total sessions from DB");
-        
+
         // Return all today's sessions, but exclude auto-expired sessions
         // Auto-expired sessions are those that are inactive AND closed (cannot be reactivated)
         return allSessions
                 .stream()
                 .filter(session -> {
-                    System.out.println("  Session " + session.getId() + ": active=" + session.isActive() + 
-                                     ", closed=" + session.isClosed());
+                    System.out.println("  Session " + session.getId() + ": active=" + session.isActive()
+                            + ", closed=" + session.isClosed());
                     // Include if session is active
                     if (session.isActive()) {
                         System.out.println("    -> Including active session");
@@ -187,8 +187,8 @@ public class AttendanceSessionService {
         }
 
         sessionRepository.save(session);
-        System.out.println("AttendanceSessionService - Session deactivated successfully. Final state: active=" + 
-                          session.isActive() + ", closed=" + session.isClosed() + ", endedAt=" + session.getEndedAt());
+        System.out.println("AttendanceSessionService - Session deactivated successfully. Final state: active="
+                + session.isActive() + ", closed=" + session.isClosed() + ", endedAt=" + session.getEndedAt());
     }
 
     @Transactional

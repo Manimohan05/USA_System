@@ -53,13 +53,13 @@ public class DataInitializer implements CommandLineRunner {
         if (existingAdmin.isPresent()) {
             Admin oldAdmin = existingAdmin.get();
             log.info("Updating existing admin user credentials during migration");
-            
+
             // Update username and password
             oldAdmin.setUsername("USA Admin");
             oldAdmin.setPassword(passwordEncoder.encode("USA29#12MSK"));
-            
+
             adminRepository.save(oldAdmin);
-            
+
             log.info("=".repeat(50));
             log.info("ADMIN USER CREDENTIALS UPDATED SUCCESSFULLY!");
             log.info("Username: USA Admin");
