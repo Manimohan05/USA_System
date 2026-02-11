@@ -21,7 +21,8 @@ public record SessionAttendanceStatusDto(
             String studentIdCode,
             String indexNumber,
             String fullName,
-            Instant markedAt
+            Instant markedAt,
+            boolean hasFeePaymentIssue // True if student hasn't paid fees by attendance date
             ) {
 
     }

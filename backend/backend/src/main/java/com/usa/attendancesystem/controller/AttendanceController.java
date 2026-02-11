@@ -20,10 +20,10 @@ import com.usa.attendancesystem.dto.AttendanceMarkByIndexRequest;
 import com.usa.attendancesystem.dto.AttendanceMarkRequest;
 import com.usa.attendancesystem.dto.AttendanceReportDto;
 import com.usa.attendancesystem.dto.AttendanceReportRequest;
-import com.usa.attendancesystem.dto.EnhancedAttendanceReportDto;
 import com.usa.attendancesystem.dto.AttendanceSessionCreateRequest;
 import com.usa.attendancesystem.dto.AttendanceSessionDto;
 import com.usa.attendancesystem.dto.AttendanceValidationResponseDto;
+import com.usa.attendancesystem.dto.EnhancedAttendanceReportDto;
 import com.usa.attendancesystem.dto.SessionAttendanceStatusDto;
 import com.usa.attendancesystem.service.AttendanceService;
 import com.usa.attendancesystem.service.AttendanceSessionService;
@@ -63,11 +63,17 @@ public class AttendanceController {
     }
 
     /**
-     * ADMIN endpoint to get all active sessions.
+     * ADMIN endpoint to get all today's sessions (active and ended).
      */
     @GetMapping("/admin/attendance/sessions")
     public ResponseEntity<List<AttendanceSessionDto>> getActiveSessions() {
-        List<AttendanceSessionDto> sessions = sessionService.getActiveSessions();
+        System.out.println("AttendanceController - Getting all today's sessions");
+        List<AttendanceSessionDto> sessions = sessionService.getTodaysActiveSessions();
+        System.out.println("AttendanceController - Found " + sessions.size() + " sessions");
+        for (AttendanceSessionDto session : sessions) {
+            System.out.println("  Session " + session.id() + ": active=" + session.isActive() + 
+                             ", closed=" + session.isClosed() + ", canReactivate=" + session.canReactivate());
+        }
         return ResponseEntity.ok(sessions);
     }
 

@@ -64,12 +64,28 @@ export function isValidStudentId(id: string): boolean {
   return /^[A-Z0-9]{3,10}$/.test(id.toUpperCase());
 }
 
-// Format phone number
+// Format phone number for Sri Lankan display (removes +94 prefix and formats cleanly)
 export function formatPhoneNumber(phone: string): string {
+  if (!phone) return '';
+  
+  // Remove all non-digit characters
   const cleaned = phone.replace(/\D/g, '');
-  const match = cleaned.match(/^(\d{3})(\d{3})(\d{4})$/);
-  if (match) {
-    return `(${match[1]}) ${match[2]}-${match[3]}`;
+  
+  // If it starts with 94 (international format without +), convert to local format
+  if (cleaned.length === 11 && cleaned.startsWith('94')) {
+    return '0' + cleaned.substring(2); // Convert 94771234567 to 0771234567
   }
+  
+  // If it's already in local format (0XXXXXXXXX - 10 digits starting with 0)
+  if (cleaned.length === 10 && cleaned.startsWith('0')) {
+    return cleaned; // Return as is: 0771234567
+  }
+  
+  // If it's 9 digits (missing leading 0), add leading 0
+  if (cleaned.length === 9) {
+    return '0' + cleaned; // Convert 771234567 to 0771234567
+  }
+  
+  // If none of the expected patterns, return original phone number
   return phone;
 }

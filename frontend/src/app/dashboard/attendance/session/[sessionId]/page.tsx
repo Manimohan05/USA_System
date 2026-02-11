@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useToast } from '@/contexts/toast';
+import { useNotifications } from '@/contexts/notification';
 import { 
   Calendar, 
   Users, 
@@ -19,7 +20,8 @@ import {
   ArrowLeft,
   ExternalLink,
   Play,
-  RefreshCw
+  RefreshCw,
+  Flag
 } from 'lucide-react';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
@@ -32,6 +34,7 @@ import type {
 
 export default function AttendanceSessionPage() {
   const { addToast } = useToast();
+  const { addNotification } = useNotifications();
   const params = useParams();
   const router = useRouter();
   const sessionId = params.sessionId as string;
@@ -140,6 +143,16 @@ export default function AttendanceSessionPage() {
       
       console.log('Session auto-ended successfully, refreshing session data');
       await fetchSessionData();
+      
+      // Add notification to header
+      addNotification({
+        type: 'warning',
+        title: '⏰ Session Auto-Expired',
+        message: `Session for Batch ${session.batchDisplayName || session.batchYear} - ${session.subjectName} has been automatically expired after 1 hour.\n\n📱 SMS notifications sent to parents of absent students.`,
+        sessionId: session.id,
+        batchYear: session.batchDisplayName || session.batchYear,
+        subjectName: session.subjectName
+      });
       
       addToast({
         type: 'warning',
@@ -261,14 +274,17 @@ export default function AttendanceSessionPage() {
   const closeSession = async () => {
     if (!session) return;
     
-    const sessionInfo = `Batch ${session.batchYear} - ${session.subjectName} (${formatDate(session.sessionDate)})`;
+    const sessionInfo = `${session.batchDisplayName || `Batch ${session.batchYear}`} - ${session.subjectName} (${formatDate(session.sessionDate)})`;
 
     try {
       await api.put(`/admin/attendance/sessions/${sessionId}/close`);
       
-      // Show success overlay instead of alert
+      // Refresh session data to update the UI state
+      await fetchSessionData();
+      
+      // Show success overlay after data refresh
       setSuccessTitle(`⏸️ ${sessionInfo} - Temporarily Closed!`);
-      setSuccessMessage('Session has been temporarily closed (no SMS sent).\n\nYou can reopen this session anytime or use "Fully End" to send SMS notifications to parents of absent students.');
+      setSuccessMessage('You can reopen this session anytime or use "Fully End" to send SMS notifications to parents of absent students.');
       setShowSuccessOverlay(true);
       
     } catch (error: any) {
@@ -285,7 +301,7 @@ export default function AttendanceSessionPage() {
   const reactivateSession = async () => {
     if (!session) return;
     
-    const sessionInfo = `Batch ${session.batchYear} - ${session.subjectName} (${formatDate(session.sessionDate)})`;
+    const sessionInfo = `${session.batchDisplayName || `Batch ${session.batchYear}`} - ${session.subjectName} (${formatDate(session.sessionDate)})`;
     
     // Show confirmation modal
     setConfirmTitle('🔄 Reactivate Attendance Session?');
@@ -446,7 +462,7 @@ export default function AttendanceSessionPage() {
                         title="Temporarily end session (can be reopened) - NO SMS sent"
                       >
                         <Pause className="h-4 w-4 mr-2" />
-                        End Session
+                        CLOSE SESSION
                       </button>                    </>
                   )}
                   
@@ -477,7 +493,7 @@ export default function AttendanceSessionPage() {
                   <GraduationCap className="h-5 w-5" />
                   <div>
                     <p className="text-sm text-white/60">Batch</p>
-                    <p className="font-semibold">Batch {session.batchYear}</p>
+                    <p className="font-semibold">{session.batchDisplayName || `Batch ${session.batchYear}`}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
@@ -538,7 +554,7 @@ export default function AttendanceSessionPage() {
                           type="text"
                           value={indexInput}
                           onChange={(e) => setIndexInput(e.target.value)}
-                          placeholder="Enter student ID or index number here"
+                          placeholder="Enter student ID here"
                           className="w-full pl-12 pr-4 py-4 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-gray-50 hover:bg-white"
                           disabled={marking}
                           autoComplete="off"
@@ -708,7 +724,15 @@ export default function AttendanceSessionPage() {
                                   <CheckCircle className="h-4 w-4 text-green-600" />
                                 </div>
                                 <div>
-                                  <p className="font-medium text-gray-900">{student.fullName}</p>
+                                  <div className="flex items-center space-x-2">
+                                    <p className="font-medium text-gray-900">{student.fullName}</p>
+                                    {/* Red flag for fee payment issues */}
+                                    {student.hasFeePaymentIssue && (
+                                      <div className="flex items-center justify-center w-6 h-6 bg-red-100 border border-red-300 rounded-full" title="Fee payment overdue">
+                                        <Flag className="w-3 h-3 text-red-600" />
+                                      </div>
+                                    )}
+                                  </div>
                                   <p className="text-sm text-gray-600">{student.studentIdCode}</p>
                                 </div>
                               </div>

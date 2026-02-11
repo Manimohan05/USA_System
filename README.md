@@ -426,7 +426,7 @@ netstat -an | findstr :5432
 
 ### Initial Setup
 
-1. **Login**: Use admin credentials to access the dashboard
+1. **Login**: Use admin credentials (Username: "USA Admin", Password: "USA29#12MSK") to access the dashboard
 2. **Create Batches**: Add academic year batches (e.g., 2024, 2025)
 3. **Add Subjects**: Create subjects like Chemistry, Physics, Biology
 4. **Add Students**: Register students with their batch and subject selections
@@ -462,7 +462,7 @@ netstat -an | findstr :5432
 
 ```
 POST /api/auth/login
-Body: { "username": "admin", "password": "password" }
+Body: { "username": "USA Admin", "password": "USA29#12MSK" }
 Response: { "token": "jwt_token_here" }
 ```
 

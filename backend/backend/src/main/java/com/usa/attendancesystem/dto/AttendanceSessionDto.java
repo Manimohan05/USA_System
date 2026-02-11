@@ -10,6 +10,7 @@ public record AttendanceSessionDto(
         Long id,
         Integer batchId,
         String batchYear,
+        String batchDisplayName,
         Integer subjectId,
         String subjectName,
         LocalDate sessionDate,

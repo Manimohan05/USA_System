@@ -246,8 +246,8 @@ POST /auth/login
 Content-Type: application/json
 
 {
-  "username": "admin",
-  "password": "password"
+  "username": "USA Admin",
+  "password": "USA29#12MSK"
 }
 ```
 

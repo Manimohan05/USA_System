@@ -25,7 +25,7 @@ export default function MessagingPage() {
   const [sendToAll, setSendToAll] = useState(true);
   
   // Status Messages
-  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   useEffect(() => {
     fetchInitialData();
@@ -75,7 +75,7 @@ export default function MessagingPage() {
     }
 
     setSending(true);
-    setStatusMessage({ type: 'info', text: 'Sending messages... This may take up to 60 seconds for large groups.' });
+    setStatusMessage(null); // Clear previous messages first
 
     try {
       const request: BroadcastMessageRequest = {
@@ -207,7 +207,7 @@ export default function MessagingPage() {
                   onClick={() => setMessageType('fee-reminder')}
                   className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-medium text-sm transition-all duration-300 ${
                     messageType === 'fee-reminder'
-                      ? 'bg-gradient-to-r from-orange-500 to-pink-600 text-white shadow-lg transform scale-105'
+                      ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg transform scale-105'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                 >
@@ -309,7 +309,7 @@ export default function MessagingPage() {
                               <option value="">All Batches</option>
                               {batches.map((batch) => (
                                 <option key={batch.id} value={batch.id.toString()}>
-                                  {batch.batchYear}{batch.dayBatch ? ' Day' : ''}
+                                  {batch.batchYear}{batch.isDayBatch ? ' Day' : ''}
                                 </option>
                               ))}
                             </select>
@@ -489,149 +489,66 @@ export default function MessagingPage() {
             </div>
           )}
 
-          {/* Modern Fee Reminders Tab */}
+          {/* Fee Reminders Tab */}
           {messageType === 'fee-reminder' && (
-            <div className="max-w-4xl mx-auto">
-              <div className="bg-white/70 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-8">
-                <div className="flex items-center space-x-4 mb-8">
-                  <div className="p-3 bg-gradient-to-r from-orange-500 to-pink-600 rounded-2xl">
-                    <Bell className="h-8 w-8 text-white" />
+            <div className="max-w-2xl mx-auto">
+              <div className="bg-white rounded-2xl shadow-xl border p-8">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="p-2 bg-orange-500 rounded-xl">
+                    <Bell className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-3xl font-bold text-gray-900">Fee Reminders</h2>
-                    <p className="text-gray-600 text-lg">Automated payment notifications</p>
+                    <h2 className="text-2xl font-bold text-gray-900">Fee Reminders</h2>
+                    <p className="text-gray-600">Send overdue payment notifications</p>
                   </div>
                 </div>
                 
-                <div className="space-y-8">
-                  {/* Enhanced Description */}
-                  <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-6">
-                    <div className="flex items-start space-x-4">
-                      <div className="p-2 bg-amber-500 rounded-xl">
-                        <Zap className="h-6 w-6 text-white" />
-                      </div>
-                      <div>
-                        <h4 className="text-xl font-bold text-amber-900 mb-3">🚀 Intelligent Fee Reminders</h4>
-                        <p className="text-amber-800 text-lg leading-relaxed">
-                          Our smart system automatically identifies students with overdue payments and sends 
-                          personalized reminder messages to their parents. Each message includes specific 
-                          payment amounts and student details for easy reference.
-                        </p>
-                      </div>
-                    </div>
+                <div className="space-y-6">
+                  {/* Simple Description */}
+                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                    <p className="text-orange-800">
+                      Sends overdue payment reminders to parents of students who haven't paid for the current month.
+                    </p>
                   </div>
 
-                  {/* Enhanced Feature List */}
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="bg-gradient-to-br from-blue-50 to-indigo-100 border-2 border-blue-200 rounded-2xl p-6">
-                      <h4 className="text-lg font-bold text-blue-900 mb-4 flex items-center">
-                        <CheckCircle className="h-5 w-5 mr-2" />
-                        ✨ What It Does
-                      </h4>
-                      <ul className="text-blue-800 space-y-3">
-                        <li className="flex items-center space-x-2">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          <span>Scans all student fee records automatically</span>
-                        </li>
-                        <li className="flex items-center space-x-2">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          <span>Calculates exact overdue amounts</span>
-                        </li>
-                        <li className="flex items-center space-x-2">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          <span>Sends personalized SMS messages</span>
-                        </li>
-                      </ul>
-                    </div>
-                    
-                    <div className="bg-gradient-to-br from-green-50 to-emerald-100 border-2 border-green-200 rounded-2xl p-6">
-                      <h4 className="text-lg font-bold text-green-900 mb-4 flex items-center">
-                        <Target className="h-5 w-5 mr-2" />
-                        🎯 Smart Targeting
-                      </h4>
-                      <ul className="text-green-800 space-y-3">
-                        <li className="flex items-center space-x-2">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <span>Only contacts parents with actual dues</span>
-                        </li>
-                        <li className="flex items-center space-x-2">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <span>Includes student name and amounts</span>
-                        </li>
-                        <li className="flex items-center space-x-2">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <span>Professional and courteous tone</span>
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* Modern Send Button */}
+                  {/* Send Button */}
                   <button
                     onClick={handleSendFeeReminders}
                     disabled={sending}
-                    className="w-full flex items-center justify-center py-6 px-8 bg-gradient-to-r from-orange-600 via-red-500 to-pink-600 text-white font-bold text-xl rounded-2xl shadow-2xl hover:shadow-3xl focus:outline-none focus:ring-4 focus:ring-orange-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
+                    className="w-full flex items-center justify-center py-4 px-6 bg-orange-600 text-white font-semibold text-lg rounded-xl shadow-lg hover:bg-orange-700 focus:outline-none focus:ring-4 focus:ring-orange-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                   >
                     {sending ? (
                       <>
-                        <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin mr-4"></div>
-                        <span>🚀 Sending Reminders...</span>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
+                        <span>Sending Reminders...</span>
                       </>
                     ) : (
                       <>
-                        <Bell className="h-6 w-6 mr-4" />
-                        <span>💳 Send Fee Reminders</span>
+                        <Bell className="h-5 w-5 mr-3" />
+                        <span>Send Fee Reminders</span>
                       </>
                     )}
                   </button>
 
-                  {/* Enhanced Status Message */}
+                  {/* Status Message */}
                   {statusMessage && (
                     <div
-                      className={`p-6 rounded-2xl border-2 backdrop-blur-sm transition-all duration-500 ${
+                      className={`p-4 rounded-xl border ${
                         statusMessage.type === 'success'
-                          ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 text-green-800 shadow-green-100'
-                          : 'bg-gradient-to-r from-red-50 to-pink-50 border-red-300 text-red-800 shadow-red-100'
-                      } shadow-lg`}
+                          ? 'bg-green-50 border-green-200 text-green-800'
+                          : 'bg-red-50 border-red-200 text-red-800'
+                      }`}
                     >
-                      <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-3">
                         {statusMessage.type === 'success' ? (
-                          <CheckCircle className="h-8 w-8 text-green-600" />
+                          <CheckCircle className="h-5 w-5 text-green-600" />
                         ) : (
-                          <AlertTriangle className="h-8 w-8 text-red-600" />
+                          <AlertTriangle className="h-5 w-5 text-red-600" />
                         )}
-                        <span className="font-bold text-xl">{statusMessage.text}</span>
+                        <span className="font-medium">{statusMessage.text}</span>
                       </div>
                     </div>
                   )}
-                </div>
-              </div>
-
-              {/* Best Practices */}
-              <div className="mt-6 bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Best Practices</h3>
-                <div className="space-y-4 text-sm text-gray-600">
-                  <div className="flex items-start">
-                    <Users className="h-4 w-4 text-gray-400 mr-2 mt-0.5 shrink-0" />
-                    <div>
-                      <div className="font-medium text-gray-900">Timing</div>
-                      <div>Send fee reminders 3-5 days before due dates for best results.</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start">
-                    <Calendar className="h-4 w-4 text-gray-400 mr-2 mt-0.5 shrink-0" />
-                    <div>
-                      <div className="font-medium text-gray-900">Frequency</div>
-                      <div>Avoid sending multiple reminders on the same day to prevent spam.</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start">
-                    <MessageSquare className="h-4 w-4 text-gray-400 mr-2 mt-0.5 shrink-0" />
-                    <div>
-                      <div className="font-medium text-gray-900">Tone</div>
-                      <div>Keep messages professional, polite, and include clear payment instructions.</div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>

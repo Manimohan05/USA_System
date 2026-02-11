@@ -57,4 +57,19 @@ public interface FeePaymentRepository extends JpaRepository<FeePayment, UUID> {
             @Param("subjectId") Integer subjectId,
             @Param("studentIdCode") String studentIdCode
     );
+
+    /**
+     * Check if a student has paid fees for the current month/year by a specific
+     * date. This checks if the payment was made on or before the given date.
+     */
+    @Query("SELECT CASE WHEN COUNT(fp) > 0 THEN TRUE ELSE FALSE END FROM FeePayment fp "
+            + "WHERE fp.student.id = :studentId "
+            + "AND fp.month = :month AND fp.year = :year "
+            + "AND fp.paidAt <= :byDate")
+    boolean hasStudentPaidFeesByDate(
+            @Param("studentId") UUID studentId,
+            @Param("month") Integer month,
+            @Param("year") Integer year,
+            @Param("byDate") java.time.Instant byDate
+    );
 }

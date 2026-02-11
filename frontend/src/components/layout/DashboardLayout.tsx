@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/auth';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import NotificationDropdown from '@/components/ui/NotificationDropdown';
 import {
   Menu,
   X,
@@ -167,19 +168,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Top header */}
         <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm shadow-lg border-b border-gray-200/50">
           <div className="flex items-center justify-between h-16 px-4 sm:px-6">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 hover:scale-105"
-            >
-              <Menu className="h-6 w-6" />
-            </button>
-            
             <div className="flex items-center space-x-4">
-              {/* User Profile */}
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="lg:hidden p-2 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 hover:scale-105"
+              >
+                <Menu className="h-6 w-6" />
+              </button>
+              
+              {/* User Profile - Moved to left side */}
               <div className="flex items-center space-x-3 bg-gray-50 rounded-xl px-3 py-2 hover:bg-gray-100 transition-colors cursor-pointer">
-                <div className="text-right hidden sm:block">
-                  <p className="text-sm font-semibold text-gray-900">USA Admin</p>
-               </div>
                 <div className="relative">
                   <div className="h-10 w-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
                     <Crown className="h-5 w-5 text-white" />
@@ -187,13 +185,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   {/* Online indicator */}
                   <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-white rounded-full animate-pulse shadow-sm"></div>
                 </div>
+                <div className="text-left hidden sm:block">
+                  <p className="text-sm font-semibold text-gray-900">USA Admin</p>
+                </div>
               </div>
-              {/* Notifications */}
-              <button className="relative p-3 text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-all duration-200 hover:scale-105 group">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full animate-pulse"></span>
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">3</span>
-              </button>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              {/* Notifications - Moved to right side */}
+              <NotificationDropdown />
             </div>
           </div>
         </div>

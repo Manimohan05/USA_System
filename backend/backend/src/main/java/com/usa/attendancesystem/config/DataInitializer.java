@@ -1,5 +1,7 @@
 package com.usa.attendancesystem.config;
 
+import java.util.Optional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -46,8 +48,29 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void initializeDefaultAdmin() {
-        // Check if admin already exists
-        if (adminRepository.existsByUsername("admin")) {
+        // Check if old admin user exists and update it (migration from old credentials)
+        Optional<Admin> existingAdmin = adminRepository.findByUsername("admin");
+        if (existingAdmin.isPresent()) {
+            Admin oldAdmin = existingAdmin.get();
+            log.info("Updating existing admin user credentials during migration");
+            
+            // Update username and password
+            oldAdmin.setUsername("USA Admin");
+            oldAdmin.setPassword(passwordEncoder.encode("USA29#12MSK"));
+            
+            adminRepository.save(oldAdmin);
+            
+            log.info("=".repeat(50));
+            log.info("ADMIN USER CREDENTIALS UPDATED SUCCESSFULLY!");
+            log.info("Username: USA Admin");
+            log.info("Password: USA29#12MSK");
+            log.info("PLEASE CHANGE THE PASSWORD AFTER FIRST LOGIN!");
+            log.info("=".repeat(50));
+            return;
+        }
+
+        // Check if new admin already exists
+        if (adminRepository.existsByUsername("USA Admin")) {
             log.info("Default admin user already exists");
             return;
         }
@@ -58,8 +81,8 @@ public class DataInitializer implements CommandLineRunner {
 
         // Create default admin user
         Admin defaultAdmin = new Admin(
-                "admin",
-                passwordEncoder.encode("admin123"), // Default password
+                "USA Admin",
+                passwordEncoder.encode("USA29#12MSK"), // Default password
                 superAdminRole
         );
 
@@ -67,8 +90,8 @@ public class DataInitializer implements CommandLineRunner {
 
         log.info("=".repeat(50));
         log.info("DEFAULT ADMIN USER CREATED SUCCESSFULLY!");
-        log.info("Username: admin");
-        log.info("Password: admin123");
+        log.info("Username: USA Admin");
+        log.info("Password: USA29#12MSK");
         log.info("PLEASE CHANGE THE PASSWORD AFTER FIRST LOGIN!");
         log.info("=".repeat(50));
     }

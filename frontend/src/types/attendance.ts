@@ -21,6 +21,7 @@ export interface AttendanceSessionDto {
   id: number;
   batchId: number;
   batchYear: string;
+  batchDisplayName: string;
   subjectId: number;
   subjectName: string;
   sessionDate: string; // ISO date string
@@ -97,6 +98,7 @@ export interface MarkedStudentDto {
   indexNumber: string;
   fullName: string;
   markedAt: string; // ISO datetime string
+  hasFeePaymentIssue: boolean; // True if student hasn't paid fees by attendance date
 }
 
 export interface SessionAttendanceStatusDto {

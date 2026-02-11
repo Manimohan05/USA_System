@@ -1,6 +1,8 @@
 package com.usa.attendancesystem.service;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -8,8 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.usa.attendancesystem.dto.BroadcastMessageRequest;
 import com.usa.attendancesystem.dto.MessagingStatsDto;
 import com.usa.attendancesystem.dto.TargetedStudentCountDto;
-import com.usa.attendancesystem.model.FeeRecord;
 import com.usa.attendancesystem.model.Student;
+import com.usa.attendancesystem.repository.FeePaymentRepository;
 import com.usa.attendancesystem.repository.StudentRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -19,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 public class ParentMessagingService {
 
     private final StudentRepository studentRepository;
-    private final FeeManagementService feeManagementService;
+    private final FeePaymentRepository feePaymentRepository;
     private final SmsService smsService;
 
     @Transactional(readOnly = true)
@@ -49,18 +51,46 @@ public class ParentMessagingService {
 
     @Transactional(readOnly = true)
     public int sendFeeReminders() {
-        List<FeeRecord> overdueRecords = feeManagementService.findOverdueFeeRecords();
+        LocalDate currentDate = LocalDate.now();
+        int currentMonth = currentDate.getMonthValue();
+        int currentYear = currentDate.getYear();
 
-        for (FeeRecord record : overdueRecords) {
-            Student student = record.getStudent();
-            String message = String.format(
-                    "Dear Parent, this is a friendly reminder that a fee payment of $%.2f for %s is overdue. Please complete the payment at your earliest convenience. Thank you.",
-                    record.getAmountDue().subtract(record.getAmountPaid()),
-                    student.getFullName()
+        // Get all active students
+        List<Student> allActiveStudents = studentRepository.findByIsActiveTrue();
+
+        // Filter students who haven't paid for current month and have valid parent phone
+        List<Student> unpaidStudents = allActiveStudents.stream()
+                .filter(student -> {
+                    // Check if student has paid for current month
+                    boolean hasPaid = feePaymentRepository.findByStudentAndMonthAndYear(
+                            student.getId(), currentMonth, currentYear).isPresent();
+                    return !hasPaid; // Return true if student hasn't paid
+                })
+                .filter(student -> student.getParentPhone() != null && !student.getParentPhone().trim().isEmpty())
+                .collect(Collectors.toList());
+
+        // Send reminders
+        for (Student student : unpaidStudents) {
+            // English message
+            String englishMessage = String.format(
+                    "Dear Parent, this is a reminder from USA that a fee payment for %s was due by %s and is now overdue. Please complete the payment at your earliest convenience. Thank you.",
+                    student.getFullName(),
+                    currentDate.toString()
             );
-            smsService.sendSms(student.getParentPhone(), message);
+
+            // Tamil message
+            String tamilMessage = String.format(
+                    "அன்புள்ள பெற்றோர், USA இலிருந்து %s என்ற மாணவர்/மாணவிக்கான கட்டணம் %s தேதிக்குள் செலுத்த வேண்டியிருந்தது. தயவுசெய்து விரைவில் கட்டணத்தை செலுத்தவும். நன்றி.",
+                    student.getFullName(),
+                    currentDate.toString()
+            );
+
+            // Send only English message (uncomment Tamil line if needed)
+            smsService.sendSms(student.getParentPhone(), englishMessage);
+            // smsService.sendSms(student.getParentPhone(), tamilMessage);
         }
-        return overdueRecords.size(); // Return the count of reminders sent
+
+        return unpaidStudents.size(); // Return count of students who received reminders
     }
 
     @Transactional(readOnly = true)

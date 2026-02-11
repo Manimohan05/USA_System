@@ -2,11 +2,7 @@ package com.usa.attendancesystem.service;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -17,7 +13,6 @@ import com.usa.attendancesystem.dto.AttendanceSessionDto;
 import com.usa.attendancesystem.exception.DuplicateResourceException;
 import com.usa.attendancesystem.exception.ResourceNotFoundException;
 import com.usa.attendancesystem.model.Admin;
-import com.usa.attendancesystem.model.AttendanceRecord;
 import com.usa.attendancesystem.model.AttendanceSession;
 import com.usa.attendancesystem.model.Batch;
 import com.usa.attendancesystem.model.Student;
@@ -92,6 +87,7 @@ public class AttendanceSessionService {
                     session.getId(),
                     batch.getId(),
                     String.valueOf(batch.getBatchYear()),
+                    batch.getDisplayName(),
                     subject.getId(),
                     subject.getName(),
                     session.getSessionDate(),
@@ -120,9 +116,28 @@ public class AttendanceSessionService {
 
     @Transactional(readOnly = true)
     public List<AttendanceSessionDto> getTodaysActiveSessions() {
-        // Return all today's sessions (active, closed, and recently ended)
-        return sessionRepository.findAllSessionsByDate(LocalDate.now())
+        System.out.println("AttendanceSessionService - Getting today's sessions for date: " + LocalDate.now());
+        List<AttendanceSession> allSessions = sessionRepository.findAllSessionsByDate(LocalDate.now());
+        System.out.println("AttendanceSessionService - Found " + allSessions.size() + " total sessions from DB");
+        
+        // Return all today's sessions, but exclude auto-expired sessions
+        // Auto-expired sessions are those that are inactive AND closed (cannot be reactivated)
+        return allSessions
                 .stream()
+                .filter(session -> {
+                    System.out.println("  Session " + session.getId() + ": active=" + session.isActive() + 
+                                     ", closed=" + session.isClosed());
+                    // Include if session is active
+                    if (session.isActive()) {
+                        System.out.println("    -> Including active session");
+                        return true;
+                    }
+                    // Include if session is inactive but not closed (can be reactivated)
+                    // Exclude if session is inactive AND closed (auto-expired, should disappear)
+                    boolean shouldInclude = !session.isClosed();
+                    System.out.println("    -> Including inactive session: " + shouldInclude + " (not closed: " + !session.isClosed() + ")");
+                    return shouldInclude;
+                })
                 .map(this::mapToDto)
                 .toList();
     }
@@ -151,7 +166,7 @@ public class AttendanceSessionService {
 
         // Send notifications only if requested and session is currently active
         if (sendSms && session.isActive()) {
-            System.out.println("AttendanceSessionService - Session is active, sending absence notifications (SMS requested)");
+            System.out.println("AttendanceSessionService - Sending absence notifications");
             sendAbsenceNotifications(session);
         } else if (!sendSms) {
             System.out.println("AttendanceSessionService - SMS not requested, skipping notifications");
@@ -159,11 +174,21 @@ public class AttendanceSessionService {
             System.out.println("AttendanceSessionService - Session is already inactive, skipping notifications");
         }
 
-        // Deactivate the session regardless of notification success/failure
+        // Deactivate the session
         session.setActive(false);
-        session.setEndedAt(Instant.now()); // Track when session was ended
+        session.setEndedAt(Instant.now());
+
+        // If SMS was requested (auto-expire), make session non-reactivatable
+        if (sendSms) {
+            session.setClosed(true); // Auto-expired sessions cannot be reactivated
+            System.out.println("AttendanceSessionService - Auto-expired session marked as closed (non-reactivatable)");
+        } else {
+            System.out.println("AttendanceSessionService - Manual end - session can be reactivated");
+        }
+
         sessionRepository.save(session);
-        System.out.println("AttendanceSessionService - Session deactivated successfully");
+        System.out.println("AttendanceSessionService - Session deactivated successfully. Final state: active=" + 
+                          session.isActive() + ", closed=" + session.isClosed() + ", endedAt=" + session.getEndedAt());
     }
 
     @Transactional
@@ -243,145 +268,41 @@ public class AttendanceSessionService {
         AttendanceSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Session not found with ID: " + sessionId));
 
-        // Send notifications regardless of current state (active, closed, or ended)
-        System.out.println("AttendanceSessionService - Fully ending session, sending absence notifications");
-        sendAbsenceNotifications(session);
+        // Check if session was created within the last 5 minutes
+        Instant now = Instant.now();
+        Instant sessionCreated = session.getCreatedAt();
+        long minutesSinceCreation = java.time.Duration.between(sessionCreated, now).toMinutes();
 
-        // Permanently end the session - make it non-reactivatable
-        session.setActive(false);
-        session.setClosed(true); // Mark as fully closed
-        session.setEndedAt(Instant.now()); // Track when session was fully ended
-        sessionRepository.save(session);
-        System.out.println("AttendanceSessionService - Session fully ended successfully");
-    }
+        if (minutesSinceCreation < 5) {
+            // Session created within 5 minutes - delete completely without SMS
+            System.out.println("AttendanceSessionService - Session created " + minutesSinceCreation + " minutes ago, deleting without SMS");
 
-    /**
-     * Send SMS notifications to parents of students who were absent from the
-     * session
-     */
-    private void sendAbsenceNotifications(AttendanceSession session) {
-        try {
-            System.out.println("=================================================");
-            System.out.println("📱 SMS NOTIFICATION DEBUG - Session: " + session.getId());
-            System.out.println("=================================================");
-            System.out.println("📊 Session Details:");
-            System.out.println("   • Batch ID: " + session.getBatch().getId() + " (Batch " + session.getBatch().getBatchYear() + ")");
-            System.out.println("   • Subject ID: " + session.getSubject().getId() + " (" + session.getSubject().getName() + ")");
-            System.out.println("   • Session Date: " + session.getSessionDate());
-
-            // Get all enrolled students for this batch and subject
-            List<Student> enrolledStudents = studentRepository.findActiveStudentsByBatchAndSubject(
-                    session.getBatch().getId(),
-                    session.getSubject().getId()
-            );
-
-            System.out.println("👥 Found " + enrolledStudents.size() + " enrolled students in this batch-subject combination:");
-            for (Student student : enrolledStudents) {
-                System.out.println("   • " + student.getFullName() + " (ID: " + student.getStudentIdCode()
-                        + ", Parent Phone: " + (student.getParentPhone() != null ? student.getParentPhone() : "NONE") + ")");
-            }
-
-            if (enrolledStudents.isEmpty()) {
-                System.out.println("❌ ISSUE FOUND: No students are enrolled in Batch " + session.getBatch().getBatchYear()
-                        + " for subject '" + session.getSubject().getName() + "'");
-                System.out.println("💡 SOLUTION: Make sure students are enrolled in this subject through the student management system");
-                return;
-            }
-
-            // Get attendance records for this session (same day, batch, subject)
-            ZoneId zoneId = ZoneId.systemDefault();
-            Instant startOfDay = session.getSessionDate().atStartOfDay(zoneId).toInstant();
-            Instant endOfDay = session.getSessionDate().plusDays(1).atStartOfDay(zoneId).toInstant();
-
-            List<AttendanceRecord> attendanceRecords = attendanceRecordRepository.findSessionAttendanceRecords(
+            // First delete any attendance records for this session (by batch, subject, date)
+            attendanceRecordRepository.deleteByBatchSubjectAndDate(
                     session.getBatch().getId(),
                     session.getSubject().getId(),
-                    startOfDay,
-                    endOfDay
+                    session.getSessionDate()
             );
+            System.out.println("AttendanceSessionService - Deleted attendance records for session: " + sessionId);
 
-            System.out.println("📋 Found " + attendanceRecords.size() + " attendance records for " + session.getSessionDate() + ":");
-            for (AttendanceRecord record : attendanceRecords) {
-                System.out.println("   • " + record.getStudent().getFullName()
-                        + " marked present at " + record.getAttendanceTimestamp());
-            }
+            // Then delete the session itself
+            sessionRepository.delete(session);
+            System.out.println("AttendanceSessionService - Session deleted successfully (no SMS sent)");
+        } else {
+            // Session older than 5 minutes - perform normal fully-end with SMS
+            System.out.println("AttendanceSessionService - Session created " + minutesSinceCreation + " minutes ago, fully ending with SMS");
 
-            // Get set of students who attended
-            Set<String> attendedStudentIds = attendanceRecords.stream()
-                    .map(record -> record.getStudent().getStudentIdCode())
-                    .collect(Collectors.toSet());
+            // Send notifications for absent students
+            System.out.println("AttendanceSessionService - Sending absence notifications for fully ended session");
+            sendAbsenceNotifications(session);
 
-            // Find absent students (enrolled but didn't attend)
-            List<Student> absentStudents = enrolledStudents.stream()
-                    .filter(student -> !attendedStudentIds.contains(student.getStudentIdCode()))
-                    .toList();
-
-            System.out.println("❌ Found " + absentStudents.size() + " absent students:");
-            for (Student student : absentStudents) {
-                System.out.println("   • " + student.getFullName() + " (ID: " + student.getStudentIdCode()
-                        + ", Parent Phone: " + (student.getParentPhone() != null ? student.getParentPhone() : "NONE") + ")");
-            }
-
-            // Filter absent students who have parent phone numbers
-            List<Student> absentStudentsWithPhones = absentStudents.stream()
-                    .filter(student -> student.getParentPhone() != null && !student.getParentPhone().trim().isEmpty())
-                    .toList();
-
-            System.out.println("📱 Absent students with parent phone numbers: " + absentStudentsWithPhones.size());
-
-            if (absentStudents.isEmpty()) {
-                System.out.println("✅ GREAT NEWS: All enrolled students attended the class! No absence notifications needed.");
-                return;
-            }
-
-            if (absentStudentsWithPhones.isEmpty()) {
-                System.out.println("❌ ISSUE FOUND: " + absentStudents.size() + " students were absent, but none have parent phone numbers stored");
-                System.out.println("💡 SOLUTION: Add parent phone numbers to student records in the student management system");
-                return;
-            }
-
-            System.out.println("📤 Sending SMS notifications to " + absentStudentsWithPhones.size() + " parents...");
-
-            // Send notifications to parents of absent students
-            for (Student absentStudent : absentStudentsWithPhones) {
-                String message = createAbsenceMessage(absentStudent, session);
-                try {
-                    System.out.println("   📤 Sending SMS to " + absentStudent.getParentPhone()
-                            + " for " + absentStudent.getFullName() + "...");
-                    smsService.sendSms(absentStudent.getParentPhone(), message);
-                    System.out.println("   ✅ SMS sent successfully to " + absentStudent.getFullName() + "'s parent");
-                } catch (Exception e) {
-                    System.err.println("   ❌ Failed to send SMS for student " + absentStudent.getFullName() + ": " + e.getMessage());
-                    e.printStackTrace();
-                    // Continue with other students even if one fails
-                }
-            }
-
-            System.out.println("📱 SMS notification process completed!");
-            System.out.println("=================================================");
-
-        } catch (Exception e) {
-            System.err.println("❌ ERROR in sendAbsenceNotifications: " + e.getMessage());
-            e.printStackTrace();
-            // Don't throw exception to avoid disrupting session deactivation
+            // Permanently end the session - make it non-reactivatable
+            session.setActive(false);
+            session.setClosed(true); // Mark as fully closed
+            session.setEndedAt(now); // Track when session was fully ended
+            sessionRepository.save(session);
+            System.out.println("AttendanceSessionService - Session fully ended successfully with SMS sent");
         }
-    }
-
-    /**
-     * Create a personalized absence notification message for parents
-     */
-    private String createAbsenceMessage(Student student, AttendanceSession session) {
-        String studentName = student.getFullName();
-        String subjectName = session.getSubject().getName();
-        String batchYear = String.valueOf(session.getBatch().getBatchYear());
-        String sessionDate = session.getSessionDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy"));
-
-        return String.format(
-                "Dear Parent, we would like to inform you that %s was absent from the %s class (Batch %s) held on %s. "
-                + "If this was due to illness or other circumstances, please contact the institute. "
-                + "Regular attendance is important for your child's academic progress. Thank you.",
-                studentName, subjectName, batchYear, sessionDate
-        );
     }
 
     private AttendanceSessionDto mapToDto(AttendanceSession session) {
@@ -397,6 +318,7 @@ public class AttendanceSessionService {
                 session.getId(),
                 session.getBatch().getId(),
                 String.valueOf(session.getBatch().getBatchYear()),
+                session.getBatch().getDisplayName(),
                 session.getSubject().getId(),
                 session.getSubject().getName(),
                 session.getSessionDate(),
@@ -405,6 +327,92 @@ public class AttendanceSessionService {
                 canReactivate,
                 session.getCreatedAt(),
                 session.getEndedAt()
+        );
+    }
+
+    /**
+     * Send SMS notifications to parents of absent students
+     */
+    private void sendAbsenceNotifications(AttendanceSession session) {
+        try {
+            System.out.println("AttendanceSessionService - Starting absence notification process");
+
+            // 1. Find all students enrolled in this batch and subject
+            java.util.List<Student> enrolledStudents = studentRepository.findActiveStudentsByBatchAndSubject(
+                    session.getBatch().getId(), session.getSubject().getId());
+            System.out.printf("AttendanceSessionService - Found %d enrolled students%n", enrolledStudents.size());
+
+            if (enrolledStudents.isEmpty()) {
+                System.out.println("AttendanceSessionService - No enrolled students found, skipping notifications");
+                return;
+            }
+
+            // 2. Find students who marked attendance on this session date
+            java.time.ZoneId zoneId = java.time.ZoneId.systemDefault();
+            java.time.Instant startOfDay = session.getSessionDate().atStartOfDay(zoneId).toInstant();
+            java.time.Instant endOfDay = session.getSessionDate().plusDays(1).atStartOfDay(zoneId).toInstant();
+
+            java.util.List<java.util.UUID> presentStudentIds = attendanceRecordRepository
+                    .findPresentStudentIdsBySubjectAndDateRange(session.getSubject().getId(), startOfDay, endOfDay);
+            System.out.printf("AttendanceSessionService - Found %d present students%n", presentStudentIds.size());
+
+            // 3. Find absent students (enrolled but not present) with parent phone numbers
+            java.util.List<Student> absentStudentsWithContacts = enrolledStudents.stream()
+                    .filter(student -> !presentStudentIds.contains(student.getId()))
+                    .filter(student -> student.getParentPhone() != null && !student.getParentPhone().trim().isEmpty())
+                    .collect(java.util.stream.Collectors.toList());
+
+            System.out.printf("AttendanceSessionService - Found %d absent students with parent contacts%n",
+                    absentStudentsWithContacts.size());
+
+            if (absentStudentsWithContacts.isEmpty()) {
+                System.out.println("AttendanceSessionService - No absent students with parent contacts found");
+                return;
+            }
+
+            // 4. Send SMS to each absent student's parent
+            int successCount = 0;
+            int failureCount = 0;
+
+            for (Student student : absentStudentsWithContacts) {
+                try {
+                    String message = createAbsenceMessage(student, session);
+                    smsService.sendSms(student.getParentPhone(), message);
+                    System.out.printf("AttendanceSessionService - Sent absence notification for student: %s%n",
+                            student.getFullName());
+                    successCount++;
+                } catch (Exception e) {
+                    System.err.printf("AttendanceSessionService - Failed to send SMS for student %s: %s%n",
+                            student.getFullName(), e.getMessage());
+                    failureCount++;
+                }
+            }
+
+            System.out.printf("AttendanceSessionService - Absence notifications completed. Success: %d, Failed: %d%n",
+                    successCount, failureCount);
+
+        } catch (Exception e) {
+            System.err.println("AttendanceSessionService - Error during absence notification process: " + e.getMessage());
+            e.printStackTrace();
+            // Don't throw exception to avoid breaking session ending process
+        }
+    }
+
+    /**
+     * Create absence notification message
+     */
+    private String createAbsenceMessage(Student student, AttendanceSession session) {
+        java.time.format.DateTimeFormatter dateFormatter = java.time.format.DateTimeFormatter.ofPattern("MMMM d, yyyy");
+        String formattedDate = session.getSessionDate().format(dateFormatter);
+
+        return String.format(
+                "Dear Parent, we would like to inform you that %s was absent from the %s class (Batch %s) held on %s. "
+                + "If this was due to illness or other circumstances, please contact the institute. "
+                + "Regular attendance is important for your child's academic progress. Thank you.",
+                student.getFullName(),
+                session.getSubject().getName(),
+                session.getBatch().getBatchYear(),
+                formattedDate
         );
     }
 }

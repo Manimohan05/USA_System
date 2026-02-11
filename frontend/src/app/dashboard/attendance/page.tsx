@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useToast } from '@/contexts/toast';
+import { useNotifications } from '@/contexts/notification';
 import { Calendar, Users, CheckCircle, XCircle, Download, Search, Play, Pause, Settings, Clock, BookOpen, GraduationCap, User, ExternalLink, AlertTriangle, RotateCcw } from 'lucide-react';
 import api from '@/lib/api';
 import { formatDate, formatDateForAPI } from '@/lib/utils';
@@ -30,6 +31,7 @@ type ReportMode = 'single' | 'student';
 
 function AttendancePageContent() {
   const { addToast } = useToast();
+  const { addNotification } = useNotifications();
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -46,6 +48,7 @@ function AttendancePageContent() {
   const [sessions, setSessions] = useState<AttendanceSessionDto[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [currentSession, setCurrentSession] = useState<AttendanceSessionDto | null>(null);
+  const [previousSessions, setPreviousSessions] = useState<AttendanceSessionDto[]>([]);
   
   // Create Session State
   const [sessionBatch, setSessionBatch] = useState<string>('');
@@ -85,71 +88,15 @@ function AttendancePageContent() {
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [confirmButtonText, setConfirmButtonText] = useState('Yes, Confirm');
 
-  // Helper function to check if session has expired (60 minutes from creation)
-  const isSessionExpired = (session: AttendanceSessionDto): boolean => {
-    try {
-      // Add extensive logging to debug
-      console.log('=== CHECKING SESSION EXPIRATION ===');
-      console.log('Session ID:', session.id);
-      console.log('Session createdAt (raw):', session.createdAt);
-      console.log('Session sessionDate:', session.sessionDate);
-      console.log('Session batch/subject:', `Batch ${session.batchYear} ${session.subjectName}`);
-      
-      const sessionCreatedAt = new Date(session.createdAt).getTime();
-      const now = Date.now();
-      const sessionDuration = 60 * 60 * 1000; // 60 minutes in milliseconds
-      const elapsed = now - sessionCreatedAt;
-      const isExpired = elapsed > sessionDuration;
-      
-      // More detailed logging
-      console.log('Created timestamp:', sessionCreatedAt);
-      console.log('Current timestamp:', now);
-      console.log('Created Date:', new Date(sessionCreatedAt).toISOString());
-      console.log('Current Date:', new Date(now).toISOString());
-      console.log('Elapsed milliseconds:', elapsed);
-      console.log('Elapsed minutes:', Math.round(elapsed / 60000));
-      console.log('Duration limit (60 min in ms):', sessionDuration);
-      console.log('Is Expired?', isExpired);
-      console.log('=====================================');
-      
-      return isExpired;
-    } catch (error) {
-      console.error('Error checking session expiration:', error, session);
-      return false; // Don't remove sessions if there's an error parsing dates
-    }
-  };
-
-  // Filter sessions to exclude expired ones
-  const getValidSessions = (sessions: AttendanceSessionDto[]): AttendanceSessionDto[] => {
-    const validSessions = sessions.filter(session => {
-      const isValid = !isSessionExpired(session);
-      if (!isValid) {
-        console.log(`Filtering out expired session: ${session.id} - Batch ${session.batchYear} ${session.subjectName}`);
-      }
-      return isValid;
-    });
-    
-    if (validSessions.length !== sessions.length) {
-      console.log(`Filtered ${sessions.length - validSessions.length} expired sessions out of ${sessions.length} total`);
-    }
-    
-    return validSessions;
-  };
-
   useEffect(() => {
     fetchInitialData();
     
-    // Immediately filter out any expired sessions that might be in state
-    setTimeout(() => {
-      console.log('Component mounted - forcing expired session cleanup');
-      setSessions(prevSessions => {
-        const validSessions = getValidSessions(prevSessions);
-        if (validSessions.length !== prevSessions.length) {
-          console.log(`Removed ${prevSessions.length - validSessions.length} expired sessions on mount`);
-        }
-        return validSessions;
-      });
-    }, 1000);
+    // Set up polling to detect auto-expired sessions
+    const sessionPollingInterval = setInterval(() => {
+      fetchTodaysSessions();
+    }, 2 * 60 * 1000); // Poll every 2 minutes to detect auto-expirations
+    
+    return () => clearInterval(sessionPollingInterval);
   }, []);
 
   useEffect(() => {
@@ -158,46 +105,6 @@ function AttendancePageContent() {
       fetchSessionStatus(currentSession.id);
     }
   }, [currentSession]);
-
-  useEffect(() => {
-    // Periodically check and remove expired sessions
-    const checkExpiredSessions = () => {
-      setSessions(prevSessions => {
-        const validSessions = getValidSessions(prevSessions);
-        // Only update state if there are changes to avoid unnecessary re-renders
-        if (validSessions.length !== prevSessions.length) {
-          console.log('Expired sessions removed:', prevSessions.length - validSessions.length);
-          const expiredCount = prevSessions.length - validSessions.length;
-          
-          // Schedule toast notification after state update completes
-          if (expiredCount > 0) {
-            setTimeout(() => {
-              addToast({
-                type: 'warning',
-                title: '⏰ Sessions Expired',
-                message: `${expiredCount} session${expiredCount > 1 ? 's' : ''} exceeded the 60-minute limit and ${expiredCount > 1 ? 'have' : 'has'} been removed.`,
-                duration: 6000
-              });
-            }, 0);
-          }
-          return validSessions;
-        }
-        return prevSessions;
-      });
-    };
-    
-    // Check immediately on mount
-    console.log('Initial expired session check on component mount');
-    checkExpiredSessions();
-    
-    // Then check every 5 seconds for immediate feedback
-    const interval = setInterval(() => {
-      console.log('Periodic check for expired sessions...');
-      checkExpiredSessions();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   // Handle clicks outside student dropdown to close it
   useEffect(() => {
@@ -238,43 +145,58 @@ function AttendancePageContent() {
   const fetchTodaysSessions = async () => {
     try {
       setLoadingSessions(true);
-      const response = await api.get<AttendanceSessionDto[]>('/admin/attendance/sessions/today');
+      const response = await api.get<AttendanceSessionDto[]>('/admin/attendance/sessions');
       console.log('Raw sessions from backend:', response.data);
+      
+      // Check for auto-expired sessions (sessions that were in previousSessions but not in current response)
+      if (previousSessions.length > 0) {
+        const currentSessionIds = response.data.map(s => s.id);
+        const expiredSessions = previousSessions.filter(prevSession => 
+          !currentSessionIds.includes(prevSession.id) && 
+          prevSession.isActive && // Was active before
+          new Date().getTime() - new Date(prevSession.createdAt).getTime() > 60 * 60 * 1000 // Created more than 1 hour ago
+        );
+        
+        // Add notifications for auto-expired sessions
+        expiredSessions.forEach(expiredSession => {
+          addNotification({
+            type: 'warning',
+            title: '⏰ Session Auto-Expired',
+            message: `Session for ${expiredSession.batchDisplayName || `Batch ${expiredSession.batchYear}`} - ${expiredSession.subjectName} has been automatically expired after 1 hour.\n\n📱 SMS notifications sent to parents of absent students.`,
+            sessionId: expiredSession.id,
+            batchYear: expiredSession.batchDisplayName || expiredSession.batchYear,
+            subjectName: expiredSession.subjectName
+          });
+        });
+      }
+      
+      // Save current sessions as previous for next comparison
+      setPreviousSessions(response.data);
       
       // Log each session's details for debugging
       response.data.forEach((session, index) => {
         console.log(`Session ${index + 1}:`, {
           id: session.id,
-          batch: `Batch ${session.batchYear}`,
+          batch: session.batchDisplayName,
+          batchYear: session.batchYear,
           subject: session.subjectName,
           createdAt: session.createdAt,
           isActive: session.isActive,
+          canReactivate: session.canReactivate,
+          isClosed: session.isClosed,
           sessionDate: session.sessionDate
         });
       });
       
-      // Immediately filter out expired sessions
-      const validSessions = getValidSessions(response.data);
-      console.log('Valid (non-expired) sessions after filtering:', validSessions);
-      console.log('Expired sessions removed:', response.data.length - validSessions.length);
-      
-      if (response.data.length > validSessions.length) {
-        const expiredCount = response.data.length - validSessions.length;
-        addToast({
-          type: 'info',
-          title: '🧹 Cleaned Up Sessions',
-          message: `Removed ${expiredCount} expired session${expiredCount > 1 ? 's' : ''} that exceeded 60 minutes.`,
-          duration: 5000
-        });
-      }
-      
-      console.log('Active valid sessions:', validSessions.filter(s => s.isActive));
-      console.log('Ended valid sessions:', validSessions.filter(s => !s.isActive));
-      setSessions(validSessions);
+      // Trust the backend for session management - no frontend filtering
+      console.log('All sessions from backend:', response.data);
+      console.log('Active sessions:', response.data.filter(s => s.isActive));
+      console.log('Ended sessions:', response.data.filter(s => !s.isActive));
+      setSessions(response.data);
       
       // Auto-select session from URL parameter if available
       if (sessionIdFromUrl) {
-        const targetSession = validSessions.find(s => s.id === parseInt(sessionIdFromUrl));
+        const targetSession = response.data.find(s => s.id === parseInt(sessionIdFromUrl));
         if (targetSession) {
           setCurrentSession(targetSession);
           await fetchSessionStatus(targetSession.id);
@@ -283,8 +205,8 @@ function AttendancePageContent() {
       }
       
       // Auto-select the first active session if available and no URL param
-      if (validSessions.length > 0 && !currentSession) {
-        const firstActiveSession = validSessions.find(s => s.isActive) || validSessions[0];
+      if (response.data.length > 0 && !currentSession) {
+        const firstActiveSession = response.data.find(s => s.isActive) || response.data[0];
         setCurrentSession(firstActiveSession);
         await fetchSessionStatus(firstActiveSession.id);
       }
@@ -326,9 +248,8 @@ function AttendancePageContent() {
     const selectedBatch = batches.find(b => b.id === parseInt(sessionBatch));
     const selectedSubject = subjects.find(s => s.id === parseInt(sessionSubject));
     
-    // Filter out expired sessions before checking for conflicts
-    const validSessions = getValidSessions(sessions);
-    const existingSession = validSessions.find(s => 
+    // Check for existing active session
+    const existingSession = sessions.find(s => 
       s.batchId === parseInt(sessionBatch) && 
       s.subjectId === parseInt(sessionSubject) && 
       s.sessionDate === sessionDate &&
@@ -336,7 +257,7 @@ function AttendancePageContent() {
     );
 
     if (existingSession) {
-      const batchName = `Batch ${selectedBatch?.batchYear}`;
+      const batchName = selectedBatch?.displayName || 'Unknown Batch';
       const subjectName = selectedSubject?.name || 'Unknown Subject';
       const formattedDate = formatDate(sessionDate);
       
@@ -369,7 +290,7 @@ function AttendancePageContent() {
       setSessionSubject('');
       setSessionDate(formatDateForAPI(new Date()));
       
-      const batchName = `Batch ${selectedBatch?.batchYear}`;
+      const batchName = selectedBatch?.displayName || 'Unknown Batch';
       const subjectName = selectedSubject?.name || 'Unknown Subject';
       
       addToast({
@@ -382,7 +303,7 @@ function AttendancePageContent() {
       // Handle specific error types with meaningful messages
       if (error.response?.status === 409 || error.response?.data?.message?.includes('already exists')) {
         // Don't log 409 errors as they are expected business logic conflicts
-        const batchName = `Batch ${selectedBatch?.batchYear}`;
+        const batchName = selectedBatch?.displayName || 'Unknown Batch';
         const subjectName = selectedSubject?.name || 'Unknown Subject';
         const formattedDate = formatDate(sessionDate);
         
@@ -432,7 +353,7 @@ function AttendancePageContent() {
           addToast({
             type: 'info',
             title: '🔄 Session Already Exists (Ended)',
-            message: `A session for ${batchName} - ${subjectName} on ${formattedDate} was already created but ended.\n\n💡 You can REOPEN the existing session instead of creating a new one:\n\n• Look for "Ended Sessions" section below\n• Click "Reopen Session" for ${formattedDate}\n\nThis will reactivate the same session ID: ${endedSession.id}`,
+            message: `A session for ${batchName} - ${subjectName} on ${formattedDate} was already created and Fully Ended.`,
             duration: 12000
           });
         } else {
@@ -482,28 +403,15 @@ function AttendancePageContent() {
       console.error('Session not found in local state:', sessionId);
       return;
     }
-    
-    // Check if session has expired
-    if (isSessionExpired(sessionToEnd)) {
-      addToast({
-        type: 'warning',
-        title: '⏰ Session Already Expired',
-        message: 'This session has exceeded the 60-minute limit and will be removed automatically.',
-        duration: 5000
-      });
-      // Remove expired session from state
-      setSessions(prev => prev.filter(s => s.id !== sessionId));
-      return;
-    }
 
     const sessionInfo = sessionToEnd 
-      ? `Batch ${sessionToEnd.batchYear} - ${sessionToEnd.subjectName} (${formatDate(sessionToEnd.sessionDate)})`
+      ? `${sessionToEnd.batchDisplayName || `Batch ${sessionToEnd.batchYear}`} - ${sessionToEnd.subjectName} (${formatDate(sessionToEnd.sessionDate)})`
       : 'this session';
 
     // Show confirmation modal
     setConfirmTitle('⏸️ End Session Confirmation');
-    setConfirmMessage(`**${sessionInfo}**\n\n⚠️ This will temporarily end the session WITHOUT sending SMS notifications.\n\n💡 To send SMS notifications to parents of absent students, use "Fully End" instead.\n\n🔄 Ended sessions can be reopened anytime from the recovery section.`);
-    setConfirmButtonText('Yes, End Session (No SMS)');
+    setConfirmMessage(`**${sessionInfo}**\n\n⚠️ This will temporarily end the session  , \n\n🔄 Ended sessions can be reopened anytime from the recovery section.\n\n💡 **Note:** Sessions fully ended within 5 minutes of creation will be deleted without SMS.`);
+    setConfirmButtonText('Yes, End Session');
     setConfirmAction(() => async () => {
       setShowConfirmModal(false);
       await performEndSession(sessionId, sessionInfo);
@@ -528,8 +436,8 @@ function AttendancePageContent() {
       
       addToast({
         type: 'success',
-        title: '⏸️ Session Ended (No SMS Sent)',
-        message: `${sessionInfo} has been temporarily ended.\n\n📋 What's Next:\n• Session can be reopened anytime\n• Use "Fully End" to send SMS to parents of absent students\n• Check the "Ended Sessions" section below to manage this session`,
+        title: '⏸️ Session Ended',
+        message: `${sessionInfo} has been temporarily ended.\n\n Session can be reopened anytime.`,
         duration: 10000
       });
     } catch (error: any) {
@@ -555,29 +463,54 @@ function AttendancePageContent() {
   };
 
   const fullyEndSession = async (sessionId: number, session: AttendanceSessionDto) => {
-    const sessionInfo = `Batch ${session.batchYear} - ${session.subjectName} (${formatDate(session.sessionDate)})`;
+    const sessionInfo = `${session.batchDisplayName || `Batch ${session.batchYear}`} - ${session.subjectName} (${formatDate(session.sessionDate)})`;
 
-    setConfirmTitle('🔒 Permanently End Session?');
-    setConfirmMessage(`Are you sure you want to PERMANENTLY END this session?\n\n${sessionInfo}\n\n📱 This action will:\n• Permanently close the session (cannot be reopened)\n• Send SMS notifications to parents of absent students\n• Remove the session from the dashboard\n\n⚠️ This action cannot be undone!`);
-    setConfirmButtonText('Yes, Permanently End & Send SMS');
+    // Calculate minutes since session creation
+    const sessionCreatedAt = new Date(session.createdAt);
+    const now = new Date();
+    const minutesSinceCreation = Math.floor((now.getTime() - sessionCreatedAt.getTime()) / (1000 * 60));
+    
+    const isWithin5Minutes = minutesSinceCreation < 5;
+
+    if (isWithin5Minutes) {
+      // Within 5 minutes - will be deleted without SMS
+      setConfirmTitle('🗑️ Delete Session?');
+      setConfirmMessage(`Session created ${minutesSinceCreation} minute(s) ago.\n\n${sessionInfo}\n\n🗑️ This session will be COMPLETELY DELETED:\n\n💡 This is safe for mistakenly created sessions within 5 minutes.`);
+      setConfirmButtonText('Yes, Delete Session');
+    } else {
+      // After 5 minutes - will send SMS
+      setConfirmTitle('🔒 Permanently End Session?');
+      setConfirmMessage(`Session created ${minutesSinceCreation} minute(s) ago.\n\n${sessionInfo}\n\n📱 This action will:\n• Permanently close the session (cannot be reopened)\n• Send SMS notifications to parents of absent students\n• Remove the session from the dashboard\n\n⚠️ This action cannot be undone!`);
+      setConfirmButtonText('Yes, Permanently End & Send SMS');
+    }
+    
     setConfirmAction(() => async () => {
       setShowConfirmModal(false);
       try {
         await api.delete(`/admin/attendance/sessions/${sessionId}/fully-end`);
         
-        // Remove the session from the list since it's now fully ended
+        // Remove the session from the list since it's now fully ended or deleted
         setSessions(prev => prev.filter(s => s.id !== sessionId));
         
-        addToast({
-          type: 'success',
-          title: '🔒 Session Permanently Ended (SMS Sent)',
-          message: 'The session has been permanently closed and removed.\n\n📱 SMS notifications have been sent to parents of absent students.\n\n⚠️ This action cannot be undone.',
-          duration: 12000
-        });
+        if (isWithin5Minutes) {
+          addToast({
+            type: 'success',
+            title: '🗑️ Session Deleted Successfully',
+            message: 'The session has been completely deleted.\n\nNo SMS notifications were sent to parents.',
+            duration: 8000
+          });
+        } else {
+          addToast({
+            type: 'success',
+            title: '🔒 Session Permanently Ended',
+            message: 'The session has been permanently closed and removed.\n\nSMS notifications have been sent to parents of absent students.\n\nThis action cannot be undone.',
+            duration: 12000
+          });
+        }
       } catch (error: any) {
         addToast({
           type: 'error',
-          title: '❌ Failed to Fully End Session',
+          title: '❌ Failed to Process Session',
           message: `Error: ${error.response?.data?.message || 'Please try again.'}`,
           duration: 6000
         });
@@ -594,26 +527,13 @@ function AttendancePageContent() {
         return;
       }
       
-      // Check if session has expired before allowing reopen
-      if (isSessionExpired(session)) {
-        addToast({
-          type: 'error',
-          title: '⏰ Session Expired',
-          message: 'This session has exceeded the 60-minute limit and can no longer be reopened.',
-          duration: 6000
-        });
-        // Remove expired session from state
-        setSessions(prev => prev.filter(s => s.id !== sessionId));
-        return;
-      }
-      
-      const batchName = `Batch ${session.batchYear}`;
+      const batchName = session.batchDisplayName || `Batch ${session.batchYear}`;
       const subjectName = session.subjectName;
       const sessionInfo = `${batchName} - ${subjectName} (${formatDate(session.sessionDate)})`;
       
       // Show confirmation modal - make sure this is for REOPENING, not ending
       setConfirmTitle('🔄 Reopen Session Confirmation');
-      setConfirmMessage(`**${sessionInfo}**\n\n✨ This will REACTIVATE the session for continued attendance marking.\n\n⏱️ **Note:** Timer will continue from original creation time.`);
+      setConfirmMessage(`**${sessionInfo}**\n\n✨ This will REACTIVATE the session for continued attendance marking.`);
       setConfirmButtonText('Yes, Reopen Session');
       setConfirmAction(() => async () => {
         console.log('Executing REOPEN action for session:', sessionId);
@@ -640,7 +560,7 @@ function AttendancePageContent() {
       await fetchTodaysSessions();
       
       // Auto-select the reopened session
-      const updatedSessions = await api.get<AttendanceSessionDto[]>('/admin/attendance/sessions/today');
+      const updatedSessions = await api.get<AttendanceSessionDto[]>('/admin/attendance/sessions');
       const reopenedSession = updatedSessions.data.find(s => s.id === sessionId);
       if (reopenedSession) {
         setCurrentSession(reopenedSession);
@@ -650,7 +570,7 @@ function AttendancePageContent() {
       addToast({
         type: 'success',
         title: '🔄 Session Reopened Successfully!',
-        message: `**${sessionInfo}** is now active again.\n\n✅ Students can mark attendance using the **same session ID**.\n🔄 All existing attendance records are preserved.\n\n💡 When ready to end permanently, use \"Fully End\" to send SMS notifications.`,
+        message: `**${sessionInfo}** is now active again.\n\n Students can mark attendance.`,
         duration: 10000
       });
     } catch (error: any) {
@@ -898,18 +818,41 @@ function AttendancePageContent() {
   const downloadEnhancedReport = () => {
     if (!enhancedReport) return;
     
-    // Create CSV content
-    const csvHeaders = ['Date', 'Student ID', 'Student Name', 'Subject', 'Status', 'Marked At'];
-    const csvRows = enhancedReport.attendanceRecords.map(record => [
-      record.sessionDate,
-      record.studentIdCode,
-      record.studentName,
-      record.subjectName,
-      record.status,
-      record.markedAt ? formatDate(record.markedAt, 'datetime') : '-'
-    ]);
+    // Separate present and absent records
+    const presentRecords = enhancedReport.attendanceRecords.filter(r => r.status === 'Present');
+    const absentRecords = enhancedReport.attendanceRecords.filter(r => r.status === 'Absent');
     
-    const csvContent = [csvHeaders, ...csvRows].map(row => row.join(',')).join('\n');
+    // Create CSV content with clear sections
+    const csvHeaders = ['Date', 'Student ID', 'Student Name', 'Subject', 'Status', 'Marked At'];
+    
+    // Build CSV rows with separate sections
+    const csvRows = [
+      csvHeaders,
+      [], // Empty row
+      ['PRESENT STUDENTS (' + presentRecords.length + ')'],
+      csvHeaders,
+      ...presentRecords.map(record => [
+        record.sessionDate,
+        record.studentIdCode,
+        record.studentName,
+        record.subjectName,
+        record.status,
+        record.markedAt ? formatDate(record.markedAt, 'datetime') : '-'
+      ]),
+      [], // Empty row
+      ['ABSENT STUDENTS (' + absentRecords.length + ')'],
+      csvHeaders,
+      ...absentRecords.map(record => [
+        record.sessionDate,
+        record.studentIdCode,
+        record.studentName,
+        record.subjectName,
+        record.status,
+        record.markedAt ? formatDate(record.markedAt, 'datetime') : '-'
+      ])
+    ];
+    
+    const csvContent = csvRows.map(row => Array.isArray(row) ? row.join(',') : row).join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -1131,16 +1074,8 @@ function AttendancePageContent() {
                   </div>
                   <button
                     onClick={() => {
-                      console.log('Manual refresh clicked - checking for expired sessions');
-                      // Force immediate expiration check
-                      setSessions(prevSessions => {
-                        const validSessions = getValidSessions(prevSessions);
-                        if (validSessions.length !== prevSessions.length) {
-                          console.log('Removed expired sessions on manual refresh:', prevSessions.length - validSessions.length);
-                        }
-                        return validSessions;
-                      });
-                      // Then fetch fresh data
+                      console.log('Manual refresh clicked');
+                      // Fetch fresh data from backend
                       fetchTodaysSessions();
                     }}
                     disabled={loadingSessions}
@@ -1157,7 +1092,7 @@ function AttendancePageContent() {
                    </div>
 
                 <div className="p-6">
-                  {getValidSessions(sessions).filter(session => session.isActive).length === 0 ? (
+                  {sessions.filter(session => session.isActive).length === 0 ? (
                     <div className="text-center py-12">
                       <div className="mx-auto w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-4">
                         <Calendar className="h-12 w-12 text-gray-400" />
@@ -1168,7 +1103,7 @@ function AttendancePageContent() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {getValidSessions(sessions).filter(session => session.isActive).map((session) => (
+                      {sessions.filter(session => session.isActive).map((session) => (
                         <div
                           key={session.id}
                           className={`group relative p-6 rounded-2xl border-2 transition-all duration-300 hover:shadow-lg ${
@@ -1190,7 +1125,7 @@ function AttendancePageContent() {
                                   <Users className={`h-5 w-5 ${currentSession?.id === session.id ? 'text-indigo-600' : 'text-gray-600 group-hover:text-indigo-600'}`} />
                                 </div>
                                 <h3 className="font-bold text-gray-900">
-                                  Batch {session.batchYear}
+                                  {session.batchDisplayName || `Batch ${session.batchYear}`}
                                 </h3>
                               </div>
                               <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
@@ -1241,24 +1176,44 @@ function AttendancePageContent() {
                 </div>
               </div>
 
-              {/* Ended Sessions - Can be Reopened */}
-              {getValidSessions(sessions).filter(session => !session.isActive).length > 0 && (
-                <div className="bg-white backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                  <div className="px-6 py-6 bg-gradient-to-r from-orange-500 to-amber-600 flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2 bg-white/10 rounded-xl">
-                        <RotateCcw className="h-6 w-6 text-white" />
-                      </div>
-                      <div>
-                        <h2 className="text-xl font-bold text-white">Ended Sessions - Can Reopen</h2>
-                        <p className="text-orange-100 text-sm">Click to reactivate and continue marking attendance</p>
-                      </div>
+              {/* Recovery Section - Ended Sessions */}
+              <div className="bg-white backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+                <div className="px-6 py-6 bg-gradient-to-r from-orange-500 to-amber-600 flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-white/10 rounded-xl">
+                      <RotateCcw className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-white">Recovery Section</h2>
+                      <p className="text-orange-100 text-sm">Ended sessions that can be reopened anytime</p>
                     </div>
                   </div>
+                </div>
 
-                  <div className="p-6">
+                <div className="p-6">
+                  {sessions.filter(session => !session.isActive && !session.isClosed).length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="mx-auto w-24 h-24 bg-gradient-to-br from-orange-100 to-amber-200 rounded-full flex items-center justify-center mb-4">
+                        <RotateCcw className="h-12 w-12 text-orange-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No Recoverable Sessions</h3>
+                      <p className="text-gray-500 mb-1">All ended sessions are either active or permanently ended.</p>
+                      <p className="text-sm text-gray-400">Only temporarily ended sessions appear here for recovery.</p>
+                      <div className="mt-4 text-xs text-gray-600 text-left">
+                        <p><strong>Debug Info:</strong></p>
+                        <p>Total sessions: {sessions.length}</p>
+                        <p>Active sessions: {sessions.filter(s => s.isActive).length}</p>
+                        <p>Inactive sessions: {sessions.filter(s => !s.isActive).length}</p>
+                        <p>Inactive + canReactivate: {sessions.filter(s => !s.isActive && s.canReactivate).length}</p>
+                        <p>Inactive + not closed: {sessions.filter(s => !s.isActive && !s.isClosed).length}</p>
+                        {sessions.map(s => (
+                          <p key={s.id}>Session {s.id}: active={s.isActive ? 'true' : 'false'}, closed={s.isClosed ? 'true' : 'false'}, canReactivate={s.canReactivate ? 'true' : 'false'}</p>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {getValidSessions(sessions).filter(session => !session.isActive).map((session) => (
+                      {sessions.filter(session => !session.isActive && !session.isClosed).map((session) => (
                         <div
                           key={`ended-${session.id}`}
                           className="group relative p-6 rounded-2xl border-2 border-orange-100 bg-gradient-to-br from-orange-50 to-amber-50 hover:border-orange-200 transition-all duration-300 hover:shadow-lg"
@@ -1269,7 +1224,7 @@ function AttendancePageContent() {
                                 <Users className="h-5 w-5 text-orange-600" />
                               </div>
                               <h3 className="font-bold text-gray-900">
-                                Batch {session.batchYear}
+                                {session.batchDisplayName || `Batch ${session.batchYear}`}
                               </h3>
                             </div>
                             <span className="px-3 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800 ring-1 ring-gray-200">
@@ -1305,9 +1260,9 @@ function AttendancePageContent() {
                         </div>
                       ))}
                     </div>
-                  </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
@@ -1552,7 +1507,7 @@ function AttendancePageContent() {
                       <div>
                         <h3 className="text-2xl font-bold text-white">Attendance Report</h3>
                         <p className="text-emerald-100">
-                          {formatDate(attendanceReport.date)} • Batch {batches.find(b => b.id.toString() === reportBatch)?.batchYear} • {subjects.find(s => s.id.toString() === reportSubject)?.name}
+                          {formatDate(attendanceReport.date)} • {batches.find(b => b.id.toString() === reportBatch)?.displayName} • {subjects.find(s => s.id.toString() === reportSubject)?.name}
                         </p>
                       </div>
                     </div>
@@ -1713,6 +1668,85 @@ function AttendancePageContent() {
                       </div>
                     </div>
                   )}
+
+                  {/* Present and Absent Students Summary */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2">
+                    <div className="p-8 border-r border-gray-200">
+                      <h4 className="text-lg font-bold text-emerald-700 mb-6 flex items-center">
+                        <CheckCircle className="h-6 w-6 mr-3" />
+                        Present Records ({enhancedReport.attendanceRecords.filter(r => r.status === 'Present').length})
+                      </h4>
+                      <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                        {enhancedReport.attendanceRecords
+                          .filter(record => record.status === 'Present')
+                          .map((record, index) => (
+                            <div key={`present-${index}`} className="flex items-center justify-between p-4 bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl border border-emerald-200 hover:from-emerald-100 hover:to-green-100 transition-all duration-200">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
+                                  <span className="text-white font-semibold text-sm">{record.studentName.charAt(0)}</span>
+                                </div>
+                                <div className="flex-1">
+                                  <div className="font-semibold text-gray-900">{record.studentName}</div>
+                                  <div className="text-sm text-gray-600">{record.studentIdCode}</div>
+                                  <div className="text-xs text-emerald-600">
+                                    {formatDate(record.sessionDate)} • {record.subjectName}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-bold text-emerald-700">
+                                  {record.markedAt ? formatDate(record.markedAt, 'time') : 'Present'}
+                                </div>
+                                <div className="text-xs text-emerald-600">Marked</div>
+                              </div>
+                            </div>
+                          ))}
+                        {enhancedReport.attendanceRecords.filter(r => r.status === 'Present').length === 0 && (
+                          <div className="text-center py-8 text-gray-500">
+                            <CheckCircle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                            <p>No present records found</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-8">
+                      <h4 className="text-lg font-bold text-red-700 mb-6 flex items-center">
+                        <XCircle className="h-6 w-6 mr-3" />
+                        Absent Records ({enhancedReport.attendanceRecords.filter(r => r.status === 'Absent').length})
+                      </h4>
+                      <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                        {enhancedReport.attendanceRecords
+                          .filter(record => record.status === 'Absent')
+                          .map((record, index) => (
+                            <div key={`absent-${index}`} className="flex items-center justify-between p-4 bg-gradient-to-br from-red-50 to-rose-50 rounded-xl border border-red-200 hover:from-red-100 hover:to-rose-100 transition-all duration-200">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center">
+                                  <span className="text-white font-semibold text-sm">{record.studentName.charAt(0)}</span>
+                                </div>
+                                <div className="flex-1">
+                                  <div className="font-semibold text-gray-900">{record.studentName}</div>
+                                  <div className="text-sm text-gray-600">{record.studentIdCode}</div>
+                                  <div className="text-xs text-red-600">
+                                    {formatDate(record.sessionDate)} • {record.subjectName}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-bold text-red-700">Not Marked</div>
+                                <div className="text-xs text-red-600">Absent</div>
+                              </div>
+                            </div>
+                          ))}
+                        {enhancedReport.attendanceRecords.filter(r => r.status === 'Absent').length === 0 && (
+                          <div className="text-center py-8 text-gray-500">
+                            <XCircle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                            <p>No absent records found</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Attendance Records Table */}
                   <div className="p-8">

@@ -32,6 +32,7 @@ import com.usa.attendancesystem.model.Student;
 import com.usa.attendancesystem.model.Subject;
 import com.usa.attendancesystem.repository.AttendanceRecordRepository;
 import com.usa.attendancesystem.repository.AttendanceSessionRepository;
+import com.usa.attendancesystem.repository.FeePaymentRepository;
 import com.usa.attendancesystem.repository.StudentRepository;
 import com.usa.attendancesystem.repository.SubjectRepository;
 
@@ -47,6 +48,7 @@ public class AttendanceService {
     private final SubjectRepository subjectRepository;
     private final AttendanceRecordRepository attendanceRepository;
     private final AttendanceSessionRepository sessionRepository;
+    private final FeePaymentRepository feePaymentRepository;
     private final SmsService smsService;
     private final StudentService studentService; // Re-use the mapper from StudentService
 
@@ -98,8 +100,8 @@ public class AttendanceService {
             throw new DuplicateResourceException("Attendance already marked for this student today.");
         }
 
-        // 5. Send SMS notification
-        sendAttendanceSms(student, subject, attendanceTime);
+        // 5. SMS notification for attendance marking is disabled
+        // (only absence notifications are sent when sessions end)
     }
 
     @Transactional
@@ -250,8 +252,8 @@ public class AttendanceService {
             throw new DuplicateResourceException("Attendance already marked for this student today in " + session.getSubject().getName());
         }
 
-        // 6. Send enhanced SMS notification
-        sendAttendanceSms(student, session.getSubject(), attendanceTime);
+        // 6. SMS notification for attendance marking is disabled
+        // (only absence notifications are sent when sessions end)
     }
 
     @Transactional(readOnly = true)
@@ -273,14 +275,32 @@ public class AttendanceService {
                 endOfDay
         );
 
-        // Convert to DTOs
+        // Convert to DTOs with fee payment status check
         List<SessionAttendanceStatusDto.MarkedStudentDto> markedStudents = attendanceRecords.stream()
-                .map(record -> new SessionAttendanceStatusDto.MarkedStudentDto(
-                record.getStudent().getStudentIdCode(),
-                record.getStudent().getIndexNumber(),
-                record.getStudent().getFullName(),
-                record.getAttendanceTimestamp()
-        ))
+                .map(record -> {
+                    // Check if student has paid fees for this month/year by the attendance date
+                    LocalDate attendanceDate = record.getAttendanceTimestamp().atZone(ZoneId.systemDefault()).toLocalDate();
+                    int month = attendanceDate.getMonthValue();
+                    int year = attendanceDate.getYear();
+
+                    // Convert attendance date to end of day (23:59:59) for payment check
+                    Instant endOfAttendanceDay = attendanceDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+
+                    boolean hasPaidFees = feePaymentRepository.hasStudentPaidFeesByDate(
+                            record.getStudent().getId(),
+                            month,
+                            year,
+                            endOfAttendanceDay
+                    );
+
+                    return new SessionAttendanceStatusDto.MarkedStudentDto(
+                            record.getStudent().getStudentIdCode(),
+                            record.getStudent().getIndexNumber(),
+                            record.getStudent().getFullName(),
+                            record.getAttendanceTimestamp(),
+                            !hasPaidFees // hasFeePaymentIssue is true when fees are NOT paid
+                    );
+                })
                 .toList();
 
         // Count total enrolled students in this batch for this subject

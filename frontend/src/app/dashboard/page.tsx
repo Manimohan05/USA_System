@@ -12,7 +12,7 @@ interface DashboardStats {
   totalStudents: number;
   totalBatches: number;
   totalSubjects: number;
-  todayAttendance: number;
+  activeSessions: number;
 }
 
 export default function DashboardPage() {
@@ -20,72 +20,15 @@ export default function DashboardPage() {
     totalStudents: 0,
     totalBatches: 0,
     totalSubjects: 0,
-    todayAttendance: 0,
+    activeSessions: 0,
   });
   const [activeSessions, setActiveSessions] = useState<AttendanceSessionDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Helper function to check if session has expired (60 minutes from creation)
-  const isSessionExpired = (session: AttendanceSessionDto): boolean => {
-    try {
-      const sessionCreatedAt = new Date(session.createdAt).getTime();
-      const now = Date.now();
-      const sessionDuration = 60 * 60 * 1000; // 60 minutes in milliseconds
-      const elapsed = now - sessionCreatedAt;
-      const isExpired = elapsed > sessionDuration;
-      
-      console.log(`Dashboard - Session ${session.id} (Batch ${session.batchYear} ${session.subjectName}) - Elapsed: ${Math.round(elapsed / 60000)}min, Expired: ${isExpired}`);
-      
-      return isExpired;
-    } catch (error) {
-      console.error('Dashboard - Error checking session expiration:', error, session);
-      return false;
-    }
-  };
-
-  // Filter sessions to exclude expired ones
-  const getValidSessions = (sessions: AttendanceSessionDto[]): AttendanceSessionDto[] => {
-    const validSessions = sessions.filter(session => !isSessionExpired(session));
-    
-    if (validSessions.length !== sessions.length) {
-      console.log(`Dashboard - Filtered ${sessions.length - validSessions.length} expired sessions out of ${sessions.length} total`);
-    }
-    
-    return validSessions;
-  };
-
   useEffect(() => {
     fetchDashboardData();
-  }, []);
-
-  useEffect(() => {
-    // Periodically check and remove expired sessions on dashboard
-    const checkExpiredSessions = () => {
-      setActiveSessions(prevSessions => {
-        if (prevSessions.length === 0) return prevSessions;
-        
-        const validSessions = getValidSessions(prevSessions);
-        if (validSessions.length !== prevSessions.length) {
-          console.log('Dashboard - Removed expired sessions:', prevSessions.length - validSessions.length);
-          // Update stats as well
-          setStats(prevStats => ({
-            ...prevStats,
-            todayAttendance: validSessions.length
-          }));
-          return validSessions;
-        }
-        return prevSessions;
-      });
-    };
-    
-    // Check immediately on mount
-    setTimeout(checkExpiredSessions, 2000);
-    
-    // Then check every 30 seconds
-    const interval = setInterval(checkExpiredSessions, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   const fetchDashboardData = async (isRefresh = false) => {
@@ -101,22 +44,29 @@ export default function DashboardPage() {
         api.get<StudentDto[]>('/admin/students/all'),
         api.get<BatchDto[]>('/admin/institute/batches'),
         api.get<SubjectDto[]>('/admin/institute/subjects'),
-        api.get<AttendanceSessionDto[]>('/admin/attendance/sessions/today'),
+        api.get<AttendanceSessionDto[]>('/admin/attendance/sessions'),
       ]);
 
-      // Filter out expired sessions before setting state
-      const validSessions = getValidSessions(sessionsRes.data);
+      // Log what we got from backend for debugging
       console.log('Dashboard - Raw sessions from backend:', sessionsRes.data.length);
-      console.log('Dashboard - Valid (non-expired) sessions:', validSessions.length);
+      console.log('Dashboard - Sessions:', sessionsRes.data.map(s => ({
+        id: s.id,
+        batch: s.batchYear,
+        subject: s.subjectName,
+        isActive: s.isActive,
+        canReactivate: s.canReactivate,
+        isClosed: s.isClosed,
+        createdAt: s.createdAt
+      })));
 
       setStats({
         totalStudents: studentsRes.data.length,
         totalBatches: batchesRes.data.length,
         totalSubjects: subjectsRes.data.length,
-        todayAttendance: validSessions.length, // Use filtered sessions count
+        activeSessions: sessionsRes.data.length,
       });
       
-      setActiveSessions(validSessions);
+      setActiveSessions(sessionsRes.data);
       setError(null);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
@@ -163,14 +113,14 @@ export default function DashboardPage() {
       description: 'Available subjects',
     },
     {
-      name: "Today's Attendance",
-      value: stats.todayAttendance,
+      name: 'Active Sessions',
+      value: stats.activeSessions,
       icon: TrendingUp,
       gradient: 'from-orange-500 to-red-600',
       bgColor: 'bg-orange-50',
       textColor: 'text-orange-600',
       href: '/dashboard/attendance',
-      description: 'Sessions active',
+      description: 'Sessions open',
     },
   ];
 
@@ -326,25 +276,13 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
-                    <button
-                      onClick={() => {
-                        const activeOrRecoverableSessions = activeSessions.filter(session => session.isActive || session.canReactivate);
-                        activeOrRecoverableSessions.forEach(session => {
-                          window.open(`/dashboard/attendance/session/${session.id}`, '_blank');
-                        });
-                      }}
-                      className="flex items-center px-4 py-2 bg-white/80 backdrop-blur-sm border border-emerald-200 rounded-xl hover:bg-white hover:border-emerald-300 transition-all duration-200 text-emerald-700 font-medium text-sm"
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Open All Sessions
-                    </button>
                     <div className="flex items-center space-x-2">
                       <div className="w-3 h-3 bg-emerald-400 rounded-full animate-pulse"></div>
                       <span className="text-sm font-medium text-emerald-700">{activeSessions.filter(s => s.isActive).length} Active</span>
-                      {activeSessions.filter(s => s.canReactivate).length > 0 && (
-                        <>
-                          <div className="w-3 h-3 bg-red-400 rounded-full animate-pulse"></div>
-                          <span className="text-sm font-medium text-red-700">{activeSessions.filter(s => s.canReactivate).length} Recoverable</span>
+                        {activeSessions.filter(s => s.canReactivate && !s.isActive).length > 0 && (
+                          <>
+                            <div className="w-3 h-3 bg-red-400 rounded-full animate-pulse"></div>
+                            <span className="text-sm font-medium text-red-700">{activeSessions.filter(s => s.canReactivate && !s.isActive).length} Recoverable</span>
                         </>
                       )}
                     </div>
@@ -354,7 +292,7 @@ export default function DashboardPage() {
               
               <div className="p-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {activeSessions.map((session) => {
+                  {activeSessions.filter(session => session.isActive || session.canReactivate).map((session) => {
                     const isRecoverable = !session.isActive && session.canReactivate;
                     const isClosed = session.isClosed;
                     const cardBorderClass = session.isActive 
@@ -437,10 +375,6 @@ export default function DashboardPage() {
                           </div>
                           
                           <div className="pt-3 border-t border-gray-100 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm text-gray-500">Session ID: {session.id}</span>
-                            </div>
-                            
                             {/* Action Buttons */}
                             <div className="flex space-x-2">
                               <button
@@ -455,13 +389,7 @@ export default function DashboardPage() {
                                 <ExternalLink className="h-4 w-4 mr-2" />
                                 {isRecoverable ? 'RECOVER' : session.isActive ? 'Open Session' : isClosed ? 'REOPEN' : 'View Session'}
                               </button>
-                              <Link
-                                href={`/dashboard/attendance?sessionId=${session.id}&tab=mark`}
-                                className="flex items-center justify-center px-4 py-2 bg-white border border-emerald-300 text-emerald-700 rounded-lg hover:bg-emerald-50 hover:border-emerald-400 transition-all duration-200 text-sm font-medium"
-                                title="Quick mark attendance"
-                              >
-                                <Play className="h-4 w-4" />
-                              </Link>
+                             
                             </div>
                           </div>
                         </div>
@@ -469,23 +397,7 @@ export default function DashboardPage() {
                     </div>
                   );})}
                 </div>
-                
-                {/* Multi-Session Tips */}
-                <div className="mt-6 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200">
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0 w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                      <ExternalLink className="h-4 w-4 text-emerald-600" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-emerald-900 mb-1">💡 Multi-Session Tip</h4>
-                      <p className="text-sm text-emerald-700">
-                        Use "Open All Sessions" to quickly access all active sessions in separate tabs. 
-                        Perfect for managing multiple concurrent classes without switching contexts!
-                      </p>
-                    </div>
                   </div>
-                </div>
-              </div>
             </div>
           )}
 

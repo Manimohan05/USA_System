@@ -1,5 +1,14 @@
 package com.usa.attendancesystem.service;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.usa.attendancesystem.dto.CreateFeeRecordRequest;
 import com.usa.attendancesystem.dto.FeeRecordDto;
 import com.usa.attendancesystem.dto.UpdatePaymentRequest;
@@ -9,15 +18,8 @@ import com.usa.attendancesystem.model.FeeStatus;
 import com.usa.attendancesystem.model.Student;
 import com.usa.attendancesystem.repository.FeeRecordRepository;
 import com.usa.attendancesystem.repository.StudentRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import java.time.LocalDate;
 
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -70,9 +72,10 @@ public class FeeManagementService {
                 .collect(Collectors.toList());
     }
 
-    // This method is used internally by the messaging service
+    // This method is used by the messaging service to find fees due by current date
     public List<FeeRecord> findOverdueFeeRecords() {
         List<FeeStatus> overdueStatuses = List.of(FeeStatus.DUE, FeeStatus.PARTIALLY_PAID, FeeStatus.OVERDUE);
+        // Uses current date when admin clicks the button - students with due dates on or before today will receive reminders
         return feeRecordRepository.findOverdueFees(overdueStatuses, LocalDate.now());
     }
 

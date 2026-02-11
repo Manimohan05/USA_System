@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -98,6 +99,36 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("subjectId") Integer subjectId,
             @Param("startTime") Instant startTime,
             @Param("endTime") Instant endTime
+    );
+
+    /**
+     * Finds all student IDs who have marked attendance for a specific subject
+     * within a date range. Used for determining absent students during session
+     * ending.
+     */
+    @Query("SELECT ar.student.id FROM AttendanceRecord ar "
+            + "WHERE ar.subject.id = :subjectId "
+            + "AND ar.attendanceTimestamp >= :startOfDay "
+            + "AND ar.attendanceTimestamp < :endOfDay")
+    List<UUID> findPresentStudentIdsBySubjectAndDateRange(
+            @Param("subjectId") Integer subjectId,
+            @Param("startOfDay") Instant startOfDay,
+            @Param("endOfDay") Instant endOfDay
+    );
+
+    /**
+     * Deletes all attendance records for a specific batch, subject, and date.
+     * Used when deleting a session within 5 minutes of creation.
+     */
+    @Modifying
+    @Query("DELETE FROM AttendanceRecord ar "
+            + "WHERE ar.subject.id = :subjectId "
+            + "AND ar.student.batch.id = :batchId "
+            + "AND ar.attendanceDate = :sessionDate")
+    void deleteByBatchSubjectAndDate(
+            @Param("batchId") Integer batchId,
+            @Param("subjectId") Integer subjectId,
+            @Param("sessionDate") java.time.LocalDate sessionDate
     );
 
 }
