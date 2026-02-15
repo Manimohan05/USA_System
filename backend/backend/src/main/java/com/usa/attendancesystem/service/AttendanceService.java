@@ -116,10 +116,31 @@ public class AttendanceService {
                     .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
 
             StudentDto studentDto = studentService.mapToStudentDto(student);
+
+            // Check fee payment status - use the same logic as session status
+            AttendanceSession session = sessionRepository.findActiveSessionById(request.sessionId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Active session not found"));
+            LocalDate sessionDate = session.getSessionDate();
+            int month = sessionDate.getMonthValue();
+            int year = sessionDate.getYear();
+
+            // Convert session date to end of day (23:59:59) for payment check
+            Instant endOfSessionDay = sessionDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+
+            boolean hasPaidFees = feePaymentRepository.hasStudentPaidFeesByDate(
+                    student.getId(),
+                    month,
+                    year,
+                    endOfSessionDay
+            );
+
+            boolean hasFeePaymentIssue = !hasPaidFees;
+
             return AttendanceValidationResponseDto.success(
                     "Attendance marked successfully for " + student.getFullName(),
                     studentDto,
-                    Instant.now()
+                    Instant.now(),
+                    hasFeePaymentIssue
             );
         } catch (ResourceNotFoundException e) {
             if (e.getMessage().contains("Student with index number")) {
@@ -278,19 +299,19 @@ public class AttendanceService {
         // Convert to DTOs with fee payment status check
         List<SessionAttendanceStatusDto.MarkedStudentDto> markedStudents = attendanceRecords.stream()
                 .map(record -> {
-                    // Check if student has paid fees for this month/year by the attendance date
-                    LocalDate attendanceDate = record.getAttendanceTimestamp().atZone(ZoneId.systemDefault()).toLocalDate();
-                    int month = attendanceDate.getMonthValue();
-                    int year = attendanceDate.getYear();
+                    // Check if student has paid fees for this month/year by the session date
+                    LocalDate sessionDate = session.getSessionDate();
+                    int month = sessionDate.getMonthValue();
+                    int year = sessionDate.getYear();
 
-                    // Convert attendance date to end of day (23:59:59) for payment check
-                    Instant endOfAttendanceDay = attendanceDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+                    // Convert session date to end of day (23:59:59) for payment check
+                    Instant endOfSessionDay = sessionDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
 
                     boolean hasPaidFees = feePaymentRepository.hasStudentPaidFeesByDate(
                             record.getStudent().getId(),
                             month,
                             year,
-                            endOfAttendanceDay
+                            endOfSessionDay
                     );
 
                     return new SessionAttendanceStatusDto.MarkedStudentDto(

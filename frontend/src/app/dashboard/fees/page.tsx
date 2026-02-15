@@ -270,37 +270,7 @@ export default function FeesPage() {
 
               <form onSubmit={handleMarkPayment} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-gray-800">
-                      Student ID Code/Index Number *
-                    </label>
-                    <input
-                      type="text"
-                      value={studentIdCode}
-                      onChange={(e) => setStudentIdCode(e.target.value)}
-                      placeholder="Enter student ID (e.g., 5001, 8250)"
-                      required
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-gray-800">
-                      Bill Number *
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={billNumber}
-                        onChange={(e) => setBillNumber(e.target.value)}
-                        placeholder="Enter bill number"
-                        required
-                        className="w-full px-4 py-3 pr-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
+                <div className="space-y-2">
                     <label className="block text-sm font-semibold text-gray-800">
                       Month
                     </label>
@@ -332,6 +302,35 @@ export default function FeesPage() {
                         </option>
                       ))}
                     </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-800">
+                      Student ID Code*
+                    </label>
+                    <input
+                      type="text"
+                      value={studentIdCode}
+                      onChange={(e) => setStudentIdCode(e.target.value)}
+                      placeholder="Enter student ID (e.g., 5001, 8250)"
+                      required
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-800">
+                      Bill Number *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={billNumber}
+                        onChange={(e) => setBillNumber(e.target.value)}
+                        placeholder="Enter bill number"
+                        required
+                        className="w-full px-4 py-3 pr-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                      />
+                    </div>
                   </div>
                 </div>
 

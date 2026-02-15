@@ -91,6 +91,7 @@ export interface AttendanceValidationResponseDto {
   errorCode?: string; // For frontend to handle specific error types
   student?: StudentDto; // Student info if found
   markedAt?: string; // If already marked, when it was marked (ISO datetime)
+  hasFeePaymentIssue?: boolean; // True if student hasn't paid fees by attendance date
 }
 
 export interface MarkedStudentDto {

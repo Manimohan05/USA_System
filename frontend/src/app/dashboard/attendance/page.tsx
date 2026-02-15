@@ -361,7 +361,7 @@ function AttendancePageContent() {
           addToast({
             type: 'warning',
             title: '🔄 Session Data Out of Sync',
-            message: `Unable to create session for ${batchName} - ${subjectName} on ${formattedDate}.\n\n🔄 The session list might be outdated. Please:\n\n1. Refresh the page\n2. Check for any existing sessions\n3. Try creating the session again\n\nIf the problem persists, there might be a hidden active session.`,
+            message: `Unable to create session for ${batchName} - ${subjectName} on ${formattedDate}.\n\n🔄 The session list might be outdated.`,
             duration: 10000
           });
         }
@@ -1191,7 +1191,7 @@ function AttendancePageContent() {
                 </div>
 
                 <div className="p-6">
-                  {sessions.filter(session => !session.isActive && !session.isClosed).length === 0 ? (
+                  {sessions.filter(session => session.canReactivate).length === 0 ? (
                     <div className="text-center py-12">
                       <div className="mx-auto w-24 h-24 bg-gradient-to-br from-orange-100 to-amber-200 rounded-full flex items-center justify-center mb-4">
                         <RotateCcw className="h-12 w-12 text-orange-400" />

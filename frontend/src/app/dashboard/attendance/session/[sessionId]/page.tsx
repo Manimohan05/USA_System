@@ -388,15 +388,15 @@ export default function AttendanceSessionPage() {
   return (
     <ProtectedRoute>
       <DashboardLayout>
-        <div className="space-y-8">
+        <div className="space-y-4">
           {/* Header Section */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-violet-700 rounded-2xl shadow-2xl">
+          <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-violet-700 rounded-xl shadow-xl">
             {/* Background Elements */}
             <div className="absolute inset-0 bg-black/10"></div>
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32"></div>
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-24 -translate-x-24"></div>
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12"></div>
             
-            <div className="relative px-8 py-12">
+            <div className="relative px-6 py-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-4">
                   <button
@@ -406,14 +406,14 @@ export default function AttendanceSessionPage() {
                     <ArrowLeft className="h-6 w-6 text-white" />
                   </button>
                   <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                      <Calendar className="h-6 w-6 text-white" />
+                    <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                      <Calendar className="h-4 w-4 text-white" />
                     </div>
                     <div>
-                      <h1 className="text-4xl font-bold text-white">Attendance Session</h1>
+                      <h1 className="text-2xl font-bold text-white">Attendance Session</h1>
                       <div className="flex items-center space-x-2 mt-1">
                         <div className={`w-2 h-2 rounded-full animate-pulse ${session.isActive ? 'bg-green-400' : session.isClosed ? 'bg-yellow-400' : session.canReactivate ? 'bg-red-400 animate-pulse' : 'bg-gray-400'}`}></div>
-                        <p className="text-white/90">
+                        <p className="text-white/90 text-sm">
                           {session.isActive ? 'Active Session' : 
                            session.isClosed ? 'Session Closed (Temporary)' :
                            session.canReactivate ? 'Session Ended - Can Reactivate (10 min)' :
@@ -488,26 +488,26 @@ export default function AttendanceSessionPage() {
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-white/80">
-                <div className="flex items-center space-x-3">
-                  <GraduationCap className="h-5 w-5" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-white/80 mt-3">
+                <div className="flex items-center space-x-2">
+                  <GraduationCap className="h-4 w-4" />
                   <div>
-                    <p className="text-sm text-white/60">Batch</p>
-                    <p className="font-semibold">{session.batchDisplayName || `Batch ${session.batchYear}`}</p>
+                    <p className="text-l text-bold text-white/60">Batch</p>
+                    <p className="font-medium text-sm">{session.batchDisplayName || `Batch ${session.batchYear}`}</p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <BookOpen className="h-5 w-5" />
+                <div className="flex items-center space-x-2">
+                  <BookOpen className="h-4 w-4" />
                   <div>
-                    <p className="text-sm text-white/60">Subject</p>
-                    <p className="font-semibold">{session.subjectName}</p>
+                    <p className="text-xs text-white/60">Subject</p>
+                    <p className="font-medium text-sm">{session.subjectName}</p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <Calendar className="h-5 w-5" />
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-4 w-4" />
                   <div>
-                    <p className="text-sm text-white/60">Date</p>
-                    <p className="font-semibold">{formatDate(session.sessionDate)}</p>
+                    <p className="text-xs text-white/60">Date</p>
+                    <p className="font-medium text-sm">{formatDate(session.sessionDate)}</p>
                   </div>
                 </div>
               </div>
@@ -515,15 +515,13 @@ export default function AttendanceSessionPage() {
           </div>
 
           {/* Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Mark Attendance Section */}
-            <div className="lg:col-span-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-              <div className="px-6 py-6 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-white/10 rounded-xl">
-                    <CheckCircle className="h-6 w-6 text-white" />
-                  </div>
-                  <h2 className="text-xl font-bold text-white">Mark Attendance</h2>
+            <div className="lg:col-span-2 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+              <div className="px-3 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="h-4 w-4 text-white" />
+                  <h2 className="text-l font-bold text-white">Mark Attendance</h2>
                 </div>
                 <span className={`px-3 py-1 text-sm font-semibold rounded-full ${
                   session.isActive 
@@ -541,13 +539,13 @@ export default function AttendanceSessionPage() {
                 </span>
               </div>
 
-              <div className="p-6">
+              <div className="p-3">
                 {session.isActive ? (
-                  <form onSubmit={handleAttendanceMark} className="space-y-6">
+                  <form onSubmit={handleAttendanceMark} className="space-y-3">
                     <div className="relative">
-                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                      <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 mb-2">
                         <User className="h-4 w-4 text-indigo-500" />
-                        <span>Student ID / Index Number</span>
+                        <span>Student ID</span>
                       </label>
                       <div className="relative">
                         <input
@@ -555,18 +553,18 @@ export default function AttendanceSessionPage() {
                           value={indexInput}
                           onChange={(e) => setIndexInput(e.target.value)}
                           placeholder="Enter student ID here"
-                          className="w-full pl-12 pr-4 py-4 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-gray-50 hover:bg-white"
+                          className="w-full pl-10 pr-4 py-3 text-base border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-gray-50 hover:bg-white"
                           disabled={marking}
                           autoComplete="off"
                         />
-                        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       </div>
                     </div>
 
                     <button
                       type="submit"
                       disabled={marking || !indexInput.trim()}
-                      className="w-full flex items-center justify-center py-4 px-6 border border-transparent rounded-xl shadow-lg text-lg font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-xl active:scale-95"
+                      className="w-full flex items-center justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-base font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-xl active:scale-95"
                     >
                       {marking ? (
                         <>
@@ -581,27 +579,34 @@ export default function AttendanceSessionPage() {
                       )}
                     </button>
 
-                    {/* Validation Response */}
+                    {/* Success/Error Message - Displayed below the button */}
                     {validationResponse && (
-                      <div className={`p-4 rounded-xl border-l-4 ${
+                      <div className={`p-3 rounded-lg border-l-4 ${
                         validationResponse.success
                           ? 'bg-green-50 border-green-500 text-green-800'
                           : 'bg-red-50 border-red-500 text-red-800'
                       }`}>
                         <div className="flex items-center">
                           {validationResponse.success ? (
-                            <CheckCircle className="h-5 w-5 mr-2" />
+                            <CheckCircle className="h-4 w-4 mr-2" />
                           ) : (
-                            <XCircle className="h-5 w-5 mr-2" />
+                            <XCircle className="h-4 w-4 mr-2" />
                           )}
-                          <p className="font-medium">{validationResponse.message}</p>
+                          <p className="font-medium text-sm">{validationResponse.message}</p>
                         </div>
                         {validationResponse.student && (
-                          <div className="mt-2 text-sm opacity-90">
+                          <div className="mt-1 text-xs opacity-90">
                             <p>Student: {validationResponse.student.fullName}</p>
                             <p>ID: {validationResponse.student.studentIdCode}</p>
+                            {validationResponse.success && validationResponse.hasFeePaymentIssue && (
+                              <div className="flex items-center mt-1">
+                                <Flag className="h-3 w-3 text-red-600 mr-1" />
+                                <p className="text-red-600 font-semibold text-xs">Fees Overdue</p>
+                              </div>
+                            )}
                           </div>
                         )}
+                        
                       </div>
                     )}
                   </form>
@@ -665,13 +670,11 @@ export default function AttendanceSessionPage() {
             </div>
 
             {/* Session Status Section */}
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-              <div className="px-6 py-6 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-white/10 rounded-xl">
-                    <Users className="h-6 w-6 text-white" />
-                  </div>
-                  <h2 className="text-xl font-bold text-white">Session Status</h2>
+            <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+              <div className="px-3 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Users className="h-4 w-4 text-white" />
+                  <h2 className="text-l font-bold text-white">Session Status</h2>
                 </div>
                 <button
                   onClick={fetchSessionStatus}
@@ -683,30 +686,30 @@ export default function AttendanceSessionPage() {
                 </button>
               </div>
 
-              <div className="p-6">
+              <div className="p-3">
                 {sessionStatus ? (
-                  <div className="space-y-6">
+                  <div className="space-y-3">
                     {/* Statistics */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 bg-green-50 rounded-xl border border-green-100">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-green-100 rounded-lg">
-                            <CheckCircle className="h-5 w-5 text-green-600" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 bg-green-50 rounded-lg border border-green-100">
+                        <div className="flex items-center space-x-2">
+                          <div className="p-1 bg-green-100 rounded-lg">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
                           </div>
                           <div>
-                            <p className="text-2xl font-bold text-green-900">{sessionStatus.presentCount}</p>
-                            <p className="text-sm text-green-600">Present</p>
+                            <p className="text-xl font-bold text-green-900">{sessionStatus.presentCount}</p>
+                            <p className="text-xs text-green-600">Present</p>
                           </div>
                         </div>
                       </div>
-                      <div className="p-4 bg-red-50 rounded-xl border border-red-100">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-red-100 rounded-lg">
-                            <XCircle className="h-5 w-5 text-red-600" />
+                      <div className="p-3 bg-red-50 rounded-lg border border-red-100">
+                        <div className="flex items-center space-x-2">
+                          <div className="p-1 bg-red-100 rounded-lg">
+                            <XCircle className="h-4 w-4 text-red-600" />
                           </div>
                           <div>
-                            <p className="text-2xl font-bold text-red-900">{sessionStatus.totalEnrolledStudents - sessionStatus.presentCount}</p>
-                            <p className="text-sm text-red-600">Absent</p>
+                            <p className="text-xl font-bold text-red-900">{sessionStatus.totalEnrolledStudents - sessionStatus.presentCount}</p>
+                            <p className="text-xs text-red-600">Absent</p>
                           </div>
                         </div>
                       </div>
@@ -715,28 +718,31 @@ export default function AttendanceSessionPage() {
                     {/* Present Students */}
                     {sessionStatus.markedStudents && sessionStatus.markedStudents.length > 0 && (
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-3">Present Students</h3>
-                        <div className="space-y-2 max-h-64 overflow-y-auto">
-                          {sessionStatus.markedStudents.map((student, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-100">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                                  <CheckCircle className="h-4 w-4 text-green-600" />
+                        <h3 className="text-base font-medium text-gray-900 mb-2">Present Students</h3>
+                        <div className="space-y-1 max-h-48 overflow-y-auto">
+                          {[...sessionStatus.markedStudents].reverse().map((student, index) => (
+                            <div key={index} className="flex items-center justify-between p-2 bg-green-50 rounded-lg border border-green-100">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                                  <CheckCircle className="h-3 w-3 text-green-600" />
                                 </div>
                                 <div>
                                   <div className="flex items-center space-x-2">
                                     <p className="font-medium text-gray-900">{student.fullName}</p>
-                                    {/* Red flag for fee payment issues */}
+                                    {/* Styled red flag for fee payment issues */}
                                     {student.hasFeePaymentIssue && (
-                                      <div className="flex items-center justify-center w-6 h-6 bg-red-100 border border-red-300 rounded-full" title="Fee payment overdue">
-                                        <Flag className="w-3 h-3 text-red-600" />
+                                      <div className="relative ml-2 group">
+                                        <div className="absolute -inset-1 bg-gradient-to-r from-red-200 to-red-300 rounded-full opacity-50 group-hover:opacity-75 blur-sm"></div>
+                                        <div className="relative bg-gradient-to-br from-red-400 to-red-600 rounded-full p-1.5 shadow-lg border border-red-300">
+                                          <Flag className="h-3 w-3 text-white" />
+                                        </div>
                                       </div>
                                     )}
                                   </div>
-                                  <p className="text-sm text-gray-600">{student.studentIdCode}</p>
+                                  <p className="text-xs text-gray-600">{student.studentIdCode}</p>
                                 </div>
                               </div>
-                              <span className="text-sm text-green-600">
+                              <span className="text-xs text-green-600">
                                 {formatDate(student.markedAt, 'time')}
                               </span>
                             </div>
