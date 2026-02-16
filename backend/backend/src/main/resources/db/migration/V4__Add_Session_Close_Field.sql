@@ -14,4 +14,4 @@ CREATE INDEX idx_attendance_sessions_ended_at ON attendance_sessions(ended_at);
 
 -- Add comments for documentation
 COMMENT ON COLUMN attendance_sessions.is_closed IS 'Indicates if session is temporarily closed (paused) without ending permanently';
-COMMENT ON COLUMN attendance_sessions.ended_at IS 'Timestamp when session was permanently ended (for 10-minute recovery window calculation)';
+COMMENT ON COLUMN attendance_sessions.ended_at IS 'Timestamp when session was permanently ended (for recovery tracking)';

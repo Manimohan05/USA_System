@@ -9,14 +9,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import com.usa.attendancesystem.model.Admin;
-import com.usa.attendancesystem.model.Batch;
 import com.usa.attendancesystem.model.ERole;
 import com.usa.attendancesystem.model.Role;
-import com.usa.attendancesystem.model.Subject;
 import com.usa.attendancesystem.repository.AdminRepository;
-import com.usa.attendancesystem.repository.BatchRepository;
 import com.usa.attendancesystem.repository.RoleRepository;
-import com.usa.attendancesystem.repository.SubjectRepository;
 
 @Component
 public class DataInitializer implements CommandLineRunner {
@@ -25,26 +21,19 @@ public class DataInitializer implements CommandLineRunner {
 
     private final AdminRepository adminRepository;
     private final RoleRepository roleRepository;
-    private final BatchRepository batchRepository;
-    private final SubjectRepository subjectRepository;
     private final PasswordEncoder passwordEncoder;
 
     public DataInitializer(AdminRepository adminRepository,
             RoleRepository roleRepository,
-            BatchRepository batchRepository,
-            SubjectRepository subjectRepository,
             PasswordEncoder passwordEncoder) {
         this.adminRepository = adminRepository;
         this.roleRepository = roleRepository;
-        this.batchRepository = batchRepository;
-        this.subjectRepository = subjectRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
     @Override
     public void run(String... args) throws Exception {
         initializeDefaultAdmin();
-        initializeSampleData();
     }
 
     private void initializeDefaultAdmin() {
@@ -94,39 +83,5 @@ public class DataInitializer implements CommandLineRunner {
         log.info("Password: USA29#12MSK");
         log.info("PLEASE CHANGE THE PASSWORD AFTER FIRST LOGIN!");
         log.info("=".repeat(50));
-    }
-
-    private void initializeSampleData() {
-        // Initialize sample batches if none exist
-        if (batchRepository.count() == 0) {
-            log.info("Creating sample batches...");
-
-            Batch batch2024 = new Batch(2024);
-            batchRepository.save(batch2024);
-
-            Batch batch2025 = new Batch(2025);
-            batchRepository.save(batch2025);
-
-            log.info("Sample batches created: 2024, 2025");
-        }
-
-        // Initialize sample subjects if none exist
-        if (subjectRepository.count() == 0) {
-            log.info("Creating sample subjects...");
-
-            Subject math = new Subject("Mathematics");
-            subjectRepository.save(math);
-
-            Subject physics = new Subject("Physics");
-            subjectRepository.save(physics);
-
-            Subject chemistry = new Subject("Chemistry");
-            subjectRepository.save(chemistry);
-
-            Subject english = new Subject("English");
-            subjectRepository.save(english);
-
-            log.info("Sample subjects created: Mathematics, Physics, Chemistry, English");
-        }
     }
 }

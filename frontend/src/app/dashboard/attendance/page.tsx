@@ -410,7 +410,7 @@ function AttendancePageContent() {
 
     // Show confirmation modal
     setConfirmTitle('⏸️ End Session Confirmation');
-    setConfirmMessage(`**${sessionInfo}**\n\n⚠️ This will temporarily end the session  , \n\n🔄 Ended sessions can be reopened anytime from the recovery section.\n\n💡 **Note:** Sessions fully ended within 5 minutes of creation will be deleted without SMS.`);
+    setConfirmMessage(`**${sessionInfo}**\n\n⚠️ This will temporarily end the session  , \n\n🔄 Ended sessions can be reopened anytime from the recovery section.\n\n💡Note: Sessions fully ended within 5 minutes of creation will be deleted without SMS.`);
     setConfirmButtonText('Yes, End Session');
     setConfirmAction(() => async () => {
       setShowConfirmModal(false);
@@ -1199,21 +1199,10 @@ function AttendancePageContent() {
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">No Recoverable Sessions</h3>
                       <p className="text-gray-500 mb-1">All ended sessions are either active or permanently ended.</p>
                       <p className="text-sm text-gray-400">Only temporarily ended sessions appear here for recovery.</p>
-                      <div className="mt-4 text-xs text-gray-600 text-left">
-                        <p><strong>Debug Info:</strong></p>
-                        <p>Total sessions: {sessions.length}</p>
-                        <p>Active sessions: {sessions.filter(s => s.isActive).length}</p>
-                        <p>Inactive sessions: {sessions.filter(s => !s.isActive).length}</p>
-                        <p>Inactive + canReactivate: {sessions.filter(s => !s.isActive && s.canReactivate).length}</p>
-                        <p>Inactive + not closed: {sessions.filter(s => !s.isActive && !s.isClosed).length}</p>
-                        {sessions.map(s => (
-                          <p key={s.id}>Session {s.id}: active={s.isActive ? 'true' : 'false'}, closed={s.isClosed ? 'true' : 'false'}, canReactivate={s.canReactivate ? 'true' : 'false'}</p>
-                        ))}
-                      </div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {sessions.filter(session => !session.isActive && !session.isClosed).map((session) => (
+                      {sessions.filter(session => session.canReactivate).map((session) => (
                         <div
                           key={`ended-${session.id}`}
                           className="group relative p-6 rounded-2xl border-2 border-orange-100 bg-gradient-to-br from-orange-50 to-amber-50 hover:border-orange-200 transition-all duration-300 hover:shadow-lg"

@@ -241,7 +241,7 @@ public class AttendanceSessionService {
             throw new IllegalStateException("Session is already active");
         }
 
-        // Remove 10-minute restriction - sessions can be reactivated anytime until fully ended
+        // Sessions can be reactivated anytime until fully ended
         if (session.getEndedAt() == null) {
             throw new IllegalStateException("Session end time is not recorded");
         }

@@ -279,12 +279,6 @@ export default function DashboardPage() {
                     <div className="flex items-center space-x-2">
                       <div className="w-3 h-3 bg-emerald-400 rounded-full animate-pulse"></div>
                       <span className="text-sm font-medium text-emerald-700">{activeSessions.filter(s => s.isActive).length} Active</span>
-                        {activeSessions.filter(s => s.canReactivate && !s.isActive).length > 0 && (
-                          <>
-                            <div className="w-3 h-3 bg-red-400 rounded-full animate-pulse"></div>
-                            <span className="text-sm font-medium text-red-700">{activeSessions.filter(s => s.canReactivate && !s.isActive).length} Recoverable</span>
-                        </>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -292,28 +286,12 @@ export default function DashboardPage() {
               
               <div className="p-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {activeSessions.filter(session => session.isActive || session.canReactivate).map((session) => {
-                    const isRecoverable = !session.isActive && session.canReactivate;
-                    const isClosed = session.isClosed;
-                    const cardBorderClass = session.isActive 
-                      ? 'border-emerald-200 hover:border-emerald-400' 
-                      : isRecoverable 
-                      ? 'border-red-200 hover:border-red-400' 
-                      : isClosed
-                      ? 'border-yellow-200 hover:border-yellow-400'
-                      : 'border-gray-200 hover:border-gray-400';
-                    const gradientClass = session.isActive 
-                      ? 'from-white to-emerald-50/30' 
-                      : isRecoverable 
-                      ? 'from-white to-red-50/30'
-                      : isClosed
-                      ? 'from-white to-yellow-50/30'
-                      : 'from-white to-gray-50/30';
+                  {activeSessions.filter(session => session.isActive).map((session) => {
                     
                     return (
                     <div
                       key={session.id}
-                      className={`group relative overflow-hidden p-6 border-2 ${cardBorderClass} rounded-2xl bg-gradient-to-br ${gradientClass} hover:shadow-lg transition-all duration-300`}
+                      className="group relative overflow-hidden p-6 border-2 border-emerald-200 hover:border-emerald-400 rounded-2xl bg-gradient-to-br from-white to-emerald-50/30 hover:shadow-lg transition-all duration-300"
                     >
                       {/* Background decoration */}
                       <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-100 rounded-full -translate-y-10 translate-x-10 opacity-50 group-hover:opacity-70 transition-opacity"></div>
@@ -321,12 +299,7 @@ export default function DashboardPage() {
                       <div className="relative">
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex items-center space-x-3">
-                            <div className={`p-3 rounded-xl group-hover:scale-110 transition-transform duration-200 ${
-                              session.isActive ? 'bg-gradient-to-br from-emerald-500 to-teal-500' :
-                              isRecoverable ? 'bg-gradient-to-br from-red-500 to-rose-500' :
-                              isClosed ? 'bg-gradient-to-br from-yellow-500 to-orange-500' :
-                              'bg-gradient-to-br from-gray-500 to-gray-600'
-                            }`}>
+                            <div className="p-3 rounded-xl group-hover:scale-110 transition-transform duration-200 bg-gradient-to-br from-emerald-500 to-teal-500">
                               <GraduationCap className="h-6 w-6 text-white" />
                             </div>
                             <div className="text-left">
@@ -336,28 +309,10 @@ export default function DashboardPage() {
                               <p className="text-sm font-medium text-gray-600">{session.subjectName}</p>
                             </div>
                           </div>
-                          <div className={`flex items-center space-x-1 px-3 py-1 rounded-full ${
-                            session.isActive ? 'bg-emerald-100' :
-                            isRecoverable ? 'bg-red-100' :
-                            isClosed ? 'bg-yellow-100' :
-                            'bg-gray-100'
-                          }`}>
-                            <div className={`w-2 h-2 rounded-full ${
-                              session.isActive ? 'bg-emerald-500 animate-pulse' :
-                              isRecoverable ? 'bg-red-500 animate-pulse' :
-                              isClosed ? 'bg-yellow-500' :
-                              'bg-gray-500'
-                            }`}></div>
-                            <span className={`text-xs font-semibold ${
-                              session.isActive ? 'text-emerald-700' :
-                              isRecoverable ? 'text-red-700' :
-                              isClosed ? 'text-yellow-700' :
-                              'text-gray-700'
-                            }`}>
-                              {session.isActive ? 'ACTIVE' :
-                               isRecoverable ? 'RECOVER' :
-                               isClosed ? 'CLOSED' :
-                               'ENDED'}
+                          <div className="flex items-center space-x-1 px-3 py-1 rounded-full bg-emerald-100">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                            <span className="text-xs font-semibold text-emerald-700">
+                              ACTIVE
                             </span>
                           </div>
                         </div>
@@ -379,17 +334,11 @@ export default function DashboardPage() {
                             <div className="flex space-x-2">
                               <button
                                 onClick={() => window.open(`/dashboard/attendance/session/${session.id}`, '_blank')}
-                                className={`flex-1 flex items-center justify-center px-4 py-2 rounded-lg transition-all duration-200 text-sm font-medium ${
-                                  session.isActive ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600' :
-                                  isRecoverable ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white hover:from-red-600 hover:to-rose-600 animate-pulse' :
-                                  isClosed ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white hover:from-yellow-600 hover:to-orange-600' :
-                                  'bg-gradient-to-r from-gray-500 to-gray-600 text-white hover:from-gray-600 hover:to-gray-700'
-                                }`}
+                                className="flex-1 flex items-center justify-center px-4 py-2 rounded-lg transition-all duration-200 text-sm font-medium bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600"
                               >
                                 <ExternalLink className="h-4 w-4 mr-2" />
-                                {isRecoverable ? 'RECOVER' : session.isActive ? 'Open Session' : isClosed ? 'REOPEN' : 'View Session'}
+                                Open Session
                               </button>
-                             
                             </div>
                           </div>
                         </div>

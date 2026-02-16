@@ -64,9 +64,6 @@ export default function AttendanceSessionPage() {
   const [confirmMessage, setConfirmMessage] = useState('');
   const [confirmTitle, setConfirmTitle] = useState('');
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
-  
-  // Recovery window countdown
-  const [recoveryTimeRemaining, setRecoveryTimeRemaining] = useState(0);
 
   useEffect(() => {
     if (sessionId) {
@@ -108,18 +105,6 @@ export default function AttendanceSessionPage() {
 
     return () => clearInterval(interval);
   }, [session, isAutoEnding]);
-
-  // Recovery Window - No time limit (can reopen anytime until fully ended)
-  useEffect(() => {
-    if (!session || !session.canReactivate || !session.endedAt) {
-      setRecoveryTimeRemaining(0);
-      return;
-    }
-
-    // Sessions can be reopened indefinitely until fully ended
-    // No countdown timer needed
-    setRecoveryTimeRemaining(-1); // -1 indicates unlimited time
-  }, [session]);
 
   // Format countdown time display
   const formatCountdownTime = (seconds: number) => {
@@ -416,7 +401,7 @@ export default function AttendanceSessionPage() {
                         <p className="text-white/90 text-sm">
                           {session.isActive ? 'Active Session' : 
                            session.isClosed ? 'Session Closed (Temporary)' :
-                           session.canReactivate ? 'Session Ended - Can Reactivate (10 min)' :
+                           session.canReactivate ? 'Session Ended - Can Reactivate' :
                            'Session Ended'}
                         </p>
                       </div>
@@ -474,15 +459,15 @@ export default function AttendanceSessionPage() {
                     </div>
                   )}
                   
-                  {/* Reactivate button for accidentally ended sessions (10-minute window) */}
+                  {/* Reactivate button for ended sessions */}
                   {!session.isActive && session.canReactivate && (
                     <button
                       onClick={reactivateSession}
                       className="flex items-center px-4 py-2 bg-red-500/80 hover:bg-red-500 text-white rounded-xl transition-colors animate-pulse"
-                      title="Reactivate session within 10-minute recovery window"
+                      title="Reactivate session anytime until fully ended"
                     >
                       <RefreshCw className="h-4 w-4 mr-2" />
-                      Reactivate (10 min left)
+                      Reactivate Session
                     </button>
                   )}
                 </div>
@@ -499,14 +484,14 @@ export default function AttendanceSessionPage() {
                 <div className="flex items-center space-x-2">
                   <BookOpen className="h-4 w-4" />
                   <div>
-                    <p className="text-xs text-white/60">Subject</p>
+                    <p className="text-l text-bold text-white/60">Subject</p>
                     <p className="font-medium text-sm">{session.subjectName}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Calendar className="h-4 w-4" />
                   <div>
-                    <p className="text-xs text-white/60">Date</p>
+                    <p className="text-l text-bold text-white/60">Date</p>
                     <p className="font-medium text-sm">{formatDate(session.sessionDate)}</p>
                   </div>
                 </div>
@@ -545,7 +530,7 @@ export default function AttendanceSessionPage() {
                     <div className="relative">
                       <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 mb-2">
                         <User className="h-4 w-4 text-indigo-500" />
-                        <span>Student ID</span>
+                        <span className="font-bold">Student ID</span>
                       </label>
                       <div className="relative">
                         <input
@@ -586,24 +571,26 @@ export default function AttendanceSessionPage() {
                           ? 'bg-green-50 border-green-500 text-green-800'
                           : 'bg-red-50 border-red-500 text-red-800'
                       }`}>
-                        <div className="flex items-center">
-                          {validationResponse.success ? (
-                            <CheckCircle className="h-4 w-4 mr-2" />
-                          ) : (
-                            <XCircle className="h-4 w-4 mr-2" />
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            {validationResponse.success ? (
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                            ) : (
+                              <XCircle className="h-4 w-4 mr-2" />
+                            )}
+                            <p className="font-medium text-sm">{validationResponse.message}</p>
+                          </div>
+                          {validationResponse.success && validationResponse.hasFeePaymentIssue && (
+                            <div className="flex items-center">
+                              <Flag className="h-12 w-12 text-red-600" />
+                              <p className="text-red-600 font-bold text-2xl">Fees Overdue</p>
+                            </div>
                           )}
-                          <p className="font-medium text-sm">{validationResponse.message}</p>
                         </div>
                         {validationResponse.student && (
                           <div className="mt-1 text-xs opacity-90">
                             <p>Student: {validationResponse.student.fullName}</p>
                             <p>ID: {validationResponse.student.studentIdCode}</p>
-                            {validationResponse.success && validationResponse.hasFeePaymentIssue && (
-                              <div className="flex items-center mt-1">
-                                <Flag className="h-3 w-3 text-red-600 mr-1" />
-                                <p className="text-red-600 font-semibold text-xs">Fees Overdue</p>
-                              </div>
-                            )}
                           </div>
                         )}
                         
