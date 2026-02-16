@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/auth';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import NotificationDropdown from '@/components/ui/NotificationDropdown';
+import Footer from '@/components/layout/Footer';
 import {
   Menu,
   X,
@@ -53,7 +54,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 lg:hidden"
+          className="fixed inset-0 z-20"
           onClick={() => setSidebarOpen(false)}
         >
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
@@ -63,7 +64,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Sidebar */}
       <div
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 border-r border-slate-700/50 flex flex-col',
+          'fixed inset-y-0 left-0 z-25 w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out border-r border-slate-700/50 flex flex-col',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -85,7 +86,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-200"
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-200"
           >
             <X className="h-5 w-5" />
           </button>
@@ -107,7 +108,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/25'
                         : 'text-slate-300 hover:bg-white/10 hover:text-white'
                     )}
-                    onClick={() => setSidebarOpen(false)}
+                    onClick={() => {
+                      // Close sidebar only on mobile
+                      if (window.innerWidth < 1024) {
+                        setSidebarOpen(false);
+                      }
+                    }}
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
                     {/* Active indicator */}
@@ -164,20 +170,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 lg:pl-72 flex flex-col min-h-screen">
+      <div className={cn(
+        "flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out",
+        sidebarOpen ? "lg:pl-72" : "pl-0"
+      )}>
         {/* Top header */}
-        <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm shadow-lg border-b border-gray-200/50">
+        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm shadow-lg border-b border-gray-200/50">
           <div className="flex items-center justify-between h-16 px-4 sm:px-6">
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-2 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 hover:scale-105"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="relative z-40 p-2 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 hover:scale-105 shadow-sm border border-gray-200 bg-white"
               >
                 <Menu className="h-6 w-6" />
               </button>
               
               {/* User Profile - Moved to left side */}
-              <div className="flex items-center space-x-3 bg-gray-50 rounded-xl px-3 py-2 hover:bg-gray-100 transition-colors cursor-pointer">
+              <div className="flex items-center space-x-3 bg-gray-50 rounded-xl px-3 py-2 hover:bg-gray-100 transition-colors cursor-pointer border border-gray-200">
                 <div className="relative">
                   <div className="h-10 w-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
                     <Crown className="h-5 w-5 text-white" />
@@ -204,6 +213,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             {children}
           </div>
         </main>
+
+        {/* Footer */}
+        <Footer />
       </div>
     </div>
   );
