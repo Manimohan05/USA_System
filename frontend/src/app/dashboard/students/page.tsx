@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useToast } from '@/contexts/toast';
-import { Plus, Search, Filter, Users, Edit, Trash2, AlertCircle, RefreshCw, Upload, Archive } from 'lucide-react';
+import { Plus, Search, Filter, Users, Edit, Trash2, AlertCircle, RefreshCw, Upload, Archive, Download } from 'lucide-react';
 import api from '@/lib/api';
 import { formatPhoneNumber } from '@/lib/utils';
 import type { StudentDto, BatchDto, SubjectDto } from '@/types';
@@ -113,6 +114,67 @@ export default function StudentsPage() {
   const filteredStudents = students.filter(student =>
     student.fullName.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const exportToCSV = () => {
+    if (filteredStudents.length === 0) {
+      addToast({ type: 'warning', title: 'No Data', message: 'No students to export' });
+      return;
+    }
+
+    const csvData = filteredStudents.map(student => ({
+      'Student Name': student.fullName,
+      'Student ID': student.studentIdCode,
+      'Index Number': student.indexNumber,
+      'Student Phone': student.studentPhone || '-',
+      'Parent Phone': student.parentPhone || '-',
+      'Batch': student.batch?.displayName || '-',
+      'Status': student.isActive ? 'Active' : 'Inactive',
+    }));
+
+    const csv = [
+      Object.keys(csvData[0]).join(','),
+      ...csvData.map(row => Object.values(row).map(val => `"${val}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `students-list-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    addToast({ type: 'success', title: 'Exported', message: 'Students exported as CSV' });
+  };
+
+  const exportToExcel = () => {
+    if (filteredStudents.length === 0) {
+      addToast({ type: 'warning', title: 'No Data', message: 'No students to export' });
+      return;
+    }
+
+    const excelData = filteredStudents.map(student => ({
+      'Student Name': student.fullName,
+      'Student ID': student.studentIdCode,
+      'Index Number': student.indexNumber,
+      'Student Phone': student.studentPhone || '-',
+      'Parent Phone': student.parentPhone || '-',
+      'Batch': student.batch?.displayName || '-',
+      'Status': student.isActive ? 'Active' : 'Inactive',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Students');
+
+    const colWidths = [25, 15, 15, 25, 15, 15, 12];
+    ws['!cols'] = colWidths.map(width => ({ wch: width }));
+
+    XLSX.writeFile(wb, `students-list-${new Date().toISOString().split('T')[0]}.xlsx`);
+    addToast({ type: 'success', title: 'Exported', message: 'Students exported as Excel' });
+  };
 
   if (loading && students.length === 0) {
     return (
@@ -294,12 +356,30 @@ export default function StudentsPage() {
               <h3 className="text-lg font-medium text-gray-900">
                 Students ({filteredStudents.length})
               </h3>
-              {loading && (
-                <div className="flex items-center text-sm text-gray-500">
-                  <RefreshCw className="animate-spin h-4 w-4 mr-2" />
-                  Loading...
-                </div>
-              )}
+              <div className="flex items-center space-x-2">
+                {loading && (
+                  <div className="flex items-center text-sm text-gray-500">
+                    <RefreshCw className="animate-spin h-4 w-4 mr-2" />
+                    Loading...
+                  </div>
+                )}
+                <button
+                  onClick={exportToCSV}
+                  className="flex items-center px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-all font-medium text-xs"
+                  title="Export as CSV"
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  CSV
+                </button>
+                <button
+                  onClick={exportToExcel}
+                  className="flex items-center px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-all font-medium text-xs"
+                  title="Export as Excel"
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  Excel
+                </button>
+              </div>
             </div>
             
             {filteredStudents.length > 0 ? (
