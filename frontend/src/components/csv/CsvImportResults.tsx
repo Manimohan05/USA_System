@@ -11,6 +11,7 @@ interface CsvImportResultsProps {
 
 export default function CsvImportResults({ result, onClose, onRetry }: CsvImportResultsProps) {
   const successRate = result.totalRows > 0 ? (result.successfulImports / result.totalRows) * 100 : 0;
+  const canBeImported = result.totalRows - result.errors.length;
   const hasErrors = result.errors.length > 0;
   const hasNoSuccessfulImports = result.successfulImports === 0 && hasErrors;
 
@@ -43,12 +44,12 @@ export default function CsvImportResults({ result, onClose, onRetry }: CsvImport
           </div>
         </div>
 
-        <div className={`${result.successfulImports > 0 ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'} border rounded-lg p-4`}>
+        <div className={`${canBeImported > 0 ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'} border rounded-lg p-4`}>
           <div className="flex items-center">
-            <TrendingUp className={`h-8 w-8 ${result.successfulImports > 0 ? 'text-green-600' : 'text-gray-400'}`} />
+            <TrendingUp className={`h-8 w-8 ${canBeImported > 0 ? 'text-green-600' : 'text-gray-400'}`} />
             <div className="ml-4">
-              <p className={`text-2xl font-semibold ${result.successfulImports > 0 ? 'text-green-900' : 'text-gray-600'}`}>{result.successfulImports}</p>
-              <p className={`text-sm ${result.successfulImports > 0 ? 'text-green-600' : 'text-gray-500'}`}>Can be Imported</p>
+              <p className={`text-2xl font-semibold ${canBeImported > 0 ? 'text-green-900' : 'text-gray-600'}`}>{canBeImported}</p>
+              <p className={`text-sm ${canBeImported > 0 ? 'text-green-600' : 'text-gray-500'}`}>Can be Imported</p>
             </div>
           </div>
         </div>
@@ -83,7 +84,7 @@ export default function CsvImportResults({ result, onClose, onRetry }: CsvImport
       </div>
 
       {/* Success Message */}
-      {result.successfulImports > 0 && (
+      {canBeImported > 0 && !hasErrors && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <div className="flex items-center">
             <CheckCircle className="h-5 w-5 text-green-600" />
