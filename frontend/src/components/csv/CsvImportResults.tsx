@@ -48,17 +48,17 @@ export default function CsvImportResults({ result, onClose, onRetry }: CsvImport
             <TrendingUp className={`h-8 w-8 ${result.successfulImports > 0 ? 'text-green-600' : 'text-gray-400'}`} />
             <div className="ml-4">
               <p className={`text-2xl font-semibold ${result.successfulImports > 0 ? 'text-green-900' : 'text-gray-600'}`}>{result.successfulImports}</p>
-              <p className={`text-sm ${result.successfulImports > 0 ? 'text-green-600' : 'text-gray-500'}`}>Imported</p>
+              <p className={`text-sm ${result.successfulImports > 0 ? 'text-green-600' : 'text-gray-500'}`}>Can be Imported</p>
             </div>
           </div>
         </div>
 
         <div className={`${result.failedImports > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'} border rounded-lg p-4`}>
           <div className="flex items-center">
-            <TrendingDown className={`h-8 w-8 ${result.failedImports > 0 ? 'text-red-600' : 'text-gray-400'}`} />
+            <AlertCircle className={`h-8 w-8 ${result.failedImports > 0 ? 'text-red-600' : 'text-gray-400'}`} />
             <div className="ml-4">
               <p className={`text-2xl font-semibold ${result.failedImports > 0 ? 'text-red-900' : 'text-gray-600'}`}>{result.failedImports}</p>
-              <p className={`text-sm ${result.failedImports > 0 ? 'text-red-600' : 'text-gray-500'}`}>Errors</p>
+              <p className={`text-sm ${result.failedImports > 0 ? 'text-red-600' : 'text-gray-500'}`}>Has Errors</p>
             </div>
           </div>
         </div>
