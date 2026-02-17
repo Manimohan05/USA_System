@@ -67,6 +67,12 @@ export default function AttendanceSessionPage() {
   const feeDueAudioRef = useRef<HTMLAudioElement | null>(null);
   const feeDueAudioTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Check if current date is after the 5th of the month
+  const isFeeDuePeriod = () => {
+    const today = new Date();
+    return today.getDate() > 5;
+  };
+
   const playFeeDueAlert = async () => {
     try {
       if (!feeDueAudioRef.current) {
@@ -262,7 +268,7 @@ export default function AttendanceSessionPage() {
       setValidationResponse(response.data);
       
       if (response.data.success) {
-        if (response.data.hasFeePaymentIssue) {
+        if (response.data.hasFeePaymentIssue && isFeeDuePeriod()) {
           await playFeeDueAlert();
         }
         setIndexInput('');
