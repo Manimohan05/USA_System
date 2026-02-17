@@ -183,6 +183,9 @@ public class CsvImportService {
 
             // Use the provided Student ID Code (not auto-generated for bulk import)
             String studentId = studentRequest.studentIdCode();
+            
+            // Validate student ID format against batch format
+            validateStudentIdFormat(studentId, batch);
 
             // Create and save student
             Student student = Student.builder()
@@ -776,5 +779,44 @@ public class CsvImportService {
                 ))
                         .collect(java.util.stream.Collectors.toSet())
         );
+    }
+
+    /**
+     * Validates that the student ID code matches the batch's expected format.
+     * For regular batches: Format should be [lastDigitOfYear][3digits] (e.g., 5001, 6002)
+     * For day batches: Format should be D[lastDigitOfYear][3digits] (e.g., D5001, D6002)
+     */
+    private void validateStudentIdFormat(String studentId, Batch batch) {
+        if (studentId == null || studentId.trim().isEmpty()) {
+            throw new RuntimeException("Student ID Code cannot be empty");
+        }
+
+        studentId = studentId.trim();
+        int batchYear = batch.getBatchYear();
+        int lastDigit = batchYear % 10;
+        String expectedPrefix = batch.isDayBatch() ? "D" + lastDigit : String.valueOf(lastDigit);
+
+        // Check if student ID starts with the expected prefix
+        if (!studentId.startsWith(expectedPrefix)) {
+            String format = batch.isDayBatch() 
+                ? "D" + lastDigit + "XXX (e.g., D" + lastDigit + "001)" 
+                : lastDigit + "XXX (e.g., " + lastDigit + "001)";
+            throw new RuntimeException(
+                "Student ID Code must follow batch format. Expected format: " + format + 
+                " for batch year " + batchYear + " (" + (batch.isDayBatch() ? "Day" : "Regular") + ")"
+            );
+        }
+
+        // Extract and validate the sequence part (should be 3 digits)
+        String sequencePart = studentId.substring(expectedPrefix.length());
+        if (!sequencePart.matches("\\d{3}")) {
+            String format = batch.isDayBatch() 
+                ? "D" + lastDigit + "XXX (e.g., D" + lastDigit + "001)" 
+                : lastDigit + "XXX (e.g., " + lastDigit + "001)";
+            throw new RuntimeException(
+                "Student ID Code must follow batch format. Expected format: " + format + 
+                " - sequence must be exactly 3 digits"
+            );
+        }
     }
 }
