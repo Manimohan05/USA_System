@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -12,6 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.usa.attendancesystem.dto.FeePaymentRequest;
 import com.usa.attendancesystem.dto.FeeReportDto;
 import com.usa.attendancesystem.dto.FeeReportRequest;
+import com.usa.attendancesystem.dto.UpdateBillRequest;
+import com.usa.attendancesystem.dto.UpdatePaidDateRequest;
 import com.usa.attendancesystem.service.FeeService;
 
 import jakarta.validation.Valid;
@@ -62,6 +65,34 @@ public class FeeController {
 
         } catch (Exception e) {
             log.error("Error generating fee report: {}", e.getMessage());
+            throw e;
+        }
+    }
+
+    @PutMapping("/update-bill")
+    public ResponseEntity<String> updateBillNumber(@Valid @RequestBody UpdateBillRequest request) {
+        log.info("Received request to update bill number for student {} for {}/{}",
+                request.studentIdCode(), request.month(), request.year());
+
+        try {
+            feeService.updateBillNumber(request);
+            return ResponseEntity.ok("Bill number updated successfully");
+        } catch (Exception e) {
+            log.error("Error updating bill number: {}", e.getMessage());
+            throw e;
+        }
+    }
+
+    @PutMapping("/update-paid-date")
+    public ResponseEntity<String> updatePaidDate(@Valid @RequestBody UpdatePaidDateRequest request) {
+        log.info("Received request to update paid date for student {} for {}/{}",
+                request.studentIdCode(), request.month(), request.year());
+
+        try {
+            feeService.updatePaidDate(request);
+            return ResponseEntity.ok("Paid date updated successfully");
+        } catch (Exception e) {
+            log.error("Error updating paid date: {}", e.getMessage());
             throw e;
         }
     }

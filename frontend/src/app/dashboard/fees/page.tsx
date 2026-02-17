@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { DollarSign, CheckCircle, Search, Filter, CreditCard, BarChart3, CalendarDays, Building, BookOpen, Receipt, Clock, Sparkles, Users, CheckCircle2, XCircle } from 'lucide-react';
+import { DollarSign, CheckCircle, Search, Filter, CreditCard, BarChart3, CalendarDays, Building, BookOpen, Receipt, Clock, Sparkles, Users, CheckCircle2, XCircle, Edit3, Save, X, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -88,6 +89,11 @@ export default function FeesPage() {
   const [reportStudentId, setReportStudentId] = useState('');
   const [reportData, setReportData] = useState<FeeReportDto[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
+  const [editingBillNumber, setEditingBillNumber] = useState('');
+  const [editingDateStudentId, setEditingDateStudentId] = useState<string | null>(null);
+  const [editingPaidDate, setEditingPaidDate] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Data State
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -182,6 +188,68 @@ export default function FeesPage() {
     } finally {
       setLoadingReport(false);
     }
+  };
+
+  const exportToCSV = () => {
+    if (reportData.length === 0) {
+      addToast({ type: 'warning', title: 'No Data', message: 'No data to export' });
+      return;
+    }
+
+    const csvData = reportData.map(record => ({
+      'Student Name': record.fullName,
+      'Student ID': record.studentIdCode,
+      'Batch': record.batchName,
+      'Subject': record.subjectName,
+      'Status': record.isPaid ? 'Paid' : 'Unpaid',
+      'Bill Number': record.billNumber || '-',
+      'Paid Date': record.paidAt ? new Date(record.paidAt).toLocaleDateString() : '-',
+    }));
+
+    const csv = [
+      Object.keys(csvData[0]).join(','),
+      ...csvData.map(row => Object.values(row).map(val => `"${val}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fee-report-${MONTHS[reportMonth - 1]}-${reportYear}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    addToast({ type: 'success', title: 'Exported', message: 'Report exported as CSV' });
+  };
+
+  const exportToExcel = () => {
+    if (reportData.length === 0) {
+      addToast({ type: 'warning', title: 'No Data', message: 'No data to export' });
+      return;
+    }
+
+    const excelData = reportData.map(record => ({
+      'Student Name': record.fullName,
+      'Student ID': record.studentIdCode,
+      'Batch': record.batchName,
+      'Subject': record.subjectName,
+      'Status': record.isPaid ? 'Paid' : 'Unpaid',
+      'Bill Number': record.billNumber || '-',
+      'Paid Date': record.paidAt ? new Date(record.paidAt).toLocaleDateString() : '-',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Fee Report');
+
+    // Set column widths
+    const colWidths = [30, 15, 12, 15, 12, 15, 15];
+    ws['!cols'] = colWidths.map(width => ({ wch: width }));
+
+    XLSX.writeFile(wb, `fee-report-${MONTHS[reportMonth - 1]}-${reportYear}.xlsx`);
+    addToast({ type: 'success', title: 'Exported', message: 'Report exported as Excel' });
   };
 
   if (loading) {
@@ -483,18 +551,38 @@ export default function FeesPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-4 text-sm">
-                      <div className="flex items-center space-x-2 px-3 py-1 bg-indigo-100 rounded-lg">
-                        <CheckCircle2 className="h-4 w-4 text-indigo-600" />
-                        <span className="text-indigo-800">
-                          Paid: {reportData.filter(r => r.isPaid).length}
-                        </span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4 text-sm">
+                        <div className="flex items-center space-x-2 px-3 py-1 bg-indigo-100 rounded-lg">
+                          <CheckCircle2 className="h-4 w-4 text-indigo-600" />
+                          <span className="text-indigo-800">
+                            Paid: {reportData.filter(r => r.isPaid).length}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2 px-3 py-1 bg-red-100 rounded-lg">
+                          <XCircle className="h-4 w-4 text-red-600" />
+                          <span className="text-red-800">
+                            Unpaid: {reportData.filter(r => !r.isPaid).length}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center space-x-2 px-3 py-1 bg-red-100 rounded-lg">
-                        <XCircle className="h-4 w-4 text-red-600" />
-                        <span className="text-red-800">
-                          Unpaid: {reportData.filter(r => !r.isPaid).length}
-                        </span>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={exportToCSV}
+                          className="flex items-center px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-all font-medium text-xs"
+                          title="Export as CSV"
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          CSV
+                        </button>
+                        <button
+                          onClick={exportToExcel}
+                          className="flex items-center px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-all font-medium text-xs"
+                          title="Export as Excel"
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Excel
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -534,9 +622,130 @@ export default function FeesPage() {
                                 </span>
                               )}
                             </td>
-                            <td className="py-3 px-4 text-gray-600">{record.billNumber || '-'}</td>
                             <td className="py-3 px-4 text-gray-600">
-                              {record.paidAt ? new Date(record.paidAt).toLocaleDateString() : '-'}
+                              {editingStudentId === record.studentId ? (
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="text"
+                                    value={editingBillNumber}
+                                    onChange={(e) => setEditingBillNumber(e.target.value)}
+                                    className="px-2 py-1 border rounded w-32 text-sm"
+                                  />
+                                  <button
+                                    onClick={async () => {
+                                      if (!editingBillNumber.trim()) {
+                                        addToast({ type: 'warning', title: 'Empty Bill', message: 'Please enter a bill number' });
+                                        return;
+                                      }
+                                      try {
+                                        setSavingEdit(true);
+                                        await api.put('/admin/fees/update-bill', {
+                                          studentIdCode: record.studentIdCode,
+                                          month: reportMonth,
+                                          year: reportYear,
+                                          billNumber: editingBillNumber.trim(),
+                                        });
+                                        setReportData(prev => prev.map(r => r.studentId === record.studentId ? { ...r, billNumber: editingBillNumber.trim() } : r));
+                                        addToast({ type: 'success', title: 'Updated', message: 'Bill number updated' });
+                                        setEditingStudentId(null);
+                                        setEditingBillNumber('');
+                                      } catch (error: any) {
+                                        addToast({ type: 'error', title: 'Update Failed', message: error.response?.data?.message || 'Failed to update bill number' });
+                                      } finally {
+                                        setSavingEdit(false);
+                                      }
+                                    }}
+                                    disabled={savingEdit}
+                                    className="p-1 bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50"
+                                  >
+                                    {savingEdit ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Save className="h-3 w-3" />}
+                                  </button>
+                                  <button
+                                    onClick={() => { setEditingStudentId(null); setEditingBillNumber(''); }}
+                                    className="p-1 bg-gray-200 rounded hover:bg-gray-300"
+                                  >
+                                    <X className="h-3 w-3 text-gray-600" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center space-x-2">
+                                  <span>{record.billNumber || '-'}</span>
+                                  {record.isPaid && (
+                                    <button
+                                      onClick={() => { setEditingStudentId(record.studentId); setEditingBillNumber(record.billNumber || ''); }}
+                                      className="p-1 hover:bg-gray-100 rounded"
+                                      title="Edit bill number"
+                                    >
+                                      <Edit3 className="h-3 w-3 text-gray-400 hover:text-gray-600" />
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-gray-600">
+                              {editingDateStudentId === record.studentId ? (
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="date"
+                                    value={editingPaidDate}
+                                    onChange={(e) => setEditingPaidDate(e.target.value)}
+                                    className="px-2 py-1 border rounded w-32 text-sm"
+                                  />
+                                  <button
+                                    onClick={async () => {
+                                      if (!editingPaidDate.trim()) {
+                                        addToast({ type: 'warning', title: 'Empty Date', message: 'Please enter a date' });
+                                        return;
+                                      }
+                                      try {
+                                        setSavingEdit(true);
+                                        const date = new Date(editingPaidDate);
+                                        await api.put('/admin/fees/update-paid-date', {
+                                          studentIdCode: record.studentIdCode,
+                                          month: reportMonth,
+                                          year: reportYear,
+                                          paidAt: date.toISOString(),
+                                        });
+                                        setReportData(prev => prev.map(r => r.studentId === record.studentId ? { ...r, paidAt: date.toISOString() } : r));
+                                        addToast({ type: 'success', title: 'Updated', message: 'Paid date updated' });
+                                        setEditingDateStudentId(null);
+                                        setEditingPaidDate('');
+                                      } catch (error: any) {
+                                        addToast({ type: 'error', title: 'Update Failed', message: error.response?.data?.message || 'Failed to update paid date' });
+                                      } finally {
+                                        setSavingEdit(false);
+                                      }
+                                    }}
+                                    disabled={savingEdit}
+                                    className="p-1 bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50"
+                                  >
+                                    {savingEdit ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Save className="h-3 w-3" />}
+                                  </button>
+                                  <button
+                                    onClick={() => { setEditingDateStudentId(null); setEditingPaidDate(''); }}
+                                    className="p-1 bg-gray-200 rounded hover:bg-gray-300"
+                                  >
+                                    <X className="h-3 w-3 text-gray-600" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center space-x-2">
+                                  <span>{record.paidAt ? new Date(record.paidAt).toLocaleDateString() : '-'}</span>
+                                  {record.isPaid && (
+                                    <button
+                                      onClick={() => {
+                                        const paidDate = record.paidAt ? new Date(record.paidAt).toISOString().split('T')[0] : '';
+                                        setEditingDateStudentId(record.studentId);
+                                        setEditingPaidDate(paidDate);
+                                      }}
+                                      className="p-1 hover:bg-gray-100 rounded"
+                                      title="Edit paid date"
+                                    >
+                                      <Edit3 className="h-3 w-3 text-gray-400 hover:text-gray-600" />
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </td>
                           </tr>
                         ))}

@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.usa.attendancesystem.dto.FeePaymentRequest;
 import com.usa.attendancesystem.dto.FeeReportDto;
 import com.usa.attendancesystem.dto.FeeReportRequest;
+import com.usa.attendancesystem.dto.UpdateBillRequest;
+import com.usa.attendancesystem.dto.UpdatePaidDateRequest;
 import com.usa.attendancesystem.exception.DuplicateResourceException;
 import com.usa.attendancesystem.exception.ResourceNotFoundException;
 import com.usa.attendancesystem.model.FeePayment;
@@ -104,7 +106,7 @@ public class FeeService {
                             student.getId(),
                             student.getStudentIdCode(),
                             student.getFullName(),
-                            "Batch " + student.getBatch().getBatchYear(),
+                            String.valueOf(student.getBatch().getBatchYear()),
                             subject.getName(),
                             request.month(),
                             request.year(),
@@ -123,7 +125,7 @@ public class FeeService {
                         student.getId(),
                         student.getStudentIdCode(),
                         student.getFullName(),
-                        "Batch " + student.getBatch().getBatchYear(),
+                        String.valueOf(student.getBatch().getBatchYear()),
                         "General Fee", // Generic subject when not filtering by subject
                         request.month(),
                         request.year(),
@@ -137,4 +139,38 @@ public class FeeService {
         log.info("Generated fee report with {} records", reportDtos.size());
         return reportDtos;
     }
+
+        @Transactional
+        public void updateBillNumber(UpdateBillRequest request) {
+                log.info("Updating bill number for student {} for {}/{}", request.studentIdCode(), request.month(), request.year());
+
+                Student student = studentRepository.findByStudentIdCode(request.studentIdCode())
+                                .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + request.studentIdCode()));
+
+                FeePayment payment = feePaymentRepository.findByStudentAndMonthAndYear(
+                                student.getId(), request.month(), request.year())
+                                .orElseThrow(() -> new ResourceNotFoundException("Fee payment not found for student for given month/year"));
+
+                payment.setBillNumber(request.billNumber());
+                feePaymentRepository.save(payment);
+
+                log.info("Updated bill number to {} for student {}", request.billNumber(), request.studentIdCode());
+        }
+
+        @Transactional
+        public void updatePaidDate(UpdatePaidDateRequest request) {
+                log.info("Updating paid date for student {} for {}/{}", request.studentIdCode(), request.month(), request.year());
+
+                Student student = studentRepository.findByStudentIdCode(request.studentIdCode())
+                                .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + request.studentIdCode()));
+
+                FeePayment payment = feePaymentRepository.findByStudentAndMonthAndYear(
+                                student.getId(), request.month(), request.year())
+                                .orElseThrow(() -> new ResourceNotFoundException("Fee payment not found for student for given month/year"));
+
+                payment.setPaidAt(request.paidAt());
+                feePaymentRepository.save(payment);
+
+                log.info("Updated paid date to {} for student {}", request.paidAt(), request.studentIdCode());
+        }
 }
