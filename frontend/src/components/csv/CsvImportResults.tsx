@@ -53,12 +53,12 @@ export default function CsvImportResults({ result, onClose, onRetry }: CsvImport
           </div>
         </div>
 
-        <div className={`${result.failedImports > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'} border rounded-lg p-4`}>
+        <div className={`${result.errors.length > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'} border rounded-lg p-4`}>
           <div className="flex items-center">
-            <AlertCircle className={`h-8 w-8 ${result.failedImports > 0 ? 'text-red-600' : 'text-gray-400'}`} />
+            <AlertCircle className={`h-8 w-8 ${result.errors.length > 0 ? 'text-red-600' : 'text-gray-400'}`} />
             <div className="ml-4">
-              <p className={`text-2xl font-semibold ${result.failedImports > 0 ? 'text-red-900' : 'text-gray-600'}`}>{result.failedImports}</p>
-              <p className={`text-sm ${result.failedImports > 0 ? 'text-red-600' : 'text-gray-500'}`}>Has Errors</p>
+              <p className={`text-2xl font-semibold ${result.errors.length > 0 ? 'text-red-900' : 'text-gray-600'}`}>{result.errors.length}</p>
+              <p className={`text-sm ${result.errors.length > 0 ? 'text-red-600' : 'text-gray-500'}`}>Has Errors</p>
             </div>
           </div>
         </div>
@@ -106,7 +106,7 @@ export default function CsvImportResults({ result, onClose, onRetry }: CsvImport
             <AlertCircle className={`h-5 w-5 ${hasNoSuccessfulImports ? 'text-red-600' : 'text-orange-600'} mt-0.5`} />
             <div className="ml-3 flex-1">
               <h3 className={`text-sm font-medium ${hasNoSuccessfulImports ? 'text-red-900' : 'text-orange-900'}`}>
-                {result.failedImports} record{result.failedImports !== 1 ? 's' : ''} with validation error{result.failedImports !== 1 ? 's' : ''}
+                {result.errors.length} record{result.errors.length !== 1 ? 's' : ''} with validation error{result.errors.length !== 1 ? 's' : ''}
               </h3>
               <div className="mt-2 max-h-64 overflow-y-auto">
                 <ul className={`text-sm ${hasNoSuccessfulImports ? 'text-red-700' : 'text-orange-700'} space-y-1`}>
