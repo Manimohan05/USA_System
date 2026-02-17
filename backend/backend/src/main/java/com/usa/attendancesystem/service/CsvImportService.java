@@ -137,40 +137,60 @@ public class CsvImportService {
         List<String> errors = new ArrayList<>();
         List<StudentDto> importedStudents = new ArrayList<>();
         int totalRows = 0;
-        int successfulImports = 0;
 
         try (Reader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8); CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader())) {
 
             List<CSVRecord> records = csvParser.getRecords();
             totalRows = records.size();
 
-            log.info("Starting CSV import with {} records for batch: {}", totalRows, batch.getBatchYear());
+            log.info("Starting CSV validation with {} records for batch: {}", totalRows, batch.getBatchYear());
 
+            // PHASE 1: Validate all records first
+            List<StudentCsvImportRequest> validatedRequests = new ArrayList<>();
             for (int i = 0; i < records.size(); i++) {
                 CSVRecord record = records.get(i);
                 int rowNumber = i + 2; // +2 because CSV rows start from 1 and we have a header
 
                 try {
                     StudentCsvImportRequest studentRequest = parseRecord(record, rowNumber);
-
-                    // Process each student in a separate transaction to avoid rollback-only issues
-                    StudentDto createdStudent = createStudentFromRequest(studentRequest, batch);
-                    importedStudents.add(createdStudent);
-                    successfulImports++;
-
-                    log.debug("Successfully imported student: {}", studentRequest.fullName());
+                    // Validate the request (including Student ID format)
+                    validateStudentRequest(studentRequest, batch);
+                    validatedRequests.add(studentRequest);
                 } catch (Exception e) {
                     String errorMsg = "Row " + rowNumber + ": " + e.getMessage();
                     errors.add(errorMsg);
-                    log.warn("Failed to import student at row {}: {}", rowNumber, e.getMessage());
+                    log.warn("CSV validation failed at row {}: {}", rowNumber, e.getMessage());
                 }
             }
+
+            // PHASE 2: If there are any errors, stop and return without importing
+            if (!errors.isEmpty()) {
+                log.warn("CSV validation completed with {} errors. Aborting import.", errors.size());
+                return new CsvImportResultDto(totalRows, 0, totalRows, errors, new ArrayList<>());
+            }
+
+            // PHASE 3: All records validated successfully - now import them
+            log.info("CSV validation successful with {} records. Importing to database...", totalRows);
+            for (StudentCsvImportRequest studentRequest : validatedRequests) {
+                try {
+                    StudentDto createdStudent = createStudentFromRequest(studentRequest, batch);
+                    importedStudents.add(createdStudent);
+                    log.debug("Successfully imported student: {}", studentRequest.fullName());
+                } catch (Exception e) {
+                    // This should rarely happen since we already validated, but handle it
+                    String errorMsg = "Row import error: " + e.getMessage();
+                    errors.add(errorMsg);
+                    log.error("Error creating student during import phase: {}", e.getMessage());
+                }
+            }
+
         } catch (Exception e) {
             log.error("Error reading CSV file", e);
             throw new RuntimeException("Failed to read CSV file: " + e.getMessage(), e);
         }
 
-        log.info("CSV import completed. Total: {}, Successful: {}, Failed: {}", totalRows, successfulImports, errors.size());
+        int successfulImports = importedStudents.size();
+        log.info("CSV import completed. Total: {}, Imported: {}, Errors: {}", totalRows, successfulImports, errors.size());
         return new CsvImportResultDto(totalRows, successfulImports, errors.size(), errors, importedStudents);
     }
 
@@ -183,9 +203,6 @@ public class CsvImportService {
 
             // Use the provided Student ID Code (not auto-generated for bulk import)
             String studentId = studentRequest.studentIdCode();
-            
-            // Validate student ID format against batch format
-            validateStudentIdFormat(studentId, batch);
 
             // Create and save student
             Student student = Student.builder()
@@ -212,11 +229,45 @@ public class CsvImportService {
         }
     }
 
+    /**
+     * Validates a StudentCsvImportRequest without creating the student.
+     * This is used in the validation phase before importing any records.
+     */
+    private void validateStudentRequest(StudentCsvImportRequest studentRequest, Batch batch) {
+        // Validate Student ID format against batch format
+        validateStudentIdFormat(studentRequest.studentIdCode(), batch);
+        
+        // Validate required fields
+        if (studentRequest.fullName() == null || studentRequest.fullName().trim().isEmpty()) {
+            throw new RuntimeException("Full Name is required");
+        }
+        if (studentRequest.address() == null || studentRequest.address().trim().isEmpty()) {
+            throw new RuntimeException("Address is required");
+        }
+        if (studentRequest.school() == null || studentRequest.school().trim().isEmpty()) {
+            throw new RuntimeException("School is required");
+        }
+        if (studentRequest.phoneNumber() == null || studentRequest.phoneNumber().trim().isEmpty()) {
+            throw new RuntimeException("Phone Number is required");
+        }
+        if (studentRequest.admissionDate() == null) {
+            throw new RuntimeException("Admission Date is required");
+        }
+        if (studentRequest.subjectNames() == null || studentRequest.subjectNames().trim().isEmpty()) {
+            throw new RuntimeException("At least one subject is required");
+        }
+        
+        // Validate subjects exist
+        Set<Subject> subjects = parseSubjects(studentRequest.subjectNames());
+        if (subjects.isEmpty()) {
+            throw new RuntimeException("No valid subjects selected");
+        }
+    }
+
     private CsvImportResultDto importFromExcel(MultipartFile file, Batch batch) {
         List<String> errors = new ArrayList<>();
         List<StudentDto> importedStudents = new ArrayList<>();
         int totalRows = 0;
-        int successfulImports = 0;
 
         try (Workbook workbook = createWorkbook(file)) {
             Sheet sheet = workbook.getSheetAt(0); // Use first sheet
@@ -227,7 +278,7 @@ public class CsvImportService {
                 throw new IllegalArgumentException("Excel file is empty or contains only headers");
             }
 
-            log.info("Starting Excel import with {} records for batch: {}", totalRows, batch.getBatchYear());
+            log.info("Starting Excel validation with {} records for batch: {}", totalRows, batch.getBatchYear());
 
             // Get headers from first row
             Row headerRow = sheet.getRow(0);
@@ -236,7 +287,8 @@ public class CsvImportService {
                 headers.add(getCellValueAsString(cell));
             }
 
-            // Process data rows
+            // PHASE 1: Validate all records first
+            List<StudentCsvImportRequest> validatedRequests = new ArrayList<>();
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) {
@@ -247,14 +299,34 @@ public class CsvImportService {
 
                 try {
                     StudentCsvImportRequest studentRequest = parseExcelRow(row, headers, rowNumber);
-                    StudentDto createdStudent = createStudentFromRequest(studentRequest, batch);
-                    importedStudents.add(createdStudent);
-                    successfulImports++;
-                    log.debug("Successfully imported student: {}", studentRequest.fullName());
+                    // Validate the request (including Student ID format)
+                    validateStudentRequest(studentRequest, batch);
+                    validatedRequests.add(studentRequest);
                 } catch (Exception e) {
                     String error = String.format("Row %d: %s", rowNumber, e.getMessage());
                     errors.add(error);
-                    log.warn("Failed to import student at row {}: {}", rowNumber, e.getMessage());
+                    log.warn("Excel validation failed at row {}: {}", rowNumber, e.getMessage());
+                }
+            }
+
+            // PHASE 2: If there are any errors, stop and return without importing
+            if (!errors.isEmpty()) {
+                log.warn("Excel validation completed with {} errors. Aborting import.", errors.size());
+                return new CsvImportResultDto(totalRows, 0, totalRows, errors, new ArrayList<>());
+            }
+
+            // PHASE 3: All records validated successfully - now import them
+            log.info("Excel validation successful with {} records. Importing to database...", totalRows);
+            for (StudentCsvImportRequest studentRequest : validatedRequests) {
+                try {
+                    StudentDto createdStudent = createStudentFromRequest(studentRequest, batch);
+                    importedStudents.add(createdStudent);
+                    log.debug("Successfully imported student: {}", studentRequest.fullName());
+                } catch (Exception e) {
+                    // This should rarely happen since we already validated, but handle it
+                    String error = "Import error: " + e.getMessage();
+                    errors.add(error);
+                    log.error("Error creating student during import phase: {}", e.getMessage());
                 }
             }
 
@@ -264,8 +336,9 @@ public class CsvImportService {
             log.error("Excel file reading error", e);
         }
 
+        int successfulImports = importedStudents.size();
         int failedImports = totalRows - successfulImports;
-        log.info("Excel import completed: {} successful, {} failed out of {} total",
+        log.info("Excel import completed: {} imported, {} errors out of {} total",
                 successfulImports, failedImports, totalRows);
 
         return new CsvImportResultDto(

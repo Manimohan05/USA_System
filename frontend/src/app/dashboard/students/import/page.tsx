@@ -17,6 +17,7 @@ export default function BulkImportPage() {
   const [loading, setLoading] = useState(true);
   const [instructionsExpanded, setInstructionsExpanded] = useState(false);
   const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
+  const [resetKey, setResetKey] = useState(0);
 
   useEffect(() => {
     fetchInitialData();
@@ -48,6 +49,7 @@ export default function BulkImportPage() {
 
   const handleCloseResults = () => {
     setImportResult(null);
+    setResetKey(prev => prev + 1); // Reset the upload form
   };
 
   const downloadTemplate = () => {
@@ -220,6 +222,7 @@ export default function BulkImportPage() {
                   <CsvFileUpload 
                     onImportComplete={handleImportComplete}
                     selectedBatchId={selectedBatchId}
+                    key={resetKey}
                   />
                 ) : (
                   <div className="flex items-center justify-center p-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
@@ -407,7 +410,7 @@ export default function BulkImportPage() {
                 </div>
               </div>
               
-              <CsvImportResults result={importResult} onClose={handleCloseResults} />
+              <CsvImportResults result={importResult} onClose={handleCloseResults} onRetry={handleCloseResults} />
             </div>
           )}
           </div>
