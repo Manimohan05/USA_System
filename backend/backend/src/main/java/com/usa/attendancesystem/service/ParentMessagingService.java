@@ -29,8 +29,8 @@ public class ParentMessagingService {
         List<Student> targetStudents;
 
         if (request.batchId() == null && request.subjectId() == null) {
-            // Send to all active students
-            targetStudents = studentRepository.findByIsActiveTrue();
+            // Send to all active students (excluding archived batches)
+            targetStudents = studentRepository.findByIsActiveTrueAndBatchNotArchived();
         } else if (request.batchId() != null && request.subjectId() != null) {
             // Send to specific batch and subject
             targetStudents = studentRepository.findActiveStudentsByBatchAndSubject(request.batchId(), request.subjectId());
@@ -55,8 +55,8 @@ public class ParentMessagingService {
         int currentMonth = currentDate.getMonthValue();
         int currentYear = currentDate.getYear();
 
-        // Get all active students
-        List<Student> allActiveStudents = studentRepository.findByIsActiveTrue();
+        // Get all active students (excluding archived batches)
+        List<Student> allActiveStudents = studentRepository.findByIsActiveTrueAndBatchNotArchived();
 
         // Filter students who haven't paid for current month and have valid parent phone
         List<Student> unpaidStudents = allActiveStudents.stream()
@@ -105,8 +105,8 @@ public class ParentMessagingService {
         List<Student> targetStudents;
 
         if (batchId == null && subjectId == null) {
-            // All active students
-            targetStudents = studentRepository.findByIsActiveTrue();
+            // All active students (excluding archived batches)
+            targetStudents = studentRepository.findByIsActiveTrueAndBatchNotArchived();
         } else if (batchId != null && subjectId != null) {
             // Specific batch and subject
             targetStudents = studentRepository.findActiveStudentsByBatchAndSubject(batchId, subjectId);

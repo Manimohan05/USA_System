@@ -279,9 +279,8 @@ public class StudentService {
 
     @Transactional(readOnly = true)
     public List<StudentDto> getAllActiveStudents() {
-        return studentRepository.findAll()
+        return studentRepository.findByIsActiveTrueAndBatchNotArchived()
                 .stream()
-                .filter(Student::isActive)
                 .map(this::mapToStudentDto)
                 .collect(Collectors.toList());
     }
@@ -361,7 +360,7 @@ public class StudentService {
      */
     public StudentDto mapToStudentDto(Student student) {
         long batchStudentCount = studentRepository.countActiveStudentsByBatch(student.getBatch().getId());
-        BatchDto batchDto = new BatchDto(student.getBatch().getId(), student.getBatch().getBatchYear(), student.getBatch().isDayBatch(), student.getBatch().getDisplayName(), batchStudentCount);
+        BatchDto batchDto = new BatchDto(student.getBatch().getId(), student.getBatch().getBatchYear(), student.getBatch().isDayBatch(), student.getBatch().getDisplayName(), batchStudentCount, student.getBatch().isArchived());
         Set<SubjectDto> subjectDtos = student.getSubjects().stream()
                 .map(subject -> {
                     Long studentCount = studentRepository.countActiveStudentsBySubject(subject.getId());

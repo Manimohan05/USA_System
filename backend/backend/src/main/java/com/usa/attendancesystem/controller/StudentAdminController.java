@@ -101,7 +101,8 @@ public class StudentAdminController {
 
     @PostMapping("/import-csv")
     public ResponseEntity<CsvImportResultDto> importStudentsFromCsv(
-            @RequestParam("file") MultipartFile file) {
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("batchId") Integer batchId) {
 
         // Validate file
         if (file.isEmpty()) {
@@ -109,11 +110,20 @@ public class StudentAdminController {
         }
 
         String fileName = file.getOriginalFilename();
-        if (fileName == null || !fileName.toLowerCase().endsWith(".csv")) {
-            throw new IllegalArgumentException("Please upload a CSV file");
+        if (fileName == null) {
+            throw new IllegalArgumentException("File name cannot be determined");
         }
 
-        CsvImportResultDto result = csvImportService.importStudentsFromCsv(file);
+        String lowerFileName = fileName.toLowerCase();
+        if (!lowerFileName.endsWith(".csv") && !lowerFileName.endsWith(".xlsx") && !lowerFileName.endsWith(".xls")) {
+            throw new IllegalArgumentException("Please upload a CSV or Excel file (.csv, .xlsx, .xls)");
+        }
+
+        if (batchId == null || batchId <= 0) {
+            throw new IllegalArgumentException("Invalid batch ID");
+        }
+
+        CsvImportResultDto result = csvImportService.importStudentsFromCsv(file, batchId);
         return ResponseEntity.ok(result);
     }
 

@@ -90,7 +90,7 @@ public class CsvImportService {
     // Dynamic headers - will be generated based on available subjects
     private String[] getCsvHeaders() {
         List<String> headers = new ArrayList<>();
-        headers.add("Batch Year");
+        headers.add("Student ID Code");
         headers.add("Admission Date (YYYY-MM-DD or DD/MM/YYYY)");
         headers.add("Full Name");
         headers.add("Address");
@@ -107,8 +107,12 @@ public class CsvImportService {
         return headers.toArray(new String[0]);
     }
 
-    public CsvImportResultDto importStudentsFromCsv(MultipartFile file) {
-        log.info("Starting import process for file: {}", file.getOriginalFilename());
+    public CsvImportResultDto importStudentsFromCsv(MultipartFile file, Integer batchId) {
+        log.info("Starting import process for file: {} with batch ID: {}", file.getOriginalFilename(), batchId);
+
+        // Validate batch exists
+        Batch batch = batchRepository.findById(batchId)
+                .orElseThrow(() -> new RuntimeException("Batch not found with ID: " + batchId));
 
         String fileName = file.getOriginalFilename();
         if (fileName == null) {
@@ -117,9 +121,9 @@ public class CsvImportService {
 
         try {
             if (fileName.toLowerCase().endsWith(".csv")) {
-                return importFromCsv(file);
+                return importFromCsv(file, batch);
             } else if (fileName.toLowerCase().endsWith(".xlsx") || fileName.toLowerCase().endsWith(".xls")) {
-                return importFromExcel(file);
+                return importFromExcel(file, batch);
             } else {
                 throw new IllegalArgumentException("Unsupported file format. Please use CSV or Excel files.");
             }
@@ -129,7 +133,7 @@ public class CsvImportService {
         }
     }
 
-    private CsvImportResultDto importFromCsv(MultipartFile file) {
+    private CsvImportResultDto importFromCsv(MultipartFile file, Batch batch) {
         List<String> errors = new ArrayList<>();
         List<StudentDto> importedStudents = new ArrayList<>();
         int totalRows = 0;
@@ -140,7 +144,7 @@ public class CsvImportService {
             List<CSVRecord> records = csvParser.getRecords();
             totalRows = records.size();
 
-            log.info("Starting CSV import with {} records", totalRows);
+            log.info("Starting CSV import with {} records for batch: {}", totalRows, batch.getBatchYear());
 
             for (int i = 0; i < records.size(); i++) {
                 CSVRecord record = records.get(i);
@@ -150,7 +154,7 @@ public class CsvImportService {
                     StudentCsvImportRequest studentRequest = parseRecord(record, rowNumber);
 
                     // Process each student in a separate transaction to avoid rollback-only issues
-                    StudentDto createdStudent = createStudentFromRequest(studentRequest);
+                    StudentDto createdStudent = createStudentFromRequest(studentRequest, batch);
                     importedStudents.add(createdStudent);
                     successfulImports++;
 
@@ -171,18 +175,14 @@ public class CsvImportService {
     }
 
     @Transactional
-    private StudentDto createStudentFromRequest(StudentCsvImportRequest studentRequest) {
+    private StudentDto createStudentFromRequest(StudentCsvImportRequest studentRequest, Batch batch) {
         try {
-            // Find batch using the isDayBatch flag from the request
-            Batch batch = batchRepository.findByBatchYearAndIsDayBatch(studentRequest.batchYear(), studentRequest.isDayBatch())
-                    .orElseThrow(() -> new RuntimeException("Batch not found for year " + studentRequest.batchYear()
-                    + (studentRequest.isDayBatch() ? " (Day Batch)" : "")));
-
+            // Use the batch provided instead of looking it up
             // Parse selected subjects and find subject entities
             Set<Subject> subjects = parseSubjects(studentRequest.subjectNames());
 
-            // Generate next student ID for the batch
-            String studentId = studentService.getNextStudentIdForBatch(batch.getId());
+            // Use the provided Student ID Code (not auto-generated for bulk import)
+            String studentId = studentRequest.studentIdCode();
 
             // Create and save student
             Student student = Student.builder()
@@ -209,7 +209,7 @@ public class CsvImportService {
         }
     }
 
-    private CsvImportResultDto importFromExcel(MultipartFile file) {
+    private CsvImportResultDto importFromExcel(MultipartFile file, Batch batch) {
         List<String> errors = new ArrayList<>();
         List<StudentDto> importedStudents = new ArrayList<>();
         int totalRows = 0;
@@ -224,7 +224,7 @@ public class CsvImportService {
                 throw new IllegalArgumentException("Excel file is empty or contains only headers");
             }
 
-            log.info("Starting Excel import with {} records", totalRows);
+            log.info("Starting Excel import with {} records for batch: {}", totalRows, batch.getBatchYear());
 
             // Get headers from first row
             Row headerRow = sheet.getRow(0);
@@ -244,7 +244,7 @@ public class CsvImportService {
 
                 try {
                     StudentCsvImportRequest studentRequest = parseExcelRow(row, headers, rowNumber);
-                    StudentDto createdStudent = createStudentFromCsv(studentRequest);
+                    StudentDto createdStudent = createStudentFromRequest(studentRequest, batch);
                     importedStudents.add(createdStudent);
                     successfulImports++;
                     log.debug("Successfully imported student: {}", studentRequest.fullName());
@@ -311,7 +311,7 @@ public class CsvImportService {
     private StudentCsvImportRequest parseExcelRow(Row row, List<String> headers, int rowNumber) {
         try {
             // Parse fields in the exact order as add student form
-            String batchYearStr = getCellValueByHeader(row, headers, "Batch Year");
+            String studentIdCode = getCellValueByHeader(row, headers, "Student ID Code");
             String admissionDateStr = getCellValueByHeader(row, headers, "Admission Date (YYYY-MM-DD or DD/MM/YYYY)");
             String fullName = getCellValueByHeader(row, headers, "Full Name");
             String address = getCellValueByHeader(row, headers, "Address");
@@ -336,20 +336,6 @@ public class CsvImportService {
 
             String subjectNames = String.join(", ", selectedSubjects);
 
-            // Validate and parse batch year (handle day batch format like "2028Day")
-            Integer batchYear;
-            boolean isDayBatch = false;
-            try {
-                String cleanBatchYear = batchYearStr.trim();
-                if (cleanBatchYear.endsWith("Day")) {
-                    isDayBatch = true;
-                    cleanBatchYear = cleanBatchYear.substring(0, cleanBatchYear.length() - 3);
-                }
-                batchYear = Integer.parseInt(cleanBatchYear);
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid batch year format: " + batchYearStr);
-            }
-
             // Validate and parse admission date
             LocalDate admissionDate;
             try {
@@ -371,14 +357,14 @@ public class CsvImportService {
             }
 
             return new StudentCsvImportRequest(
+                    studentIdCode.trim(),
+                    admissionDate,
                     fullName.trim(),
                     address.trim(),
                     nic != null && !nic.trim().isEmpty() ? nic.trim() : null,
                     school.trim(),
-                    admissionDate,
                     cleanPhone,
-                    batchYear,
-                    isDayBatch,
+                    0, // batchId placeholder - actual batch is provided separately
                     subjectNames
             );
         } catch (Exception e) {
@@ -415,7 +401,7 @@ public class CsvImportService {
     private StudentCsvImportRequest parseRecord(CSVRecord record, int rowNumber) {
         try {
             // Parse fields in the exact order as add student form
-            String batchYearStr = getFieldValue(record, "Batch Year", rowNumber);
+            String studentIdCode = getFieldValue(record, "Student ID Code", rowNumber);
             String admissionDateStr = getFieldValue(record, "Admission Date (YYYY-MM-DD or DD/MM/YYYY)", rowNumber);
             String fullName = getFieldValue(record, "Full Name", rowNumber);
             String address = getFieldValue(record, "Address", rowNumber);
@@ -443,20 +429,6 @@ public class CsvImportService {
             }
 
             String subjectNames = String.join(", ", selectedSubjects);
-
-            // Validate and parse batch year (handle day batch format like "2028Day")
-            Integer batchYear;
-            boolean isDayBatch = false;
-            try {
-                String cleanBatchYear = batchYearStr.trim();
-                if (cleanBatchYear.endsWith("Day")) {
-                    isDayBatch = true;
-                    cleanBatchYear = cleanBatchYear.substring(0, cleanBatchYear.length() - 3);
-                }
-                batchYear = Integer.parseInt(cleanBatchYear);
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid batch year format: " + batchYearStr);
-            }
 
             // Validate and parse admission date
             LocalDate admissionDate;
@@ -503,14 +475,14 @@ public class CsvImportService {
             }
 
             return new StudentCsvImportRequest(
+                    studentIdCode.trim(),
+                    admissionDate,
                     fullName.trim(),
                     address.trim(),
                     nic != null && !nic.trim().isEmpty() ? nic.trim() : null,
                     school.trim(),
-                    admissionDate,
                     cleanPhone,
-                    batchYear,
-                    isDayBatch,
+                    0, // batchId placeholder - actual batch is provided separately
                     subjectNames
             );
         } catch (Exception e) {
@@ -543,39 +515,6 @@ public class CsvImportService {
         }
     }
 
-    private StudentDto createStudentFromCsv(StudentCsvImportRequest request) {
-        // Find or validate batch (defaults to non-day batch)
-        Batch batch = batchRepository.findByBatchYearAndIsDayBatch(request.batchYear(), false)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                "Batch with year " + request.batchYear() + " not found"));
-
-        // Parse and validate subjects
-        Set<Subject> subjects = parseSubjects(request.subjectNames());
-
-        // Auto-generate batch-based student ID code
-        String studentIdCode = studentService.getNextStudentIdForBatch(batch.getId());
-
-        // Generate batch-based index number using the same system as individual creation
-        String indexNumber = studentService.getNextIndexNumberForBatch(batch.getId());
-
-        // Create student with new field structure
-        Student student = Student.builder()
-                .studentIdCode(studentIdCode)
-                .indexNumber(indexNumber)
-                .fullName(request.fullName())
-                .address(request.address())
-                .nic(request.nic() != null && !request.nic().trim().isEmpty() ? request.nic().toUpperCase() : null)
-                .school(request.school())
-                .admissionDate(request.admissionDate())
-                .parentPhone(request.phoneNumber())
-                .batch(batch)
-                .subjects(subjects)
-                .isActive(true)
-                .build();
-
-        Student savedStudent = studentRepository.save(student);
-        return studentService.mapToStudentDto(savedStudent);
-    }
 
     private Set<Subject> parseSubjects(String subjectNames) {
         if (subjectNames == null || subjectNames.trim().isEmpty()) {
@@ -610,7 +549,7 @@ public class CsvImportService {
             // Add sample data rows for reference matching the expected format
             // Row 1: John Doe - Mathematics and Physics student
             List<Object> row1 = new ArrayList<>();
-            row1.add("2024");                           // Batch Year
+            row1.add("JD001");                          // Student ID Code
             row1.add("2024-01-15");                     // Admission Date (YYYY-MM-DD)
             row1.add("John Doe");                       // Full Name
             row1.add("123 Main Street, Colombo 03");    // Address
@@ -629,7 +568,7 @@ public class CsvImportService {
 
             // Row 2: Jane Smith - Chemistry student
             List<Object> row2 = new ArrayList<>();
-            row2.add("2024");                           // Batch Year
+            row2.add("JS002");                          // Student ID Code
             row2.add("2024-02-20");                     // Admission Date (YYYY-MM-DD)
             row2.add("Jane Smith");                     // Full Name
             row2.add("456 Lake Road, Kandy");           // Address
@@ -648,7 +587,7 @@ public class CsvImportService {
 
             // Row 3: Bob Johnson - Multiple subjects student
             List<Object> row3 = new ArrayList<>();
-            row3.add("2025");                           // Batch Year
+            row3.add("BJ003");                          // Student ID Code
             row3.add("2025-03-10");                     // Admission Date (YYYY-MM-DD)
             row3.add("Bob Johnson");                    // Full Name
             row3.add("789 Hill View, Galle");           // Address
@@ -669,7 +608,7 @@ public class CsvImportService {
 
             // Row 4: Example with different combination
             List<Object> row4 = new ArrayList<>();
-            row4.add("2025");                           // Batch Year
+            row4.add("SW004");                          // Student ID Code
             row4.add("2025-04-05");                     // Admission Date (YYYY-MM-DD)
             row4.add("Sarah Wilson");                   // Full Name
             row4.add("321 Beach Road, Negombo");        // Address
@@ -718,7 +657,7 @@ public class CsvImportService {
             // Row 1: John Doe - Mathematics and Physics student
             Row row1 = sheet.createRow(1);
             int colIndex = 0;
-            row1.createCell(colIndex++).setCellValue(2024);                          // Batch Year
+            row1.createCell(colIndex++).setCellValue("JD001");                       // Student ID Code
             row1.createCell(colIndex++).setCellValue("2024-01-15");                  // Admission Date
             row1.createCell(colIndex++).setCellValue("John Doe");                    // Full Name
             row1.createCell(colIndex++).setCellValue("123 Main Street, Colombo 03");  // Address
@@ -737,7 +676,7 @@ public class CsvImportService {
             // Row 2: Jane Smith - Chemistry student
             Row row2 = sheet.createRow(2);
             colIndex = 0;
-            row2.createCell(colIndex++).setCellValue(2024);                          // Batch Year
+            row2.createCell(colIndex++).setCellValue("JS002");                       // Student ID Code
             row2.createCell(colIndex++).setCellValue("2024-02-20");                  // Admission Date
             row2.createCell(colIndex++).setCellValue("Jane Smith");                  // Full Name
             row2.createCell(colIndex++).setCellValue("456 Lake Road, Kandy");         // Address
@@ -756,7 +695,7 @@ public class CsvImportService {
             // Row 3: Bob Johnson - Multiple subjects student
             Row row3 = sheet.createRow(3);
             colIndex = 0;
-            row3.createCell(colIndex++).setCellValue(2025);                          // Batch Year
+            row3.createCell(colIndex++).setCellValue("BJ003");                       // Student ID Code
             row3.createCell(colIndex++).setCellValue("2025-03-10");                  // Admission Date
             row3.createCell(colIndex++).setCellValue("Bob Johnson");                 // Full Name
             row3.createCell(colIndex++).setCellValue("789 Hill View, Galle");        // Address
@@ -777,7 +716,7 @@ public class CsvImportService {
             // Row 4: Sarah Wilson - Example with different combination
             Row row4 = sheet.createRow(4);
             colIndex = 0;
-            row4.createCell(colIndex++).setCellValue(2025);                          // Batch Year
+            row4.createCell(colIndex++).setCellValue("SW004");                       // Student ID Code
             row4.createCell(colIndex++).setCellValue("2025-04-05");                  // Admission Date
             row4.createCell(colIndex++).setCellValue("Sarah Wilson");                // Full Name
             row4.createCell(colIndex++).setCellValue("321 Beach Road, Negombo");     // Address
@@ -826,7 +765,8 @@ public class CsvImportService {
                         student.getBatch().getBatchYear(),
                         student.getBatch().isDayBatch(),
                         student.getBatch().getDisplayName(),
-                        0L // We don't need exact count for import, so set to 0
+                        0L, // We don't need exact count for import, so set to 0
+                        student.getBatch().isArchived()
                 ),
                 student.getSubjects().stream()
                         .map(subject -> new SubjectDto(

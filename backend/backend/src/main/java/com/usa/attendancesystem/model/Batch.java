@@ -28,6 +28,9 @@ public class Batch {
     @Column(name = "is_day_batch", nullable = false)
     private boolean isDayBatch = false;
 
+    @Column(name = "is_archived", nullable = false)
+    private boolean isArchived = false;
+
     public Batch(int batchYear) {
         this.batchYear = batchYear;
         this.isDayBatch = false;

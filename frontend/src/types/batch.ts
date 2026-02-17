@@ -10,6 +10,7 @@ export interface BatchDto {
   isDayBatch: boolean;
   displayName: string;
   studentCount: number;
+  isArchived: boolean;
 }
 
 export interface CreateBatchRequest {

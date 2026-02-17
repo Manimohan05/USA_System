@@ -16,6 +16,7 @@ export default function BulkImportPage() {
   const [subjects, setSubjects] = useState<SubjectDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [instructionsExpanded, setInstructionsExpanded] = useState(false);
+  const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchInitialData();
@@ -27,8 +28,13 @@ export default function BulkImportPage() {
         api.get<BatchDto[]>('/admin/institute/batches'),
         api.get<SubjectDto[]>('/admin/institute/subjects'),
       ]);
-      setBatches(batchesRes.data);
+      const activeBatches = batchesRes.data.filter(batch => !batch.isArchived);
+      setBatches(activeBatches);
       setSubjects(subjectsRes.data);
+      // Auto-select first batch if available
+      if (activeBatches.length > 0) {
+        setSelectedBatchId(activeBatches[0].id);
+      }
     } catch (error) {
       console.error('Failed to fetch initial data:', error);
     } finally {
@@ -145,6 +151,46 @@ export default function BulkImportPage() {
 
           {!importResult ? (
             <>
+              {/* Batch Selection Section */}
+              <div className="backdrop-blur-md bg-white/70 rounded-2xl shadow-xl border border-white/20 p-8">
+                <div className="flex items-center space-x-4 mb-6">
+                  <div className="p-3 bg-gradient-to-br from-green-500 to-teal-600 rounded-xl shadow-lg">
+                    <GraduationCap className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                      Select Target Batch
+                    </h2>
+                    <p className="text-gray-600">Choose which batch to import these students into</p>
+                  </div>
+                </div>
+                
+                <div className="max-w-md">
+                  <label htmlFor="batch-select" className="block text-sm font-medium text-gray-700 mb-2">
+                    Batch *
+                  </label>
+                  <select
+                    id="batch-select"
+                    value={selectedBatchId || ''}
+                    onChange={(e) => setSelectedBatchId(Number(e.target.value) || null)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focused:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-gray-900"
+                  >
+                    <option value="">-- Select a batch --</option>
+                    {batches.map((batch) => (
+                      <option key={batch.id} value={batch.id}>
+                        {batch.displayName} ({batch.studentCount} students)
+                      </option>
+                    ))}
+                  </select>
+                  {!selectedBatchId && (
+                    <p className="mt-2 text-sm text-red-600 flex items-center">
+                      <AlertCircle className="h-4 w-4 mr-1" />
+                      Please select a batch to proceed
+                    </p>
+                  )}
+                </div>
+              </div>
+
               {/* Modern Upload Section */}
               <div className="backdrop-blur-md bg-white/70 rounded-2xl shadow-xl border border-white/20 p-8">
                 <div className="flex items-center space-x-4 mb-6">
@@ -153,13 +199,25 @@ export default function BulkImportPage() {
                   </div>
                   <div>
                     <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-                      Upload CSV File
+                      Upload CSV or Excel File
                     </h2>
-                    <p className="text-gray-600">Drag and drop or click to select your file</p>
+                    <p className="text-gray-600">Drag and drop or click to select your file (.csv, .xlsx)</p>
                   </div>
                 </div>
                 
-                <CsvFileUpload onImportComplete={handleImportComplete} />
+                {selectedBatchId ? (
+                  <CsvFileUpload 
+                    onImportComplete={handleImportComplete}
+                    selectedBatchId={selectedBatchId}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center p-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                    <div className="text-center">
+                      <AlertCircle className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-600 font-medium">Select a batch first to upload students</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Modern Instructions Card */}
@@ -250,14 +308,17 @@ export default function BulkImportPage() {
                   
                   <ul className="space-y-3 text-sm text-yellow-800">
                     {[
-                      'Batch Year, Full Name, Address, School, Phone No required',
+                      'Batch: Select from dropdown before uploading (no longer needed in file)',
+                      'Student ID Code: Required (e.g., STU001, JD001) - not auto-generated in bulk import',
+                      'Full Name, Address, School, Phone No required',
                       'NIC is optional (leave empty if not available)',
                       'Admission Date: YYYY-MM-DD format (2026-01-21)',
                       'Phone numbers: Sri Lankan format (0771234567)',
                       'NIC format: 123456789V or 123456789012 (when provided)',
-                      'Subjects: 0,1 assignments based on prefered subjects',
+                      'Subjects: Column with 0,1 assignments based on prefered subjects',
                       'Index numbers: Auto-generated based on batch',
-                      'Maximum file size: 10MB'
+                      'Maximum file size: 10MB',
+                      'File formats: CSV (.csv) or Excel (.xlsx, .xls)'
                     ].map((item, i) => (
                       <li key={i} className="flex items-start space-x-2">
                         <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full mt-2 flex-shrink-0"></div>

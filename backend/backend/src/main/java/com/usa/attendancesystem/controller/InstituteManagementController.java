@@ -82,6 +82,62 @@ public class InstituteManagementController {
         }
     }
 
+    @GetMapping("/batches/archived")
+    public ResponseEntity<List<BatchDto>> getArchivedBatches() {
+        System.out.println("InstituteManagementController - getArchivedBatches() called");
+        try {
+            List<BatchDto> batches = instituteManagementService.getArchivedBatches();
+            System.out.println("InstituteManagementController - Found " + batches.size() + " archived batches");
+            return ResponseEntity.ok(batches);
+        } catch (Exception e) {
+            System.out.println("InstituteManagementController - Error in getArchivedBatches: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
+
+    @PutMapping("/batches/{id}/archive")
+    public ResponseEntity<BatchDto> archiveBatch(@PathVariable Integer id) {
+        System.out.println("InstituteManagementController - archiveBatch() called for ID: " + id);
+        try {
+            BatchDto archivedBatch = instituteManagementService.archiveBatch(id);
+            System.out.println("InstituteManagementController - Batch archived successfully");
+            return ResponseEntity.ok(archivedBatch);
+        } catch (Exception e) {
+            System.out.println("InstituteManagementController - Error in archiveBatch: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
+
+    @PutMapping("/batches/{id}/recover")
+    public ResponseEntity<BatchDto> recoverBatch(@PathVariable Integer id) {
+        System.out.println("InstituteManagementController - recoverBatch() called for ID: " + id);
+        try {
+            BatchDto recoveredBatch = instituteManagementService.recoverBatch(id);
+            System.out.println("InstituteManagementController - Batch recovered successfully");
+            return ResponseEntity.ok(recoveredBatch);
+        } catch (Exception e) {
+            System.out.println("InstituteManagementController - Error in recoverBatch: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
+
+    @DeleteMapping("/batches/{id}/permanent")
+    public ResponseEntity<Void> permanentlyDeleteBatch(@PathVariable Integer id) {
+        System.out.println("InstituteManagementController - permanentlyDeleteBatch() called for ID: " + id);
+        try {
+            instituteManagementService.permanentlyDeleteBatch(id);
+            System.out.println("InstituteManagementController - Batch permanently deleted successfully");
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            System.out.println("InstituteManagementController - Error in permanentlyDeleteBatch: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
+
     // --- Subject Endpoints ---
     @PostMapping("/subjects")
     public ResponseEntity<SubjectDto> createSubject(@Valid @RequestBody CreateSubjectRequest request) {

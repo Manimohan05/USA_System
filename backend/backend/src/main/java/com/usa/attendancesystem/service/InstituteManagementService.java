@@ -44,18 +44,65 @@ public class InstituteManagementService {
         Batch savedBatch = batchRepository.save(newBatch);
         long studentCount = studentRepository.countActiveStudentsByBatch(savedBatch.getId());
         return new BatchDto(savedBatch.getId(), savedBatch.getBatchYear(), savedBatch.isDayBatch(),
-                savedBatch.getDisplayName(), studentCount);
+                savedBatch.getDisplayName(), studentCount, savedBatch.isArchived());
     }
 
     @Transactional(readOnly = true)
     public List<BatchDto> getAllBatches() {
-        return batchRepository.findAll().stream()
+        return batchRepository.findByIsArchivedFalse().stream()
                 .map(batch -> {
                     long studentCount = studentRepository.countActiveStudentsByBatch(batch.getId());
                     return new BatchDto(batch.getId(), batch.getBatchYear(), batch.isDayBatch(),
-                            batch.getDisplayName(), studentCount);
+                            batch.getDisplayName(), studentCount, batch.isArchived());
                 })
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<BatchDto> getArchivedBatches() {
+        return batchRepository.findByIsArchivedTrue().stream()
+                .map(batch -> {
+                    long studentCount = studentRepository.countActiveStudentsByBatch(batch.getId());
+                    return new BatchDto(batch.getId(), batch.getBatchYear(), batch.isDayBatch(),
+                            batch.getDisplayName(), studentCount, batch.isArchived());
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public BatchDto archiveBatch(Integer batchId) {
+        Batch batch = batchRepository.findById(batchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Batch not found with ID: " + batchId));
+        
+        batch.setArchived(true);
+        Batch archivedBatch = batchRepository.save(batch);
+        long studentCount = studentRepository.countActiveStudentsByBatch(archivedBatch.getId());
+        return new BatchDto(archivedBatch.getId(), archivedBatch.getBatchYear(), archivedBatch.isDayBatch(),
+                archivedBatch.getDisplayName(), studentCount, archivedBatch.isArchived());
+    }
+
+    @Transactional
+    public BatchDto recoverBatch(Integer batchId) {
+        Batch batch = batchRepository.findById(batchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Batch not found with ID: " + batchId));
+        
+        batch.setArchived(false);
+        Batch recoveredBatch = batchRepository.save(batch);
+        long studentCount = studentRepository.countActiveStudentsByBatch(recoveredBatch.getId());
+        return new BatchDto(recoveredBatch.getId(), recoveredBatch.getBatchYear(), recoveredBatch.isDayBatch(),
+                recoveredBatch.getDisplayName(), studentCount, recoveredBatch.isArchived());
+    }
+
+    @Transactional
+    public void permanentlyDeleteBatch(Integer batchId) {
+        Batch batch = batchRepository.findById(batchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Batch not found with ID: " + batchId));
+
+        if (!batch.isArchived()) {
+            throw new IllegalStateException("Only archived batches can be permanently deleted. Archive the batch first.");
+        }
+
+        batchRepository.delete(batch);
     }
 
     // --- Subject Methods ---
@@ -124,7 +171,7 @@ public class InstituteManagementService {
         batch.setBatchYear(request.batchYear());
         Batch updatedBatch = batchRepository.save(batch);
         long studentCount = studentRepository.countActiveStudentsByBatch(updatedBatch.getId());
-        return new BatchDto(updatedBatch.getId(), updatedBatch.getBatchYear(), updatedBatch.isDayBatch(), updatedBatch.getDisplayName(), studentCount);
+        return new BatchDto(updatedBatch.getId(), updatedBatch.getBatchYear(), updatedBatch.isDayBatch(), updatedBatch.getDisplayName(), studentCount, updatedBatch.isArchived());
     }
 
     @Transactional
@@ -132,8 +179,8 @@ public class InstituteManagementService {
         Batch batch = batchRepository.findById(batchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Batch not found with ID: " + batchId));
 
-        // Note: In a real application, you might want to check if the batch is being used
-        // by any students before allowing deletion
-        batchRepository.delete(batch);
+        // Archive the batch instead of permanently deleting it
+        batch.setArchived(true);
+        batchRepository.save(batch);
     }
 }

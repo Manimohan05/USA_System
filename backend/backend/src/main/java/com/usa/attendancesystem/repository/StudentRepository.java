@@ -35,15 +35,16 @@ public interface StudentRepository extends JpaRepository<Student, UUID> {
     /**
      * Finds all active students belonging to a specific batch and enrolled in a
      * specific subject. This is the core query for filtering the student list
-     * in the admin dashboard.
+     * in the admin dashboard. Excludes students from archived batches.
      */
-    @Query("SELECT s FROM Student s JOIN s.subjects sub WHERE s.batch.id = :batchId AND sub.id = :subjectId AND s.isActive = true")
+    @Query("SELECT s FROM Student s JOIN s.subjects sub WHERE s.batch.id = :batchId AND sub.id = :subjectId AND s.isActive = true AND s.batch.isArchived = false")
     List<Student> findActiveStudentsByBatchAndSubject(@Param("batchId") Integer batchId, @Param("subjectId") Integer subjectId);
 
     /**
-     * Finds all active students for dashboard statistics.
+     * Finds all active students for dashboard statistics. Excludes students from archived batches.
      */
-    List<Student> findByIsActiveTrue();
+    @Query("SELECT s FROM Student s WHERE s.isActive = true AND s.batch.isArchived = false")
+    List<Student> findByIsActiveTrueAndBatchNotArchived();
 
     /**
      * Finds all archived (inactive) students.
@@ -52,28 +53,28 @@ public interface StudentRepository extends JpaRepository<Student, UUID> {
 
     /**
      * Finds all active students belonging to a specific batch. Used for
-     * filtering by batch only.
+     * filtering by batch only. Excludes students from archived batches.
      */
-    @Query("SELECT s FROM Student s WHERE s.batch.id = :batchId AND s.isActive = true")
+    @Query("SELECT s FROM Student s WHERE s.batch.id = :batchId AND s.isActive = true AND s.batch.isArchived = false")
     List<Student> findActiveStudentsByBatch(@Param("batchId") Integer batchId);
 
     /**
      * Finds all active students enrolled in a specific subject. Used for
-     * filtering by subject only.
+     * filtering by subject only. Excludes students from archived batches.
      */
-    @Query("SELECT s FROM Student s JOIN s.subjects sub WHERE sub.id = :subjectId AND s.isActive = true")
+    @Query("SELECT s FROM Student s JOIN s.subjects sub WHERE sub.id = :subjectId AND s.isActive = true AND s.batch.isArchived = false")
     List<Student> findActiveStudentsBySubject(@Param("subjectId") Integer subjectId);
 
     /**
-     * Counts all active students enrolled in a specific subject.
+     * Counts all active students enrolled in a specific subject. Excludes students from archived batches.
      */
-    @Query("SELECT COUNT(s) FROM Student s JOIN s.subjects sub WHERE sub.id = :subjectId AND s.isActive = true")
+    @Query("SELECT COUNT(s) FROM Student s JOIN s.subjects sub WHERE sub.id = :subjectId AND s.isActive = true AND s.batch.isArchived = false")
     Long countActiveStudentsBySubject(@Param("subjectId") Integer subjectId);
 
     /**
-     * Counts all active students belonging to a specific batch.
+     * Counts all active students belonging to a specific batch. Excludes students from archived batches.
      */
-    @Query("SELECT COUNT(s) FROM Student s WHERE s.batch.id = :batchId AND s.isActive = true")
+    @Query("SELECT COUNT(s) FROM Student s WHERE s.batch.id = :batchId AND s.isActive = true AND s.batch.isArchived = false")
     Long countActiveStudentsByBatch(@Param("batchId") Integer batchId);
 
     /**

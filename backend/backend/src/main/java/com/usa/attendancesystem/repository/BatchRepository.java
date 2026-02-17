@@ -1,5 +1,6 @@
 package com.usa.attendancesystem.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -19,4 +20,10 @@ public interface BatchRepository extends JpaRepository<Batch, Integer> {
 
     // Find batch by year and day batch flag for validation
     Optional<Batch> findByBatchYearAndIsDayBatch(int year, boolean isDayBatch);
+
+    // Find all active (non-archived) batches
+    List<Batch> findByIsArchivedFalse();
+
+    // Find all archived batches
+    List<Batch> findByIsArchivedTrue();
 }

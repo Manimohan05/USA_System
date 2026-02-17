@@ -7,9 +7,10 @@ import type { CsvImportResult, CsvUploadProgress } from '@/types';
 
 interface CsvFileUploadProps {
   onImportComplete: (result: CsvImportResult) => void;
+  selectedBatchId: number;
 }
 
-export default function CsvFileUpload({ onImportComplete }: CsvFileUploadProps) {
+export default function CsvFileUpload({ onImportComplete, selectedBatchId }: CsvFileUploadProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<CsvUploadProgress>({
     uploading: false,
@@ -89,6 +90,7 @@ export default function CsvFileUpload({ onImportComplete }: CsvFileUploadProps) 
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
+      formData.append('batchId', selectedBatchId.toString());
 
       const response = await api.post<CsvImportResult>('/admin/students/import-csv', formData, {
         headers: {
