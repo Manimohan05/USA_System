@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useToast } from '@/contexts/toast';
-import { Plus, Search, Filter, Users, Edit, Trash2, AlertCircle, RefreshCw, Upload, Archive, Download } from 'lucide-react';
+import { Plus, Search, Filter, Users, Edit, Trash2, AlertCircle, RefreshCw, Upload, Archive, Download, Info, X } from 'lucide-react';
 import api from '@/lib/api';
 import { formatPhoneNumber } from '@/lib/utils';
 import type { StudentDto, BatchDto, SubjectDto } from '@/types';
@@ -25,6 +25,7 @@ export default function StudentsPage() {
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; student: StudentDto | null }>({ show: false, student: null });
   const [deleting, setDeleting] = useState(false);
+  const [infoPopover, setInfoPopover] = useState<{ show: boolean; student: StudentDto | null }>({ show: false, student: null });
 
   useEffect(() => {
     fetchInitialData();
@@ -479,6 +480,13 @@ export default function StudentsPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex items-center justify-end space-x-2">
                             <button
+                              onClick={() => setInfoPopover({ show: true, student })}
+                              className="text-blue-600 hover:text-blue-900 p-1 rounded transition-colors"
+                              title="More Info"
+                            >
+                              <Info className="h-4 w-4" />
+                            </button>
+                            <button
                               onClick={() => router.push(`/dashboard/students/edit/${student.id}`)}
                               className="text-gray-600 hover:text-gray-900 p-1 rounded transition-colors"
                               title="Edit Student"
@@ -594,6 +602,78 @@ export default function StudentsPage() {
                   {deleting ? 'Archiving...' : 'Archive Student'}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* More Info Popover */}
+        {infoPopover.show && infoPopover.student && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-2xl">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center">
+                  <div className="bg-blue-100 p-2 rounded-full mr-3">
+                    <Info className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-gray-900">{infoPopover.student.fullName}</h2>
+                </div>
+                <button
+                  onClick={() => setInfoPopover({ show: false, student: null })}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-5 mb-6">
+                {/* Student ID */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4">
+                  <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Student ID</p>
+                  <p className="text-lg font-bold text-gray-900 mt-1">{infoPopover.student.studentIdCode}</p>
+                </div>
+
+                {/* Address */}
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Address</p>
+                  <p className="text-sm text-gray-900 mt-2 leading-relaxed">
+                    {infoPopover.student.address || '-'}
+                  </p>
+                </div>
+
+                {/* NIC Number */}
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">NIC Number</p>
+                  <p className="text-sm text-gray-900 mt-2 font-mono">
+                    {infoPopover.student.nic || '-'}
+                  </p>
+                </div>
+
+                {/* School */}
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">School</p>
+                  <p className="text-sm text-gray-900 mt-2">
+                    {infoPopover.student.school || '-'}
+                  </p>
+                </div>
+
+                {/* Admission Date */}
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Admission Date</p>
+                  <p className="text-sm text-gray-900 mt-2">
+                    {infoPopover.student.admissionDate 
+                      ? new Date(infoPopover.student.admissionDate).toLocaleDateString() 
+                      : '-'
+                    }
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setInfoPopover({ show: false, student: null })}
+                className="w-full bg-blue-600 text-white font-medium py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         )}
