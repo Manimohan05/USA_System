@@ -20,6 +20,8 @@ export default function BatchesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; batch: BatchDto | null }>({ show: false, batch: null });
   const [deleting, setDeleting] = useState(false);
+  const [permanentDeleteConfirm, setPermanentDeleteConfirm] = useState<{ show: boolean; batch: BatchDto | null }>({ show: false, batch: null });
+  const [deletingPermanent, setDeletingPermanent] = useState(false);
   const [showArchivedSection, setShowArchivedSection] = useState(false);
 
   useEffect(() => {
@@ -163,17 +165,21 @@ export default function BatchesPage() {
   };
 
   const handlePermanentlyDeleteBatch = async (batch: BatchDto) => {
-    if (!confirm(`Are you sure you want to permanently delete batch "${batch.displayName}"? This action cannot be undone.`)) {
-      return;
-    }
+    setPermanentDeleteConfirm({ show: true, batch });
+  };
 
+  const confirmPermanentDeleteBatch = async () => {
+    if (!permanentDeleteConfirm.batch) return;
+
+    setDeletingPermanent(true);
     try {
-      await api.delete(`/admin/institute/batches/${batch.id}/permanent`);
-      setArchivedBatches(archivedBatches.filter(b => b.id !== batch.id));
+      await api.delete(`/admin/institute/batches/${permanentDeleteConfirm.batch.id}/permanent`);
+      setArchivedBatches(archivedBatches.filter(b => b.id !== permanentDeleteConfirm.batch!.id));
+      setPermanentDeleteConfirm({ show: false, batch: null });
       addToast({
         type: 'success',
         title: 'Batch Deleted',
-        message: `Batch "${batch.displayName}" has been permanently deleted.`,
+        message: `Batch "${permanentDeleteConfirm.batch.displayName}" has been permanently deleted.`,
         duration: 5000
       });
     } catch (error) {
@@ -183,11 +189,17 @@ export default function BatchesPage() {
         message: 'Unable to delete batch. Please try again.',
         duration: 5000
       });
+    } finally {
+      setDeletingPermanent(false);
     }
   };
 
   const cancelDelete = () => {
     setDeleteConfirm({ show: false, batch: null });
+  };
+
+  const cancelPermanentDelete = () => {
+    setPermanentDeleteConfirm({ show: false, batch: null });
   };
 
   const resetForm = () => {
@@ -376,6 +388,41 @@ export default function BatchesPage() {
                     className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50"
                   >
                     {deleting ? 'Archiving...' : 'Archive Batch'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Permanent Delete Confirmation Modal */}
+          {permanentDeleteConfirm.show && permanentDeleteConfirm.batch && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                <div className="flex items-center mb-4">
+                  <div className="bg-red-100 p-2 rounded-full mr-3">
+                    <Trash2 className="h-5 w-5 text-red-600" />
+                  </div>
+                  <h2 className="text-lg font-medium text-gray-900">Permanently Delete Batch</h2>
+                </div>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to permanently delete batch "{permanentDeleteConfirm.batch.displayName}"?
+                  This action cannot be undone.
+                </p>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={cancelPermanentDelete}
+                    disabled={deletingPermanent}
+                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmPermanentDeleteBatch}
+                    disabled={deletingPermanent}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {deletingPermanent ? 'Deleting...' : 'Delete Permanently'}
                   </button>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -64,12 +64,51 @@ export default function AttendanceSessionPage() {
   const [confirmMessage, setConfirmMessage] = useState('');
   const [confirmTitle, setConfirmTitle] = useState('');
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+  const feeDueAudioRef = useRef<HTMLAudioElement | null>(null);
+  const feeDueAudioTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const playFeeDueAlert = async () => {
+    try {
+      if (!feeDueAudioRef.current) {
+        feeDueAudioRef.current = new Audio('/audio/feesdue.mp3');
+        feeDueAudioRef.current.preload = 'auto';
+      }
+
+      const audio = feeDueAudioRef.current;
+
+      if (feeDueAudioTimeoutRef.current) {
+        clearTimeout(feeDueAudioTimeoutRef.current);
+      }
+
+      audio.currentTime = 0;
+      await audio.play();
+
+      feeDueAudioTimeoutRef.current = setTimeout(() => {
+        audio.pause();
+        audio.currentTime = 0;
+      }, 2000);
+    } catch (audioError) {
+      console.warn('Unable to play fee due alert sound:', audioError);
+    }
+  };
 
   useEffect(() => {
     if (sessionId) {
       fetchSessionData();
     }
   }, [sessionId]);
+
+  useEffect(() => {
+    return () => {
+      if (feeDueAudioTimeoutRef.current) {
+        clearTimeout(feeDueAudioTimeoutRef.current);
+      }
+      if (feeDueAudioRef.current) {
+        feeDueAudioRef.current.pause();
+        feeDueAudioRef.current.currentTime = 0;
+      }
+    };
+  }, []);
 
   // Countdown Timer Effect
   useEffect(() => {
@@ -223,6 +262,9 @@ export default function AttendanceSessionPage() {
       setValidationResponse(response.data);
       
       if (response.data.success) {
+        if (response.data.hasFeePaymentIssue) {
+          await playFeeDueAlert();
+        }
         setIndexInput('');
         // Auto-clear success message after 5 seconds
         setTimeout(() => setValidationResponse(null), 5000);

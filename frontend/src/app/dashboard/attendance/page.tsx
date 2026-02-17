@@ -7,6 +7,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useToast } from '@/contexts/toast';
 import { useNotifications } from '@/contexts/notification';
 import { Calendar, Users, CheckCircle, XCircle, Download, Search, Play, Pause, Settings, Clock, BookOpen, GraduationCap, User, ExternalLink, AlertTriangle, RotateCcw } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import api from '@/lib/api';
 import { formatDate, formatDateForAPI } from '@/lib/utils';
 import type { 
@@ -694,35 +695,54 @@ function AttendancePageContent() {
     }
   };
 
-  const downloadReport = () => {
+  const downloadReport = (format: 'csv' | 'xlsx' = 'csv') => {
     if (!attendanceReport) return;
-    
-    // Create CSV content
-    const csvContent = [
-      ['Student ID', 'Full Name', 'Status', 'Marked At'],
-      ...attendanceReport.presentStudents.map(student => [
-        student.studentIdCode,
-        student.fullName,
-        'Present',
-        formatDate(student.markedAt, 'time')
-      ]),
-      ...attendanceReport.absentStudents.map(student => [
-        student.studentIdCode,
-        student.fullName,
-        'Absent',
-        '-'
-      ])
-    ].map(row => row.join(',')).join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `attendance_${reportDate}_batch${reportBatch}_subject${reportSubject}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+
+    const reportRows = [
+      ...attendanceReport.presentStudents.map(student => ({
+        'Student ID': student.studentIdCode,
+        'Full Name': student.fullName,
+        'Status': 'Present',
+        'Marked At': formatDate(student.markedAt, 'time')
+      })),
+      ...attendanceReport.absentStudents.map(student => ({
+        'Student ID': student.studentIdCode,
+        'Full Name': student.fullName,
+        'Status': 'Absent',
+        'Marked At': '-'
+      }))
+    ];
+
+    const baseFilename = `attendance_${reportDate}_batch${reportBatch}_subject${reportSubject}`;
+
+    if (format === 'csv') {
+      const csvContent = [
+        ['Student ID', 'Full Name', 'Status', 'Marked At'],
+        ...reportRows.map(row => [row['Student ID'], row['Full Name'], row['Status'], row['Marked At']])
+      ].map(row => row.join(',')).join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${baseFilename}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet(reportRows);
+    ws['!cols'] = [
+      { wch: 16 },
+      { wch: 30 },
+      { wch: 12 },
+      { wch: 16 }
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
+    XLSX.writeFile(wb, `${baseFilename}.xlsx`);
   };
 
   // Enhanced Report Functions
@@ -815,7 +835,7 @@ function AttendancePageContent() {
     }
   };
 
-  const downloadEnhancedReport = () => {
+  const downloadEnhancedReport = (format: 'csv' | 'xlsx' = 'csv') => {
     if (!enhancedReport) return;
     
     // Separate present and absent records
@@ -852,13 +872,6 @@ function AttendancePageContent() {
       ])
     ];
     
-    const csvContent = csvRows.map(row => Array.isArray(row) ? row.join(',') : row).join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    
     // Generate filename based on report type
     let filename = 'attendance_report';
     if (enhancedReport.studentName) {
@@ -866,13 +879,61 @@ function AttendancePageContent() {
     } else {
       filename += `_${enhancedReport.batchName}_${enhancedReport.subjectName.replace(/\s+/g, '_')}`;
     }
-    filename += `_${enhancedReport.startDate}_to_${enhancedReport.endDate}.csv`;
-    
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    filename += `_${enhancedReport.startDate}_to_${enhancedReport.endDate}`;
+
+    if (format === 'csv') {
+      const csvContent = csvRows.map(row => Array.isArray(row) ? row.join(',') : row).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${filename}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    const presentSheetData = presentRecords.map(record => ({
+      Date: record.sessionDate,
+      'Student ID': record.studentIdCode,
+      'Student Name': record.studentName,
+      Subject: record.subjectName,
+      Status: record.status,
+      'Marked At': record.markedAt ? formatDate(record.markedAt, 'datetime') : '-'
+    }));
+
+    const absentSheetData = absentRecords.map(record => ({
+      Date: record.sessionDate,
+      'Student ID': record.studentIdCode,
+      'Student Name': record.studentName,
+      Subject: record.subjectName,
+      Status: record.status,
+      'Marked At': record.markedAt ? formatDate(record.markedAt, 'datetime') : '-'
+    }));
+
+    const summarySheetData = [
+      { Metric: 'Start Date', Value: enhancedReport.startDate },
+      { Metric: 'End Date', Value: enhancedReport.endDate },
+      { Metric: 'Present Students', Value: presentRecords.length },
+      { Metric: 'Absent Students', Value: absentRecords.length },
+      { Metric: 'Total Records', Value: enhancedReport.attendanceRecords.length }
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const summaryWs = XLSX.utils.json_to_sheet(summarySheetData);
+    const presentWs = XLSX.utils.json_to_sheet(presentSheetData);
+    const absentWs = XLSX.utils.json_to_sheet(absentSheetData);
+
+    summaryWs['!cols'] = [{ wch: 20 }, { wch: 30 }];
+    presentWs['!cols'] = [{ wch: 14 }, { wch: 16 }, { wch: 28 }, { wch: 20 }, { wch: 12 }, { wch: 22 }];
+    absentWs['!cols'] = [{ wch: 14 }, { wch: 16 }, { wch: 28 }, { wch: 20 }, { wch: 12 }, { wch: 22 }];
+
+    XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+    XLSX.utils.book_append_sheet(wb, presentWs, 'Present');
+    XLSX.utils.book_append_sheet(wb, absentWs, 'Absent');
+    XLSX.writeFile(wb, `${filename}.xlsx`);
   };
 
   const filterStudents = (searchTerm: string) => {
@@ -1500,13 +1561,22 @@ function AttendancePageContent() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={downloadReport}
-                      className="flex items-center px-6 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-200 text-white font-semibold hover:scale-105 shadow-lg"
-                    >
-                      <Download className="h-5 w-5 mr-2" />
-                      Download CSV
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => downloadReport('csv')}
+                        className="flex items-center px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-200 text-white font-semibold hover:scale-105 shadow-lg"
+                      >
+                        <Download className="h-5 w-5 mr-2" />
+                        CSV
+                      </button>
+                      <button
+                        onClick={() => downloadReport('xlsx')}
+                        className="flex items-center px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-200 text-white font-semibold hover:scale-105 shadow-lg"
+                      >
+                        <Download className="h-5 w-5 mr-2" />
+                        Excel
+                      </button>
+                    </div>
                   </div>
 
                   <div className="px-8 py-6 bg-gradient-to-br from-gray-50 to-indigo-50">
@@ -1613,13 +1683,22 @@ function AttendancePageContent() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={downloadEnhancedReport}
-                      className="flex items-center px-6 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-200 text-white font-semibold hover:scale-105 shadow-lg"
-                    >
-                      <Download className="h-5 w-5 mr-2" />
-                      Download CSV
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => downloadEnhancedReport('csv')}
+                        className="flex items-center px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-200 text-white font-semibold hover:scale-105 shadow-lg"
+                      >
+                        <Download className="h-5 w-5 mr-2" />
+                        CSV
+                      </button>
+                      <button
+                        onClick={() => downloadEnhancedReport('xlsx')}
+                        className="flex items-center px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-200 text-white font-semibold hover:scale-105 shadow-lg"
+                      >
+                        <Download className="h-5 w-5 mr-2" />
+                        Excel
+                      </button>
+                    </div>
                   </div>
 
                   {/* Student-specific stats */}

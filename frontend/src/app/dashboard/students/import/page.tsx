@@ -80,6 +80,11 @@ export default function BulkImportPage() {
     );
   }
 
+  const selectedBatch = selectedBatchId ? batches.find((batch) => batch.id === selectedBatchId) : null;
+  const selectedBatchFormatPrefix = selectedBatch
+    ? `${selectedBatch.isDayBatch ? `D${selectedBatch.batchYear % 10}` : `${selectedBatch.batchYear % 10}`}`
+    : null;
+
   return (
     <ProtectedRoute>
       <DashboardLayout>
@@ -190,14 +195,11 @@ export default function BulkImportPage() {
                       Please select a batch to proceed
                     </p>
                   )}
-                  {selectedBatchId && batches.length > 0 && (
+                  {selectedBatch && selectedBatchFormatPrefix && (
                     <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
                       <p className="text-sm text-blue-700">
                         <span className="font-semibold">Student ID Format:</span>{' '}
-                        {batches.find(b => b.id === selectedBatchId)?.isDayBatch 
-                          ? `D${batches.find(b => b.id === selectedBatchId)?.batchYear % 10}XXX (e.g., D${batches.find(b => b.id === selectedBatchId)?.batchYear % 10}001, D${batches.find(b => b.id === selectedBatchId)?.batchYear % 10}002)`
-                          : `${batches.find(b => b.id === selectedBatchId)?.batchYear % 10}XXX (e.g., ${batches.find(b => b.id === selectedBatchId)?.batchYear % 10}001, ${batches.find(b => b.id === selectedBatchId)?.batchYear % 10}002)`
-                        }
+                        {`${selectedBatchFormatPrefix}XXX (e.g., ${selectedBatchFormatPrefix}001, ${selectedBatchFormatPrefix}002)`}
                       </p>
                     </div>
                   )}
@@ -323,8 +325,8 @@ export default function BulkImportPage() {
                   <ul className="space-y-3 text-sm text-yellow-800">
                     {[
                       'Batch: Select from dropdown before uploading (no longer needed in file)',
-                      selectedBatchId 
-                        ? `Student ID Code: Use format ${batches.find(b => b.id === selectedBatchId)?.isDayBatch ? `D${batches.find(b => b.id === selectedBatchId)?.batchYear % 10}XXX` : `${batches.find(b => b.id === selectedBatchId)?.batchYear % 10}XXX`} for selected batch`
+                      selectedBatchFormatPrefix
+                        ? `Student ID Code: Use format ${selectedBatchFormatPrefix}XXX for selected batch`
                         : 'Student ID Code: Required - format depends on selected batch',
                       'Full Name, Address, School, Phone No required',
                       'NIC is optional (leave empty if not available)',

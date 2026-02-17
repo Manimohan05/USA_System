@@ -406,7 +406,7 @@ export default function FeesPage() {
                   <button
                     type="submit"
                     disabled={submitting || !studentIdCode.trim() || !billNumber.trim()}
-                    className="group px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
+                    className="group px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
                   >
                     {submitting ? (
                       <>
@@ -553,9 +553,9 @@ export default function FeesPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4 text-sm">
-                        <div className="flex items-center space-x-2 px-3 py-1 bg-indigo-100 rounded-lg">
-                          <CheckCircle2 className="h-4 w-4 text-indigo-600" />
-                          <span className="text-indigo-800">
+                        <div className="flex items-center space-x-2 px-3 py-1 bg-green-100 rounded-lg">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          <span className="text-green-800">
                             Paid: {reportData.filter(r => r.isPaid).length}
                           </span>
                         </div>
@@ -611,7 +611,7 @@ export default function FeesPage() {
                             <td className="py-3 px-4 text-gray-600">{record.subjectName}</td>
                             <td className="py-3 px-4 text-center">
                               {record.isPaid ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                   <CheckCircle2 className="h-3 w-3 mr-1" />
                                   Paid
                                 </span>
