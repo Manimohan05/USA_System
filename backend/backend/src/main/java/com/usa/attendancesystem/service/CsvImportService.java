@@ -257,6 +257,11 @@ public class CsvImportService {
             throw new RuntimeException("At least one subject is required");
         }
         
+        // Validate NIC format if provided
+        if (studentRequest.nic() != null && !studentRequest.nic().trim().isEmpty()) {
+            validateNicFormat(studentRequest.nic());
+        }
+        
         // Validate subjects exist
         Set<Subject> subjects = parseSubjects(studentRequest.subjectNames());
         if (subjects.isEmpty()) {
@@ -851,6 +856,36 @@ public class CsvImportService {
                         0L // We don't need exact count for import, so set to 0
                 ))
                         .collect(java.util.stream.Collectors.toSet())
+        );
+    }
+
+    /**
+     * Validates NIC (National Identity Card) format.
+     * Sri Lankan NIC can be either:
+     * - Old format: 9 digits + 1 letter (V or X) = 10 characters (e.g., 123456789V)
+     * - New format: 12 digits = 12 characters (e.g., 198712345678)
+     */
+    private void validateNicFormat(String nic) {
+        if (nic == null || nic.trim().isEmpty()) {
+            return; // NIC is optional
+        }
+
+        nic = nic.trim().toUpperCase();
+
+        // Check old format: 9 digits + V or X
+        if (nic.matches("^\\d{9}[VX]$")) {
+            return; // Valid old format
+        }
+
+        // Check new format: 12 digits
+        if (nic.matches("^\\d{12}$")) {
+            return; // Valid new format
+        }
+
+        // Invalid format
+        throw new RuntimeException(
+            "Invalid NIC format. Sri Lankan NIC must be either: " +
+            "9 digits + V/X (e.g., 123456789V) or 12 digits (e.g., 198712345678). Got: " + nic
         );
     }
 
