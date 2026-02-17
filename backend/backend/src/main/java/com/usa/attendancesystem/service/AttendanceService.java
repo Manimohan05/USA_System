@@ -28,10 +28,13 @@ import com.usa.attendancesystem.exception.DuplicateResourceException;
 import com.usa.attendancesystem.exception.ResourceNotFoundException;
 import com.usa.attendancesystem.model.AttendanceRecord;
 import com.usa.attendancesystem.model.AttendanceSession;
+import com.usa.attendancesystem.model.FeeExemption;
+import com.usa.attendancesystem.model.FeeExemptionType;
 import com.usa.attendancesystem.model.Student;
 import com.usa.attendancesystem.model.Subject;
 import com.usa.attendancesystem.repository.AttendanceRecordRepository;
 import com.usa.attendancesystem.repository.AttendanceSessionRepository;
+import com.usa.attendancesystem.repository.FeeExemptionRepository;
 import com.usa.attendancesystem.repository.FeePaymentRepository;
 import com.usa.attendancesystem.repository.StudentRepository;
 import com.usa.attendancesystem.repository.SubjectRepository;
@@ -49,6 +52,7 @@ public class AttendanceService {
     private final AttendanceRecordRepository attendanceRepository;
     private final AttendanceSessionRepository sessionRepository;
     private final FeePaymentRepository feePaymentRepository;
+    private final FeeExemptionRepository feeExemptionRepository;
     private final SmsService smsService;
     private final StudentService studentService; // Re-use the mapper from StudentService
 
@@ -134,13 +138,23 @@ public class AttendanceService {
                     endOfSessionDay
             );
 
-            boolean hasFeePaymentIssue = !hasPaidFees;
+                Optional<FeeExemption> feeExemption = feeExemptionRepository.findByStudentId(student.getId());
+                boolean isAlarmExemption = feeExemption
+                    .map(exemption -> exemption.getExemptionType() == FeeExemptionType.ALARM_EXEMPTION)
+                    .orElse(false);
+                boolean isFreeCard = feeExemption
+                    .map(exemption -> exemption.getExemptionType() == FeeExemptionType.FREE_CARD)
+                    .orElse(false);
+
+                boolean hasFeePaymentIssue = !hasPaidFees && !isFreeCard;
+                boolean playFeeDueSound = !hasPaidFees && !isAlarmExemption && !isFreeCard;
 
             return AttendanceValidationResponseDto.success(
                     "Attendance marked successfully for " + student.getFullName(),
                     studentDto,
                     Instant.now(),
-                    hasFeePaymentIssue
+                    hasFeePaymentIssue,
+                    playFeeDueSound
             );
         } catch (ResourceNotFoundException e) {
             if (e.getMessage().contains("Student with index number")) {
@@ -314,12 +328,17 @@ public class AttendanceService {
                             endOfSessionDay
                     );
 
+                        Optional<FeeExemption> feeExemption = feeExemptionRepository.findByStudentId(record.getStudent().getId());
+                        boolean isFreeCard = feeExemption
+                            .map(exemption -> exemption.getExemptionType() == FeeExemptionType.FREE_CARD)
+                            .orElse(false);
+
                     return new SessionAttendanceStatusDto.MarkedStudentDto(
                             record.getStudent().getStudentIdCode(),
                             record.getStudent().getIndexNumber(),
                             record.getStudent().getFullName(),
                             record.getAttendanceTimestamp(),
-                            !hasPaidFees // hasFeePaymentIssue is true when fees are NOT paid
+                            !hasPaidFees && !isFreeCard
                     );
                 })
                 .toList();

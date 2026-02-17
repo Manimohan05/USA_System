@@ -4,21 +4,26 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.usa.attendancesystem.dto.FeeExemptionDto;
+import com.usa.attendancesystem.dto.FeeExemptionRequest;
 import com.usa.attendancesystem.dto.FeePaymentRequest;
 import com.usa.attendancesystem.dto.FeeReportDto;
 import com.usa.attendancesystem.dto.FeeReportRequest;
 import com.usa.attendancesystem.dto.UpdateBillRequest;
 import com.usa.attendancesystem.dto.UpdatePaidDateRequest;
 import com.usa.attendancesystem.exception.DuplicateResourceException;
+import com.usa.attendancesystem.model.FeeExemption;
 import com.usa.attendancesystem.exception.ResourceNotFoundException;
 import com.usa.attendancesystem.model.FeePayment;
 import com.usa.attendancesystem.model.Student;
 import com.usa.attendancesystem.model.Subject;
+import com.usa.attendancesystem.repository.FeeExemptionRepository;
 import com.usa.attendancesystem.repository.FeePaymentRepository;
 import com.usa.attendancesystem.repository.StudentRepository;
 import com.usa.attendancesystem.repository.SubjectRepository;
@@ -32,8 +37,59 @@ import lombok.extern.slf4j.Slf4j;
 public class FeeService {
 
     private final FeePaymentRepository feePaymentRepository;
+        private final FeeExemptionRepository feeExemptionRepository;
+    
     private final StudentRepository studentRepository;
     private final SubjectRepository subjectRepository;
+
+        @Transactional
+        public FeeExemptionDto addFeeExemption(FeeExemptionRequest request) {
+                Student student = studentRepository.findByStudentIdCode(request.studentIdCode().trim())
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                "Student not found with ID: " + request.studentIdCode()));
+
+                if (!student.isActive()) {
+                        throw new IllegalStateException("Student account is not active");
+                }
+
+                Optional<FeeExemption> existingExemption = feeExemptionRepository.findByStudentId(student.getId());
+
+                if (existingExemption.isPresent()) {
+                        throw new DuplicateResourceException("Student already has a fee exemption. Remove it first to change type.");
+                }
+
+                FeeExemption savedExemption = feeExemptionRepository.save(new FeeExemption(student, request.exemptionType()));
+
+                return new FeeExemptionDto(
+                                savedExemption.getId(),
+                                student.getId(),
+                                student.getStudentIdCode(),
+                                student.getFullName(),
+                                savedExemption.getExemptionType(),
+                                savedExemption.getCreatedAt()
+                );
+        }
+
+        @Transactional(readOnly = true)
+        public List<FeeExemptionDto> getFeeExemptions() {
+                return feeExemptionRepository.findAllWithStudents().stream()
+                                .map(exemption -> new FeeExemptionDto(
+                                exemption.getId(),
+                                exemption.getStudent().getId(),
+                                exemption.getStudent().getStudentIdCode(),
+                                exemption.getStudent().getFullName(),
+                                exemption.getExemptionType(),
+                                exemption.getCreatedAt()
+                ))
+                                .toList();
+        }
+
+        @Transactional
+        public void removeFeeExemption(UUID exemptionId) {
+                FeeExemption exemption = feeExemptionRepository.findById(exemptionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Fee exemption not found"));
+                feeExemptionRepository.delete(exemption);
+        }
 
     @Transactional
     public void markFeePayment(FeePaymentRequest request) {

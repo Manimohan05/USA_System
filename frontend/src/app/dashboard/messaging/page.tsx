@@ -509,6 +509,9 @@ export default function MessagingPage() {
                     <p className="text-orange-800">
                       Sends overdue payment reminders to parents of students who haven't paid for the current month.
                     </p>
+                    <p className="text-orange-800 mt-2">
+                      Free Card students are excluded, so their parents will not receive fee reminder messages.
+                    </p>
                   </div>
 
                   {/* Send Button */}

@@ -67,10 +67,10 @@ export default function AttendanceSessionPage() {
   const feeDueAudioRef = useRef<HTMLAudioElement | null>(null);
   const feeDueAudioTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Check if current date is after the 5th of the month
+  // Check if today is on or after the 5th of the current month
   const isFeeDuePeriod = () => {
     const today = new Date();
-    return today.getDate() > 5;
+    return today.getDate() >= 5;
   };
 
   const playFeeDueAlert = async () => {
@@ -99,12 +99,6 @@ export default function AttendanceSessionPage() {
   };
 
   useEffect(() => {
-    if (sessionId) {
-      fetchSessionData();
-    }
-  }, [sessionId]);
-
-  useEffect(() => {
     return () => {
       if (feeDueAudioTimeoutRef.current) {
         clearTimeout(feeDueAudioTimeoutRef.current);
@@ -115,6 +109,14 @@ export default function AttendanceSessionPage() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (sessionId) {
+      fetchSessionData();
+    }
+  }, [sessionId]);
+
+
 
   // Countdown Timer Effect
   useEffect(() => {
@@ -268,7 +270,7 @@ export default function AttendanceSessionPage() {
       setValidationResponse(response.data);
       
       if (response.data.success) {
-        if (response.data.hasFeePaymentIssue && isFeeDuePeriod()) {
+        if (response.data.hasFeePaymentIssue && response.data.playFeeDueSound && isFeeDuePeriod()) {
           await playFeeDueAlert();
         }
         setIndexInput('');

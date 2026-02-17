@@ -10,7 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.usa.attendancesystem.dto.BroadcastMessageRequest;
 import com.usa.attendancesystem.dto.MessagingStatsDto;
 import com.usa.attendancesystem.dto.TargetedStudentCountDto;
+import com.usa.attendancesystem.model.FeeExemptionType;
 import com.usa.attendancesystem.model.Student;
+import com.usa.attendancesystem.repository.FeeExemptionRepository;
 import com.usa.attendancesystem.repository.FeePaymentRepository;
 import com.usa.attendancesystem.repository.StudentRepository;
 
@@ -22,6 +24,7 @@ public class ParentMessagingService {
 
     private final StudentRepository studentRepository;
     private final FeePaymentRepository feePaymentRepository;
+    private final FeeExemptionRepository feeExemptionRepository;
     private final SmsService smsService;
 
     @Transactional(readOnly = true)
@@ -64,7 +67,15 @@ public class ParentMessagingService {
                     // Check if student has paid for current month
                     boolean hasPaid = feePaymentRepository.findByStudentAndMonthAndYear(
                             student.getId(), currentMonth, currentYear).isPresent();
-                    return !hasPaid; // Return true if student hasn't paid
+                if (hasPaid) {
+                return false;
+                }
+
+                boolean isFreeCard = feeExemptionRepository.findByStudentId(student.getId())
+                    .map(exemption -> exemption.getExemptionType() == FeeExemptionType.FREE_CARD)
+                    .orElse(false);
+
+                return !isFreeCard;
                 })
                 .filter(student -> student.getParentPhone() != null && !student.getParentPhone().trim().isEmpty())
                 .collect(Collectors.toList());

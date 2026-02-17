@@ -92,6 +92,7 @@ export interface AttendanceValidationResponseDto {
   student?: StudentDto; // Student info if found
   markedAt?: string; // If already marked, when it was marked (ISO datetime)
   hasFeePaymentIssue?: boolean; // True if student hasn't paid fees by attendance date
+  playFeeDueSound?: boolean; // True if frontend should play fee due alert sound
 }
 
 export interface MarkedStudentDto {
