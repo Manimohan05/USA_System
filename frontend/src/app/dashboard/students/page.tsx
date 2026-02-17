@@ -124,10 +124,13 @@ export default function StudentsPage() {
     const csvData = filteredStudents.map(student => ({
       'Student Name': student.fullName,
       'Student ID': student.studentIdCode,
-      'Index Number': student.indexNumber,
-      'Student Phone': student.studentPhone || '-',
+      'Address': student.address || '-',
+      'NIC': student.nic || '-',
+      'School': student.school || '-',
       'Parent Phone': student.parentPhone || '-',
       'Batch': student.batch?.displayName || '-',
+      'Subjects': student.subjects.map(s => s.name).join(', ') || '-',
+      'Admission Date': student.admissionDate ? new Date(student.admissionDate).toLocaleDateString() : '-',
       'Status': student.isActive ? 'Active' : 'Inactive',
     }));
 
@@ -158,10 +161,13 @@ export default function StudentsPage() {
     const excelData = filteredStudents.map(student => ({
       'Student Name': student.fullName,
       'Student ID': student.studentIdCode,
-      'Index Number': student.indexNumber,
-      'Student Phone': student.studentPhone || '-',
+      'Address': student.address || '-',
+      'NIC': student.nic || '-',
+      'School': student.school || '-',
       'Parent Phone': student.parentPhone || '-',
       'Batch': student.batch?.displayName || '-',
+      'Subjects': student.subjects.map(s => s.name).join(', ') || '-',
+      'Admission Date': student.admissionDate ? new Date(student.admissionDate).toLocaleDateString() : '-',
       'Status': student.isActive ? 'Active' : 'Inactive',
     }));
 
@@ -169,7 +175,7 @@ export default function StudentsPage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Students');
 
-    const colWidths = [25, 15, 15, 25, 15, 15, 12];
+    const colWidths = [25, 15, 30, 15, 25, 15, 15, 30, 15, 12];
     ws['!cols'] = colWidths.map(width => ({ wch: width }));
 
     XLSX.writeFile(wb, `students-list-${new Date().toISOString().split('T')[0]}.xlsx`);
