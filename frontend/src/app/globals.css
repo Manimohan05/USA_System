@@ -189,6 +189,111 @@ html.dark-mode .shadow-lg {
   --tw-shadow-color: rgba(0, 0, 0, 0.5) !important;
 }
 
+/* Preserve fee report status colors in dark mode */
+html.dark-mode .fee-status-paid {
+  background-color: #14532d !important;
+  color: #86efac !important;
+}
+
+html.dark-mode .fee-status-paid .text-green-600,
+html.dark-mode .fee-status-paid .text-green-800 {
+  color: #86efac !important;
+}
+
+html.dark-mode .fee-status-unpaid {
+  background-color: #7f1d1d !important;
+  color: #fca5a5 !important;
+}
+
+html.dark-mode .fee-status-unpaid .text-red-600,
+html.dark-mode .fee-status-unpaid .text-red-800 {
+  color: #fca5a5 !important;
+}
+
+html.dark-mode .fee-status-free {
+  background-color: #134e4a !important;
+  color: #99f6e4 !important;
+}
+
+html.dark-mode .fee-status-free .text-teal-600,
+html.dark-mode .fee-status-free .text-teal-800 {
+  color: #99f6e4 !important;
+}
+
+/* Preserve exemption type badge colors in dark mode */
+html.dark-mode .fee-exemption-alarm {
+  background-color: #78350f !important;
+  color: #fde68a !important;
+}
+
+html.dark-mode .fee-exemption-free {
+  background-color: #134e4a !important;
+  color: #99f6e4 !important;
+}
+
+/* Active session cards/buttons in dark mode */
+html.dark-mode .active-session-card {
+  background-color: #111827 !important;
+  border-color: #374151 !important;
+}
+
+html.dark-mode .active-session-open-btn {
+  background: linear-gradient(to right, #3730a3, #6d28d9) !important;
+  border-color: #6366f1 !important;
+  color: #ffffff !important;
+}
+
+html.dark-mode .active-session-open-btn:hover {
+  background: linear-gradient(to right, #4338ca, #7c3aed) !important;
+  border-color: #818cf8 !important;
+}
+
+html.dark-mode .active-session-end-btn {
+  background: linear-gradient(to right, #991b1b, #be123c) !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
+}
+
+html.dark-mode .active-session-end-btn:hover {
+  background: linear-gradient(to right, #b91c1c, #e11d48) !important;
+  border-color: #f87171 !important;
+}
+
+/* Recovery session cards/buttons in dark mode */
+html.dark-mode .recovery-session-card {
+  background-color: #111827 !important;
+  border-color: #374151 !important;
+}
+
+html.dark-mode .recovery-session-reopen-btn {
+  background: linear-gradient(to right, #b45309, #d97706) !important;
+  border-color: #f59e0b !important;
+  color: #ffffff !important;
+}
+
+html.dark-mode .recovery-session-reopen-btn:hover {
+  background: linear-gradient(to right, #c2410c, #ea580c) !important;
+  border-color: #fbbf24 !important;
+}
+
+html.dark-mode .recovery-session-end-btn {
+  background: linear-gradient(to right, #991b1b, #be123c) !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
+}
+
+html.dark-mode .recovery-session-end-btn:hover {
+  background: linear-gradient(to right, #b91c1c, #e11d48) !important;
+  border-color: #f87171 !important;
+}
+
+/* Bright green active badge in dark mode */
+html.dark-mode .active-session-badge.bg-emerald-100 {
+  background-color: #14532d !important;
+  color: #86efac !important;
+  border-color: #22c55e !important;
+}
+
 /* Ensure consistent viewport height and prevent scrollbars on login page */
 html, body {
   height: 100%;

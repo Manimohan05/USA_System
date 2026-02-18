@@ -44,7 +44,7 @@ interface FeeReportRequest {
 interface FeeReportDto {
   studentId: string;
   studentIdCode: string;
-  fullName: string;
+  studentName: string;
   batchName: string;
   subjectName: string;
   month: number;
@@ -303,7 +303,7 @@ export default function FeesPage() {
     }
 
     const csvData = reportData.map(record => ({
-      'Student Name': record.fullName,
+      'Student Name': record.studentName,
       'Student ID': record.studentIdCode,
       'Batch': record.batchName,
       'Subject': record.subjectName,
@@ -337,7 +337,7 @@ export default function FeesPage() {
     }
 
     const excelData = reportData.map(record => ({
-      'Student Name': record.fullName,
+      'Student Name': record.studentName,
       'Student ID': record.studentIdCode,
       'Batch': record.batchName,
       'Subject': record.subjectName,
@@ -620,11 +620,11 @@ export default function FeesPage() {
                             <td className="py-3 px-4 text-gray-900">{exemption.fullName}</td>
                             <td className="py-3 px-4">
                               {exemption.exemptionType === 'ALARM_EXEMPTION' ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                <span className="fee-exemption-alarm inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                                   Alarm Exemption
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
+                                <span className="fee-exemption-free inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
                                   Free Card
                                 </span>
                               )}
@@ -778,19 +778,19 @@ export default function FeesPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4 text-sm">
-                        <div className="flex items-center space-x-2 px-3 py-1 bg-green-100 rounded-lg">
+                        <div className="fee-status-paid flex items-center space-x-2 px-3 py-1 bg-green-100 rounded-lg">
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
                           <span className="text-green-800">
                             Paid: {reportData.filter(r => r.isPaid).length}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-2 px-3 py-1 bg-red-100 rounded-lg">
+                        <div className="fee-status-unpaid flex items-center space-x-2 px-3 py-1 bg-red-100 rounded-lg">
                           <XCircle className="h-4 w-4 text-red-600" />
                           <span className="text-red-800">
                             Unpaid: {reportData.filter(r => !r.isPaid && !isFreeCardStudent(r.studentId)).length}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-2 px-3 py-1 bg-teal-100 rounded-lg">
+                        <div className="fee-status-free flex items-center space-x-2 px-3 py-1 bg-teal-100 rounded-lg">
                           <CheckCircle2 className="h-4 w-4 text-teal-600" />
                           <span className="text-teal-800">
                             Free Card: {reportData.filter(r => !r.isPaid && isFreeCardStudent(r.studentId)).length}
@@ -835,24 +835,24 @@ export default function FeesPage() {
                         {reportData.map((record, index) => (
                           <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
                             <td className="py-3 px-4">
-                              <div className="font-medium text-gray-900">{record.fullName}</div>
+                              <div className="font-medium text-gray-900">{record.studentName}</div>
                             </td>
                             <td className="py-3 px-4 text-gray-600">{record.studentIdCode}</td>
                             <td className="py-3 px-4 text-gray-600">{record.batchName}</td>
                             <td className="py-3 px-4 text-gray-600">{record.subjectName}</td>
                             <td className="py-3 px-4 text-center">
                               {getReportStatus(record) === 'Paid' ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                <span className="fee-status-paid inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                   <CheckCircle2 className="h-3 w-3 mr-1" />
                                   Paid
                                 </span>
                               ) : getReportStatus(record) === 'Free Card' ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
+                                <span className="fee-status-free inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
                                   <CheckCircle2 className="h-3 w-3 mr-1" />
                                   Free Card
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                <span className="fee-status-unpaid inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                   <XCircle className="h-3 w-3 mr-1" />
                                   Unpaid
                                 </span>

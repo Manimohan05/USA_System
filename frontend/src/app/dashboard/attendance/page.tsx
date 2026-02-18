@@ -1,5 +1,4 @@
 'use client';
-
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -15,7 +14,6 @@ import type {
   SubjectDto, 
   AttendanceMarkRequest, 
   AttendanceReportDto,
-  AttendanceReportRequest,
   EnhancedAttendanceReportDto,
   AttendanceSessionDto,
   AttendanceSessionCreateRequest,
@@ -1167,7 +1165,7 @@ function AttendancePageContent() {
                       {sessions.filter(session => session.isActive).map((session) => (
                         <div
                           key={session.id}
-                          className={`group relative p-6 rounded-2xl border-2 transition-all duration-300 hover:shadow-lg ${
+                          className={`active-session-card group relative p-6 rounded-2xl border-2 transition-all duration-300 hover:shadow-lg ${
                             currentSession?.id === session.id
                               ? 'border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg ring-2 ring-indigo-100'
                               : 'border-gray-100 hover:border-indigo-200 bg-white hover:shadow-md hover:bg-gradient-to-br hover:from-gray-50 hover:to-indigo-50'
@@ -1189,7 +1187,7 @@ function AttendancePageContent() {
                                   {session.batchDisplayName || `Batch ${session.batchYear}`}
                                 </h3>
                               </div>
-                              <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                              <span className={`active-session-badge px-3 py-1 text-xs font-semibold rounded-full ${
                                 session.isActive 
                                   ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' 
                                   : 'bg-gray-100 text-gray-800 ring-1 ring-gray-200'
@@ -1211,7 +1209,7 @@ function AttendancePageContent() {
                                 e.stopPropagation();
                                 window.open(`/dashboard/attendance/session/${session.id}`, '_blank');
                               }}
-                              className="group w-full bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-indigo-100 hover:to-purple-100 hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
+                              className="active-session-open-btn group w-full bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-indigo-100 hover:to-purple-100 hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
                             >
                               <ExternalLink className="w-4 h-4 inline mr-2 group-hover:animate-pulse" />
                               Open Session
@@ -1222,7 +1220,7 @@ function AttendancePageContent() {
                                   e.stopPropagation();
                                   endSession(session.id);
                                 }}
-                                className="group w-full bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-red-100 hover:to-rose-100 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
+                                className="active-session-end-btn group w-full bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-red-100 hover:to-rose-100 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
                                 title="End session without sending SMS (can be reopened)"
                               >
                                 <Pause className="w-4 h-4 inline mr-2 group-hover:animate-pulse" />
@@ -1266,7 +1264,7 @@ function AttendancePageContent() {
                       {sessions.filter(session => session.canReactivate).map((session) => (
                         <div
                           key={`ended-${session.id}`}
-                          className="group relative p-6 rounded-2xl border-2 border-orange-100 bg-gradient-to-br from-orange-50 to-amber-50 hover:border-orange-200 transition-all duration-300 hover:shadow-lg"
+                          className="recovery-session-card group relative p-6 rounded-2xl border-2 border-orange-100 bg-gradient-to-br from-orange-50 to-amber-50 hover:border-orange-200 transition-all duration-300 hover:shadow-lg"
                         >
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center space-x-2">
@@ -1293,14 +1291,14 @@ function AttendancePageContent() {
                           <div className="space-y-2">
                             <button
                               onClick={() => reopenSession(session.id)}
-                              className="group w-full bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-orange-100 hover:to-amber-100 hover:border-orange-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
+                              className="recovery-session-reopen-btn group w-full bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-orange-100 hover:to-amber-100 hover:border-orange-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
                             >
                               <RotateCcw className="w-4 h-4 inline mr-2 group-hover:animate-spin" />
                               Reopen Session
                             </button>
                             <button
                               onClick={() => fullyEndSession(session.id, session)}
-                              className="group w-full bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-red-100 hover:to-rose-100 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
+                              className="recovery-session-end-btn group w-full bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-red-100 hover:to-rose-100 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
                               title="Permanently end session and send SMS notifications"
                             >
                               <XCircle className="w-4 h-4 inline mr-2 group-hover:animate-pulse" />
