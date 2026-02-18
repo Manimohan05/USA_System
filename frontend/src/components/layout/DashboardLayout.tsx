@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/auth';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -19,6 +19,8 @@ import {
   LogOut,
   GraduationCap,
   Bell,
+  Moon,
+  Sun,
   UserCheck,
   Crown,
 } from 'lucide-react';
@@ -40,9 +42,24 @@ const navigationItems = [
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    if (document.documentElement.classList.contains('dark-mode')) return true;
+    return localStorage.getItem('usa-theme') === 'dark';
+  });
   const { logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark-mode');
+      localStorage.setItem('usa-theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark-mode');
+      localStorage.setItem('usa-theme', 'light');
+    }
+  }, [isDarkMode]);
 
   const handleLogout = () => {
     logout();
@@ -201,6 +218,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
             
             <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setIsDarkMode(!isDarkMode)}
+                className="relative p-3 text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-all duration-200 hover:scale-105 group"
+                title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                aria-label={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </button>
               {/* Notifications - Moved to right side */}
               <NotificationDropdown />
             </div>

@@ -19,6 +19,176 @@ body {
   overflow-x: hidden; /* Prevent horizontal scrollbar */
 }
 
+/* Dashboard dark mode: light mode remains default, dark mode applies only when toggled */
+html.dark-mode body {
+  background: #0b1220;
+  color: #e5e7eb;
+}
+
+html.dark-mode .bg-white,
+html.dark-mode .bg-white\/95,
+html.dark-mode .bg-white\/90,
+html.dark-mode .bg-white\/80,
+html.dark-mode .bg-white\/70,
+html.dark-mode .bg-white\/60,
+html.dark-mode .bg-gray-50,
+html.dark-mode .bg-gray-100,
+html.dark-mode .bg-gray-100\/60,
+html.dark-mode .bg-gray-200,
+html.dark-mode .bg-slate-50,
+html.dark-mode .bg-slate-50\/80,
+html.dark-mode .bg-slate-100 {
+  background-color: #111827 !important;
+}
+
+html.dark-mode .bg-blue-50,
+html.dark-mode .bg-indigo-50,
+html.dark-mode .bg-purple-50,
+html.dark-mode .bg-green-50,
+html.dark-mode .bg-emerald-50,
+html.dark-mode .bg-red-50,
+html.dark-mode .bg-rose-50,
+html.dark-mode .bg-orange-50,
+html.dark-mode .bg-amber-50,
+html.dark-mode .bg-teal-50,
+html.dark-mode .bg-blue-100,
+html.dark-mode .bg-indigo-100,
+html.dark-mode .bg-purple-100,
+html.dark-mode .bg-green-100,
+html.dark-mode .bg-emerald-100,
+html.dark-mode .bg-red-100,
+html.dark-mode .bg-rose-100,
+html.dark-mode .bg-orange-100,
+html.dark-mode .bg-amber-100,
+html.dark-mode .bg-teal-100,
+html.dark-mode .bg-red-50\/60,
+html.dark-mode .bg-orange-50\/60 {
+  background-color: #1f2937 !important;
+}
+
+html.dark-mode .border-gray-100,
+html.dark-mode .border-gray-200,
+html.dark-mode .border-gray-200\/50,
+html.dark-mode .border-gray-300 {
+  border-color: #374151 !important;
+}
+
+html.dark-mode .border-red-100,
+html.dark-mode .border-red-200,
+html.dark-mode .border-rose-100,
+html.dark-mode .border-rose-200,
+html.dark-mode .border-orange-100,
+html.dark-mode .border-orange-200,
+html.dark-mode .border-amber-100,
+html.dark-mode .border-amber-200,
+html.dark-mode .border-blue-100,
+html.dark-mode .border-blue-200,
+html.dark-mode .border-indigo-100,
+html.dark-mode .border-indigo-200,
+html.dark-mode .border-purple-100,
+html.dark-mode .border-purple-200,
+html.dark-mode .border-green-100,
+html.dark-mode .border-green-200,
+html.dark-mode .border-emerald-100,
+html.dark-mode .border-emerald-200,
+html.dark-mode .border-emerald-300,
+html.dark-mode .border-emerald-400,
+html.dark-mode .border-teal-100,
+html.dark-mode .border-teal-200 {
+  border-color: #4b5563 !important;
+}
+
+html.dark-mode .text-gray-900 {
+  color: #f9fafb !important;
+}
+
+html.dark-mode .text-gray-800 {
+  color: #e5e7eb !important;
+}
+
+html.dark-mode .text-gray-700 {
+  color: #d1d5db !important;
+}
+
+html.dark-mode .text-gray-600,
+html.dark-mode .text-gray-500,
+html.dark-mode .text-gray-400 {
+  color: #9ca3af !important;
+}
+
+html.dark-mode .text-red-800,
+html.dark-mode .text-red-700,
+html.dark-mode .text-rose-800,
+html.dark-mode .text-rose-700,
+html.dark-mode .text-orange-800,
+html.dark-mode .text-orange-700,
+html.dark-mode .text-amber-800,
+html.dark-mode .text-amber-700,
+html.dark-mode .text-blue-800,
+html.dark-mode .text-blue-700,
+html.dark-mode .text-indigo-800,
+html.dark-mode .text-indigo-700,
+html.dark-mode .text-purple-800,
+html.dark-mode .text-purple-700,
+html.dark-mode .text-green-800,
+html.dark-mode .text-green-700,
+html.dark-mode .text-emerald-800,
+html.dark-mode .text-emerald-700,
+html.dark-mode .text-teal-800,
+html.dark-mode .text-teal-700 {
+  color: #cbd5e1 !important;
+}
+
+html.dark-mode .hover\:bg-gray-50:hover,
+html.dark-mode .hover\:bg-gray-100:hover,
+html.dark-mode .hover\:bg-gray-200:hover,
+html.dark-mode .hover\:bg-white\/50:hover,
+html.dark-mode .hover\:bg-indigo-50:hover,
+html.dark-mode .hover\:bg-red-50:hover,
+html.dark-mode .hover\:bg-emerald-50:hover,
+html.dark-mode .hover\:bg-emerald-100:hover,
+html.dark-mode .hover\:bg-teal-100:hover,
+html.dark-mode .hover\:bg-rose-100:hover,
+html.dark-mode .hover\:bg-orange-50:hover {
+  background-color: #1f2937 !important;
+}
+
+html.dark-mode input,
+html.dark-mode select,
+html.dark-mode textarea {
+  background-color: #111827 !important;
+  color: #f9fafb !important;
+  border-color: #374151 !important;
+}
+
+html.dark-mode .from-gray-50,
+html.dark-mode .from-white,
+html.dark-mode .from-indigo-50,
+html.dark-mode .from-purple-50,
+html.dark-mode .from-emerald-50,
+html.dark-mode .from-red-50,
+html.dark-mode .from-rose-50,
+html.dark-mode .via-slate-50,
+html.dark-mode .via-white,
+html.dark-mode .to-gray-100,
+html.dark-mode .to-gray-50,
+html.dark-mode .to-white,
+html.dark-mode .to-indigo-50,
+html.dark-mode .to-purple-50,
+html.dark-mode .to-teal-100,
+html.dark-mode .to-emerald-50,
+html.dark-mode .to-rose-50 {
+  --tw-gradient-from: #0f172a var(--tw-gradient-from-position) !important;
+  --tw-gradient-via: #111827 var(--tw-gradient-via-position) !important;
+  --tw-gradient-to: #1f2937 var(--tw-gradient-to-position) !important;
+}
+
+html.dark-mode .shadow-xl,
+html.dark-mode .shadow-2xl,
+html.dark-mode .shadow-lg {
+  --tw-shadow-color: rgba(0, 0, 0, 0.5) !important;
+}
+
 /* Ensure consistent viewport height and prevent scrollbars on login page */
 html, body {
   height: 100%;
