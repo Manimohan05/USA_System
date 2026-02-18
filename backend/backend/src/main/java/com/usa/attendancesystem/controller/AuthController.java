@@ -14,11 +14,12 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 
 @RestController
 @RequestMapping("/auth")
@@ -70,5 +71,36 @@ public class AuthController {
         adminRepository.save(admin);
 
         return ResponseEntity.ok(new AuthDto.MessageResponse("Password updated successfully"));
+    }
+
+    @GetMapping("/profile")
+    public ResponseEntity<AuthDto.ProfileResponse> getProfile(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        Admin admin = adminRepository.findByUsername(authentication.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Admin user not found"));
+
+        return ResponseEntity.ok(new AuthDto.ProfileResponse(admin.getUsername(), admin.getProfilePicture()));
+    }
+
+    @PutMapping("/profile-picture")
+    public ResponseEntity<AuthDto.MessageResponse> updateProfilePicture(
+            @Valid @RequestBody AuthDto.UpdateProfilePictureRequest request,
+            Authentication authentication
+    ) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new AuthDto.MessageResponse("Authentication required"));
+        }
+
+        Admin admin = adminRepository.findByUsername(authentication.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Admin user not found"));
+
+        admin.setProfilePicture(request.profilePicture());
+        adminRepository.save(admin);
+
+        return ResponseEntity.ok(new AuthDto.MessageResponse("Profile picture updated successfully"));
     }
 }

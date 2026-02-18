@@ -236,7 +236,7 @@ export default function StudentsPage() {
                       <Users className="h-6 w-6 text-white" />
                     </div>
                     <div>
-                      <h1 className="text-4xl font-bold text-white">Student Management</h1>
+                      <h1 className="text-4xl font-bold text-white">Student Details</h1>
                       <div className="flex items-center space-x-2 mt-1">
                         <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                         <p className="text-white/90">Manage students, batches, and subjects</p>

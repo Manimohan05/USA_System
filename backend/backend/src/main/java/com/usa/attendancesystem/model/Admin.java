@@ -24,6 +24,9 @@ public class Admin {
     @JoinColumn(name = "role_id", nullable = false)
     private Role role;
 
+    @Column(name = "profile_picture", columnDefinition = "TEXT")
+    private String profilePicture;
+
     public Admin(String username, String password, Role role) {
         this.username = username;
         this.password = password;

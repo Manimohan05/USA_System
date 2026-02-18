@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080/api',
+  baseURL: apiBaseUrl,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -10,7 +12,7 @@ const api = axios.create({
 
 // Create a separate instance for messaging operations with extended timeout
 export const messagingApi = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080/api',
+  baseURL: apiBaseUrl,
   timeout: 60000, // 60 seconds for SMS operations
   headers: {
     'Content-Type': 'application/json',

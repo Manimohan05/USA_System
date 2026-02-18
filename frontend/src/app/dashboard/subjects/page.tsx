@@ -170,7 +170,7 @@ export default function SubjectsPage() {
                       <BookOpen className="h-6 w-6 text-white" />
                     </div>
                     <div>
-                      <h1 className="text-4xl font-bold text-white">Subject Management</h1>
+                      <h1 className="text-4xl font-bold text-white">Subjects</h1>
                       <div className="flex items-center space-x-2 mt-1">
                         <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
                         <p className="text-white/90">Manage academic subjects and curriculum</p>
