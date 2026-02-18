@@ -60,6 +60,8 @@ interface FeeReportDto {
   exemptionApplies?: boolean;
 }
 
+type FeeReportStatusFilter = 'ALL' | 'PAID' | 'UNPAID' | 'FREE_CARD' | 'HALF_PAYMENT';
+
 interface Batch {
   id: number;
   batchYear: number;
@@ -125,6 +127,8 @@ export default function FeesPage() {
   const [removingExemptionId, setRemovingExemptionId] = useState<string | null>(null);
   const [feeExemptions, setFeeExemptions] = useState<FeeExemptionDto[]>([]);
   const [loadingExemptions, setLoadingExemptions] = useState(false);
+  const [exemptionStudentIdFilter, setExemptionStudentIdFilter] = useState('');
+  const [exemptionTypeFilter, setExemptionTypeFilter] = useState<'ALL' | FeeExemptionType>('ALL');
 
   // Fee Report State
   const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
@@ -132,6 +136,7 @@ export default function FeesPage() {
   const [selectedBatch, setSelectedBatch] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [reportStudentId, setReportStudentId] = useState('');
+  const [reportStatusFilter, setReportStatusFilter] = useState<FeeReportStatusFilter>('ALL');
   const [reportData, setReportData] = useState<FeeReportDto[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
@@ -149,6 +154,39 @@ export default function FeesPage() {
     if (record.exemptionApplies && record.exemptionType === 'FREE_CARD') return 'Free Card';
     if (record.exemptionApplies && record.exemptionType === 'HALF_PAYMENT') return 'Half Payment';
     return 'Unpaid';
+  };
+
+  const filteredReportData = reportData.filter((record) => {
+    if (reportStatusFilter === 'ALL') return true;
+    if (reportStatusFilter === 'PAID') return getReportStatus(record) === 'Paid';
+    if (reportStatusFilter === 'UNPAID') return getReportStatus(record) === 'Unpaid';
+    if (reportStatusFilter === 'FREE_CARD') return getReportStatus(record) === 'Free Card';
+    if (reportStatusFilter === 'HALF_PAYMENT') return getReportStatus(record) === 'Half Payment';
+    return true;
+  });
+
+  const getExemptionTypeLabel = (type: FeeExemptionType) => {
+    if (type === 'ALARM_EXEMPTION') return 'Alarm Exemption';
+    if (type === 'HALF_PAYMENT') return 'Half Payment';
+    return 'Free Card';
+  };
+
+  const filteredExemptions = feeExemptions.filter((exemption) => {
+    const idFilter = exemptionStudentIdFilter.trim().toLowerCase();
+    const matchesStudentId = idFilter.length === 0 || exemption.studentIdCode.toLowerCase().includes(idFilter);
+    const matchesType = exemptionTypeFilter === 'ALL' || exemption.exemptionType === exemptionTypeFilter;
+    return matchesStudentId && matchesType;
+  });
+
+  const getExemptionsFileBaseName = () => {
+    const typePart = exemptionTypeFilter === 'ALL'
+      ? 'all_types'
+      : sanitizeForFileName(getExemptionTypeLabel(exemptionTypeFilter));
+    const idPart = exemptionStudentIdFilter.trim()
+      ? `id_${sanitizeForFileName(exemptionStudentIdFilter)}`
+      : 'all_ids';
+
+    return `exempted_students_${typePart}_${idPart}`;
   };
 
   const getFeeReportFileBaseName = () => {
@@ -457,12 +495,12 @@ export default function FeesPage() {
 
 
   const exportToCSV = () => {
-    if (reportData.length === 0) {
+    if (filteredReportData.length === 0) {
       addToast({ type: 'warning', title: 'No Data', message: 'No data to export' });
       return;
     }
 
-    const csvData = reportData.map(record => ({
+    const csvData = filteredReportData.map(record => ({
       'Student Name': record.studentName,
       'Student ID': record.studentIdCode,
       'Batch': record.batchName,
@@ -492,12 +530,12 @@ export default function FeesPage() {
   };
 
   const exportToExcel = () => {
-    if (reportData.length === 0) {
+    if (filteredReportData.length === 0) {
       addToast({ type: 'warning', title: 'No Data', message: 'No data to export' });
       return;
     }
 
-    const excelData = reportData.map(record => ({
+    const excelData = filteredReportData.map(record => ({
       'Student Name': record.studentName,
       'Student ID': record.studentIdCode,
       'Batch': record.batchName,
@@ -518,6 +556,71 @@ export default function FeesPage() {
 
     XLSX.writeFile(wb, `${baseFilename}.xlsx`);
     addToast({ type: 'success', title: 'Exported', message: 'Report exported as Excel' });
+  };
+
+  const exportExemptionsToCSV = () => {
+    if (filteredExemptions.length === 0) {
+      addToast({ type: 'warning', title: 'No Data', message: 'No exempted students to export' });
+      return;
+    }
+
+    const csvData = filteredExemptions.map(exemption => ({
+      'Student ID': exemption.studentIdCode,
+      'Student Name': exemption.fullName,
+      'Exemption Type': getExemptionTypeLabel(exemption.exemptionType),
+      'Subjects': exemption.exemptionType === 'ALARM_EXEMPTION'
+        ? 'N/A'
+        : exemption.appliesToAllSubjects
+          ? 'All Subjects'
+          : (exemption.subjects?.map(subject => subject.name).join(', ') || '-'),
+      'Added On': new Date(exemption.createdAt).toLocaleDateString(),
+    }));
+
+    const csv = [
+      Object.keys(csvData[0]).join(','),
+      ...csvData.map(row => Object.values(row).map(val => `"${val}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const baseFilename = getExemptionsFileBaseName();
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${baseFilename}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    addToast({ type: 'success', title: 'Exported', message: 'Exempted students exported as CSV' });
+  };
+
+  const exportExemptionsToExcel = () => {
+    if (filteredExemptions.length === 0) {
+      addToast({ type: 'warning', title: 'No Data', message: 'No exempted students to export' });
+      return;
+    }
+
+    const excelData = filteredExemptions.map(exemption => ({
+      'Student ID': exemption.studentIdCode,
+      'Student Name': exemption.fullName,
+      'Exemption Type': getExemptionTypeLabel(exemption.exemptionType),
+      'Subjects': exemption.exemptionType === 'ALARM_EXEMPTION'
+        ? 'N/A'
+        : exemption.appliesToAllSubjects
+          ? 'All Subjects'
+          : (exemption.subjects?.map(subject => subject.name).join(', ') || '-'),
+      'Added On': new Date(exemption.createdAt).toLocaleDateString(),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Exempted Students');
+    ws['!cols'] = [20, 30, 20, 40, 14].map(width => ({ wch: width }));
+
+    const baseFilename = getExemptionsFileBaseName();
+    XLSX.writeFile(wb, `${baseFilename}.xlsx`);
+    addToast({ type: 'success', title: 'Exported', message: 'Exempted students exported as Excel' });
   };
 
   if (loading) {
@@ -864,7 +967,51 @@ export default function FeesPage() {
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-lg font-bold text-gray-900">Exempted Students</h3>
-                  <span className="text-sm text-gray-600">Total: {feeExemptions.length}</span>
+                  <span className="text-sm text-gray-600">Showing: {filteredExemptions.length} / {feeExemptions.length}</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Filter by Student ID</label>
+                    <input
+                      type="text"
+                      placeholder="Enter student ID..."
+                      value={exemptionStudentIdFilter}
+                      onChange={(e) => setExemptionStudentIdFilter(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Filter by Type</label>
+                    <select
+                      value={exemptionTypeFilter}
+                      onChange={(e) => setExemptionTypeFilter(e.target.value as 'ALL' | FeeExemptionType)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+                    >
+                      <option value="ALL">All Types</option>
+                      <option value="ALARM_EXEMPTION">Alarm Exemption</option>
+                      <option value="FREE_CARD">Free Card</option>
+                      <option value="HALF_PAYMENT">Half Payment</option>
+                    </select>
+                  </div>
+                  <div className="xl:col-span-2 flex items-end gap-2">
+                    <button
+                      type="button"
+                      onClick={exportExemptionsToCSV}
+                      className="flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+                    >
+                      <Download className="h-3.5 w-3.5 mr-1.5" />
+                      CSV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={exportExemptionsToExcel}
+                      className="flex items-center px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
+                    >
+                      <Download className="h-3.5 w-3.5 mr-1.5" />
+                      Excel
+                    </button>
+                  </div>
                 </div>
 
                 {loadingExemptions ? (
@@ -873,6 +1020,8 @@ export default function FeesPage() {
                   </div>
                 ) : feeExemptions.length === 0 ? (
                   <p className="text-gray-600">No fee exemptions available.</p>
+                ) : filteredExemptions.length === 0 ? (
+                  <p className="text-gray-600">No exempted students match the selected filters.</p>
                 ) : (
                   <div className="overflow-x-auto max-h-72 overflow-y-auto">
                     <table className="w-full">
@@ -887,7 +1036,7 @@ export default function FeesPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {feeExemptions.map((exemption) => (
+                        {filteredExemptions.map((exemption) => (
                           <tr key={exemption.id} className="border-b border-gray-100 hover:bg-gray-50">
                             <td className="py-3 px-4 text-gray-700">{exemption.studentIdCode}</td>
                             <td className="py-3 px-4 text-gray-900">{exemption.fullName}</td>
@@ -949,7 +1098,7 @@ export default function FeesPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3">
                   <div className="space-y-1.5">
                     <label className="block text-sm font-semibold text-gray-800">Month</label>
                     <select
@@ -1023,6 +1172,21 @@ export default function FeesPage() {
                     />
                   </div>
 
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-800">Status (Optional)</label>
+                    <select
+                      value={reportStatusFilter}
+                      onChange={(e) => setReportStatusFilter(e.target.value as FeeReportStatusFilter)}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                    >
+                      <option value="ALL">All Statuses</option>
+                      <option value="PAID">Paid (Full Payment)</option>
+                      <option value="FREE_CARD">Free Card</option>
+                      <option value="HALF_PAYMENT">Half Payment</option>
+                      <option value="UNPAID">Unpaid</option>
+                    </select>
+                  </div>
+
                   <div className="flex items-end">
                     <button
                       onClick={handleGenerateReport}
@@ -1056,7 +1220,7 @@ export default function FeesPage() {
                       <div>
                         <h3 className="text-2xl font-bold text-gray-900">Fee Payment Report</h3>
                         <p className="text-gray-600">
-                          {MONTHS[reportMonth - 1]} {reportYear} - {reportData.length} records
+                          {MONTHS[reportMonth - 1]} {reportYear} - {filteredReportData.length} records (from {reportData.length})
                         </p>
                       </div>
                     </div>
@@ -1065,25 +1229,25 @@ export default function FeesPage() {
                         <div className="fee-status-paid flex items-center space-x-2 px-3 py-1 bg-green-100 rounded-lg">
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
                           <span className="text-green-800">
-                            Paid: {reportData.filter(r => r.isPaid).length}
+                            Paid: {filteredReportData.filter(r => getReportStatus(r) === 'Paid').length}
                           </span>
                         </div>
                         <div className="fee-status-unpaid flex items-center space-x-2 px-3 py-1 bg-red-100 rounded-lg">
                           <XCircle className="h-4 w-4 text-red-600" />
                           <span className="text-red-800">
-                            Unpaid: {reportData.filter(r => getReportStatus(r) === 'Unpaid').length}
+                            Unpaid: {filteredReportData.filter(r => getReportStatus(r) === 'Unpaid').length}
                           </span>
                         </div>
                         <div className="fee-status-free flex items-center space-x-2 px-3 py-1 bg-teal-100 rounded-lg">
                           <CheckCircle2 className="h-4 w-4 text-teal-600" />
                           <span className="text-teal-800">
-                            Free Card: {reportData.filter(r => getReportStatus(r) === 'Free Card').length}
+                            Free Card: {filteredReportData.filter(r => getReportStatus(r) === 'Free Card').length}
                           </span>
                         </div>
                         <div className="flex items-center space-x-2 px-3 py-1 bg-indigo-100 rounded-lg">
                           <CheckCircle2 className="h-4 w-4 text-indigo-600" />
                           <span className="text-indigo-800">
-                            Half Payment: {reportData.filter(r => getReportStatus(r) === 'Half Payment').length}
+                            Half Payment: {filteredReportData.filter(r => getReportStatus(r) === 'Half Payment').length}
                           </span>
                         </div>
                       </div>
@@ -1122,7 +1286,7 @@ export default function FeesPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {reportData.map((record, index) => (
+                        {filteredReportData.map((record, index) => (
                           <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
                             <td className="py-3 px-4">
                               <div className="font-medium text-gray-900">{record.studentName}</div>

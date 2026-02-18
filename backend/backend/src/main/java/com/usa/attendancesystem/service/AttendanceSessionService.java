@@ -230,11 +230,9 @@ public class AttendanceSessionService {
             throw new IllegalStateException("Session end time is not recorded");
         }
 
-        // Check if session was fully ended (cannot be reactivated)
-        if (session.isClosed() && session.getEndedAt() != null) {
-            // If the session was temporarily closed and then ended, allow reactivation
-            // Only prevent reactivation if it was explicitly fully ended
-            // We can add a new field 'fullyEnded' in future if needed for now use existing logic
+        // Fully ended sessions cannot be reactivated
+        if (session.isClosed()) {
+            throw new IllegalStateException("Cannot reactivate a fully ended session");
         }
 
         // Reactivate the session
