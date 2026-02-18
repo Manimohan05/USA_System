@@ -15,13 +15,10 @@ import {
   Calendar,
   MessageSquare,
   CreditCard,
-  Settings,
   LogOut,
   GraduationCap,
-  Bell,
   Moon,
   Sun,
-  UserCheck,
   Crown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -81,7 +78,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Sidebar */}
       <div
         className={cn(
-          'fixed inset-y-0 left-0 z-25 w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out border-r border-slate-700/50 flex flex-col',
+          'fixed top-16 bottom-0 left-0 z-25 w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out border-r border-slate-700/50 flex flex-col',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -187,34 +184,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       {/* Main content */}
-      <div className={cn(
-        "flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out",
-        sidebarOpen ? "lg:pl-72" : "pl-0"
-      )}>
+      <div className="flex-1 flex flex-col min-h-screen">
         {/* Top header */}
         <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm shadow-lg border-b border-gray-200/50">
-          <div className="flex items-center justify-between h-16 px-4 sm:px-6">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="relative z-40 p-2 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 hover:scale-105 shadow-sm border border-gray-200 bg-white"
-              >
-                <Menu className="h-6 w-6" />
-              </button>
-              
-              {/* User Profile - Moved to left side */}
-              <div className="flex items-center space-x-3 bg-gray-50 rounded-xl px-3 py-2 hover:bg-gray-100 transition-colors cursor-pointer border border-gray-200">
-                <div className="relative">
-                  <div className="h-10 w-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                    <Crown className="h-5 w-5 text-white" />
-                  </div>
-                  {/* Online indicator */}
-                  <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-white rounded-full animate-pulse shadow-sm"></div>
-                </div>
-                <div className="text-left hidden sm:block">
-                  <p className="text-sm font-semibold text-gray-900">USA Admin</p>
-                </div>
-              </div>
+          <div className="relative flex items-center justify-between h-16 px-4 sm:px-6">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 z-40 p-2 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 hover:scale-105 shadow-sm border border-gray-200 bg-white"
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+
+            <div className="pl-12 sm:pl-14" aria-hidden="true">
             </div>
             
             <div className="flex items-center space-x-4">
@@ -226,8 +207,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               >
                 {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </button>
-              {/* Notifications - Moved to right side */}
+              {/* Notifications */}
               <NotificationDropdown />
+              {/* User Icon - Right corner */}
+              <div className="relative h-10 w-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg hover:scale-110 transition-transform duration-200 cursor-pointer">
+                <Crown className="h-5 w-5 text-white" />
+                <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-white rounded-full animate-pulse shadow-sm"></div>
+              </div>
             </div>
           </div>
         </div>

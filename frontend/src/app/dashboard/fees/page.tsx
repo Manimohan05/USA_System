@@ -73,6 +73,13 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
+const sanitizeForFileName = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_-]/g, '') || 'unknown';
+
 export default function FeesPage() {
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<'marking' | 'report' | 'exemption'>('marking');
@@ -129,6 +136,20 @@ export default function FeesPage() {
     if (record.isPaid) return 'Paid';
     if (isFreeCardStudent(record.studentId)) return 'Free Card';
     return 'Unpaid';
+  };
+
+  const getFeeReportFileBaseName = () => {
+    const selectedBatchName = selectedBatch
+      ? batches.find(batch => batch.id.toString() === selectedBatch)?.displayName || `batch_${selectedBatch}`
+      : 'all_batches';
+
+    const selectedSubjectName = selectedSubject
+      ? subjects.find(subject => subject.id.toString() === selectedSubject)?.name || `subject_${selectedSubject}`
+      : 'all_subjects';
+
+    const monthName = MONTHS[reportMonth - 1] || `month_${reportMonth}`;
+
+    return `${sanitizeForFileName(selectedBatchName)}_fees_report_${sanitizeForFileName(selectedSubjectName)}_${sanitizeForFileName(monthName)}_${reportYear}`;
   };
 
   useEffect(() => {
@@ -319,9 +340,10 @@ export default function FeesPage() {
 
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
+    const baseFilename = getFeeReportFileBaseName();
     const a = document.createElement('a');
     a.href = url;
-    a.download = `fee-report-${MONTHS[reportMonth - 1]}-${reportYear}.csv`;
+    a.download = `${baseFilename}.csv`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
@@ -348,13 +370,14 @@ export default function FeesPage() {
 
     const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
+    const baseFilename = getFeeReportFileBaseName();
     XLSX.utils.book_append_sheet(wb, ws, 'Fee Report');
 
     // Set column widths
     const colWidths = [30, 15, 12, 15, 12, 15, 15];
     ws['!cols'] = colWidths.map(width => ({ wch: width }));
 
-    XLSX.writeFile(wb, `fee-report-${MONTHS[reportMonth - 1]}-${reportYear}.xlsx`);
+    XLSX.writeFile(wb, `${baseFilename}.xlsx`);
     addToast({ type: 'success', title: 'Exported', message: 'Report exported as Excel' });
   };
 
@@ -776,7 +799,7 @@ export default function FeesPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-4">
                       <div className="flex items-center space-x-4 text-sm">
                         <div className="fee-status-paid flex items-center space-x-2 px-3 py-1 bg-green-100 rounded-lg">
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -797,7 +820,7 @@ export default function FeesPage() {
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 ml-2">
                         <button
                           onClick={exportToCSV}
                           className="flex items-center px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-all font-medium text-xs"

@@ -28,6 +28,13 @@ type TabType = 'sessions' | 'mark' | 'report';
 
 type ReportMode = 'single' | 'student';
 
+const sanitizeForFileName = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_-]/g, '') || 'unknown';
+
 function AttendancePageContent() {
   const { addToast } = useToast();
   const { addNotification } = useNotifications();
@@ -711,7 +718,11 @@ function AttendancePageContent() {
       }))
     ];
 
-    const baseFilename = `attendance_${reportDate}_batch${reportBatch}_subject${reportSubject}`;
+    const selectedBatchName =
+      batches.find(b => b.id.toString() === reportBatch)?.displayName || `batch_${reportBatch}`;
+    const selectedSubjectName =
+      subjects.find(s => s.id.toString() === reportSubject)?.name || `subject_${reportSubject}`;
+    const baseFilename = `${sanitizeForFileName(selectedBatchName)}_attendance_report_${reportDate}_${sanitizeForFileName(selectedSubjectName)}`;
 
     if (format === 'csv') {
       const csvContent = [
@@ -871,13 +882,10 @@ function AttendancePageContent() {
     ];
     
     // Generate filename based on report type
-    let filename = 'attendance_report';
-    if (enhancedReport.studentName) {
-      filename += `_${enhancedReport.studentIdCode}_${enhancedReport.studentName.replace(/\s+/g, '_')}`;
-    } else {
-      filename += `_${enhancedReport.batchName}_${enhancedReport.subjectName.replace(/\s+/g, '_')}`;
-    }
-    filename += `_${enhancedReport.startDate}_to_${enhancedReport.endDate}`;
+    const dateRange = `${enhancedReport.startDate}_to_${enhancedReport.endDate}`;
+    const filename = enhancedReport.studentName
+      ? `${sanitizeForFileName(enhancedReport.studentIdCode)}_${sanitizeForFileName(enhancedReport.studentName)}_attendance_report_${dateRange}`
+      : `${sanitizeForFileName(enhancedReport.batchName)}_attendance_report_${sanitizeForFileName(enhancedReport.subjectName)}_${dateRange}`;
 
     if (format === 'csv') {
       const csvContent = csvRows.map(row => Array.isArray(row) ? row.join(',') : row).join('\n');

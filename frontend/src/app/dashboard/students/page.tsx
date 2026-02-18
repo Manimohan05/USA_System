@@ -120,24 +120,48 @@ export default function StudentsPage() {
     );
   });
 
+  const getExportFileBaseName = () => {
+    const selectedBatchName = selectedBatch
+      ? (batches.find(batch => batch.id.toString() === selectedBatch)?.displayName || selectedBatch)
+      : 'all_batches';
+
+    const safeBatchName = selectedBatchName
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_\-]/g, '');
+
+    return `${safeBatchName || 'all_batches'}_student_details`;
+  };
+
+  const buildStudentExportRows = () => {
+    return filteredStudents.map(student => {
+      const subjectColumns = subjects.reduce<Record<string, string>>((acc, subject) => {
+        const isEnrolled = student.subjects.some(studentSubject => studentSubject.id === subject.id);
+        acc[subject.name] = isEnrolled ? 'Yes' : '';
+        return acc;
+      }, {});
+
+      return {
+        'Student ID Code': student.studentIdCode,
+        'Admission Date (YYYY-MM-DD or DD/MM/YYYY)': student.admissionDate ? new Date(student.admissionDate).toISOString().split('T')[0] : '',
+        'Full Name': student.fullName,
+        'Address': student.address || '',
+        'NIC (Optional)': student.nic || '',
+        'School': student.school || '',
+        'Phone No': student.parentPhone || '',
+        ...subjectColumns,
+        'Status': student.isActive ? 'Active' : 'Inactive',
+      };
+    });
+  };
+
   const exportToCSV = () => {
     if (filteredStudents.length === 0) {
       addToast({ type: 'warning', title: 'No Data', message: 'No students to export' });
       return;
     }
 
-    const csvData = filteredStudents.map(student => ({
-      'Student Name': student.fullName,
-      'Student ID': student.studentIdCode,
-      'Address': student.address || '-',
-      'NIC': student.nic || '-',
-      'School': student.school || '-',
-      'Parent Phone': student.parentPhone || '-',
-      'Batch': student.batch?.displayName || '-',
-      'Subjects': student.subjects.map(s => s.name).join(', ') || '-',
-      'Admission Date': student.admissionDate ? new Date(student.admissionDate).toLocaleDateString() : '-',
-      'Status': student.isActive ? 'Active' : 'Inactive',
-    }));
+    const csvData = buildStudentExportRows();
 
     const csv = [
       Object.keys(csvData[0]).join(','),
@@ -148,7 +172,7 @@ export default function StudentsPage() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `students-list-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `${getExportFileBaseName()}.csv`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
@@ -163,27 +187,18 @@ export default function StudentsPage() {
       return;
     }
 
-    const excelData = filteredStudents.map(student => ({
-      'Student Name': student.fullName,
-      'Student ID': student.studentIdCode,
-      'Address': student.address || '-',
-      'NIC': student.nic || '-',
-      'School': student.school || '-',
-      'Parent Phone': student.parentPhone || '-',
-      'Batch': student.batch?.displayName || '-',
-      'Subjects': student.subjects.map(s => s.name).join(', ') || '-',
-      'Admission Date': student.admissionDate ? new Date(student.admissionDate).toLocaleDateString() : '-',
-      'Status': student.isActive ? 'Active' : 'Inactive',
-    }));
+    const excelData = buildStudentExportRows();
 
     const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Students');
 
-    const colWidths = [25, 15, 30, 15, 25, 15, 15, 30, 15, 12];
-    ws['!cols'] = colWidths.map(width => ({ wch: width }));
+    const headers = Object.keys(excelData[0]);
+    ws['!cols'] = headers.map((header) => ({
+      wch: Math.max(header.length + 2, 16)
+    }));
 
-    XLSX.writeFile(wb, `students-list-${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(wb, `${getExportFileBaseName()}.xlsx`);
     addToast({ type: 'success', title: 'Exported', message: 'Students exported as Excel' });
   };
 

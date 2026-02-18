@@ -39,7 +39,7 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                 // Public endpoints
-                .requestMatchers("/auth/**", "/attendance/mark", "/attendance/mark-by-index", "/attendance/mark-by-index-simple", "/attendance/sessions/*/status", "/debug/**").permitAll()
+                .requestMatchers("/auth/login", "/attendance/mark", "/attendance/mark-by-index", "/attendance/mark-by-index-simple", "/attendance/sessions/*/status", "/debug/**").permitAll()
                 // Protected admin endpoints
                 .requestMatchers("/admin/**").hasAnyAuthority("ROLE_SUPER_ADMIN", "ROLE_STAFF")
                 // All other requests must be authenticated
