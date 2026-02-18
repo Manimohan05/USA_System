@@ -3,6 +3,8 @@ package com.usa.attendancesystem.dto;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.usa.attendancesystem.model.FeeExemptionType;
+
 /**
  * DTO for fee report responses.
  */
@@ -16,7 +18,9 @@ public record FeeReportDto(
         Integer year,
         Boolean isPaid,
         String billNumber,
-        Instant paidAt
+        Instant paidAt,
+        FeeExemptionType exemptionType,
+        Boolean exemptionApplies
         ) {
 
 }

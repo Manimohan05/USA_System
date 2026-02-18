@@ -236,7 +236,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Sidebar */}
       <div
         className={cn(
-          'fixed top-0 bottom-0 left-0 z-25 w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out border-r border-slate-700/50 flex flex-col',
+          'fixed top-0 bottom-0 left-0 z-30 w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out border-r border-slate-700/50 flex flex-col',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -343,7 +343,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Right Profile Sidebar */}
       <div
         className={cn(
-          'fixed top-0 bottom-0 right-0 z-25 w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out border-l border-slate-700/50 flex flex-col',
+          'fixed top-0 bottom-0 right-0 z-30 w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out border-l border-slate-700/50 flex flex-col',
           profileSidebarOpen ? 'translate-x-0' : 'translate-x-full'
         )}
       >

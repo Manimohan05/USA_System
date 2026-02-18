@@ -21,6 +21,12 @@ public interface StudentRepository extends JpaRepository<Student, UUID> {
     Optional<Student> findByStudentIdCode(String studentIdCode);
 
     /**
+     * Finds a student by ID code and eagerly loads enrolled subjects.
+     */
+    @Query("SELECT s FROM Student s LEFT JOIN FETCH s.subjects WHERE s.studentIdCode = :studentIdCode")
+    Optional<Student> findByStudentIdCodeWithSubjects(@Param("studentIdCode") String studentIdCode);
+
+    /**
      * Finds a student by their unique index number. Used for attendance
      * marking.
      */

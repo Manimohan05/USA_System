@@ -1,5 +1,7 @@
 package com.usa.attendancesystem.dto;
 
+import java.util.List;
+
 import com.usa.attendancesystem.model.FeeExemptionType;
 
 import jakarta.validation.constraints.NotBlank;
@@ -9,6 +11,8 @@ public record FeeExemptionRequest(
         @NotBlank(message = "Student ID code is required")
         String studentIdCode,
         @NotNull(message = "Exemption type is required")
-        FeeExemptionType exemptionType
+        FeeExemptionType exemptionType,
+        Boolean appliesToAllSubjects,
+        List<Integer> subjectIds
 ) {
 }

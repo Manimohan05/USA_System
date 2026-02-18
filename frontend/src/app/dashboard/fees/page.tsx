@@ -17,11 +17,13 @@ interface FeePaymentRequest {
   year: number;
 }
 
-type FeeExemptionType = 'ALARM_EXEMPTION' | 'FREE_CARD';
+type FeeExemptionType = 'ALARM_EXEMPTION' | 'FREE_CARD' | 'HALF_PAYMENT';
 
 interface FeeExemptionRequest {
   studentIdCode: string;
   exemptionType: FeeExemptionType;
+  appliesToAllSubjects?: boolean;
+  subjectIds?: number[];
 }
 
 interface FeeExemptionDto {
@@ -30,6 +32,8 @@ interface FeeExemptionDto {
   studentIdCode: string;
   fullName: string;
   exemptionType: FeeExemptionType;
+  appliesToAllSubjects?: boolean;
+  subjects?: { id: number; name: string }[];
   createdAt: string;
 }
 
@@ -52,6 +56,8 @@ interface FeeReportDto {
   isPaid: boolean;
   billNumber?: string;
   paidAt?: string;
+  exemptionType?: FeeExemptionType | null;
+  exemptionApplies?: boolean;
 }
 
 interface Batch {
@@ -110,6 +116,11 @@ export default function FeesPage() {
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [submitting, setSubmitting] = useState(false);
   const [exemptionStudentIdCode, setExemptionStudentIdCode] = useState('');
+  const [selectedExemptionType, setSelectedExemptionType] = useState<FeeExemptionType>('ALARM_EXEMPTION');
+  const [exemptionSubjects, setExemptionSubjects] = useState<{ id: number; name: string }[]>([]);
+  const [selectedExemptionSubjectIds, setSelectedExemptionSubjectIds] = useState<number[]>([]);
+  const [exemptionAppliesToAll, setExemptionAppliesToAll] = useState(true);
+  const [loadingExemptionSubjects, setLoadingExemptionSubjects] = useState(false);
   const [addingExemptionType, setAddingExemptionType] = useState<FeeExemptionType | null>(null);
   const [removingExemptionId, setRemovingExemptionId] = useState<string | null>(null);
   const [feeExemptions, setFeeExemptions] = useState<FeeExemptionDto[]>([]);
@@ -133,14 +144,10 @@ export default function FeesPage() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
 
-  const isFreeCardStudent = (studentId: string) =>
-    feeExemptions.some(
-      exemption => exemption.studentId === studentId && exemption.exemptionType === 'FREE_CARD'
-    );
-
   const getReportStatus = (record: FeeReportDto) => {
     if (record.isPaid) return 'Paid';
-    if (isFreeCardStudent(record.studentId)) return 'Free Card';
+    if (record.exemptionApplies && record.exemptionType === 'FREE_CARD') return 'Free Card';
+    if (record.exemptionApplies && record.exemptionType === 'HALF_PAYMENT') return 'Half Payment';
     return 'Unpaid';
   };
 
@@ -162,6 +169,41 @@ export default function FeesPage() {
     loadInitialData();
     loadFeeExemptions();
   }, []);
+
+  useEffect(() => {
+    setExemptionSubjects([]);
+    setSelectedExemptionSubjectIds([]);
+    setExemptionAppliesToAll(true);
+  }, [selectedExemptionType]);
+
+  const loadExemptionSubjects = async () => {
+    if (!exemptionStudentIdCode.trim()) {
+      addToast({
+        type: 'warning',
+        title: 'Missing Student ID',
+        message: 'Please enter a student ID code first.',
+      });
+      return;
+    }
+
+    setLoadingExemptionSubjects(true);
+    try {
+      const response = await api.get<{ id: number; name: string }[]>(
+        `/admin/fees/exemptions/subjects/${encodeURIComponent(exemptionStudentIdCode.trim())}`
+      );
+      setExemptionSubjects(response.data);
+      setSelectedExemptionSubjectIds([]);
+    } catch (error: any) {
+      setExemptionSubjects([]);
+      addToast({
+        type: 'error',
+        title: 'Failed to Load Subjects',
+        message: error.response?.data?.message || 'Unable to load enrolled subjects.',
+      });
+    } finally {
+      setLoadingExemptionSubjects(false);
+    }
+  };
 
   const handleBarcodeScan = (rawValue: string) => {
     const normalizedValue = rawValue.trim().toUpperCase();
@@ -333,7 +375,7 @@ export default function FeesPage() {
     }
   };
 
-  const handleAddExemption = async (exemptionType: FeeExemptionType) => {
+  const handleAddExemption = async () => {
     if (!exemptionStudentIdCode.trim()) {
       addToast({
         type: 'warning',
@@ -343,23 +385,43 @@ export default function FeesPage() {
       return;
     }
 
-    setAddingExemptionType(exemptionType);
+    if (selectedExemptionType !== 'ALARM_EXEMPTION' && !exemptionAppliesToAll && selectedExemptionSubjectIds.length === 0) {
+      addToast({
+        type: 'warning',
+        title: 'Missing Subjects',
+        message: 'Select at least one enrolled subject or choose all subjects.',
+      });
+      return;
+    }
+
+    setAddingExemptionType(selectedExemptionType);
     try {
       const request: FeeExemptionRequest = {
         studentIdCode: exemptionStudentIdCode.trim(),
-        exemptionType,
+        exemptionType: selectedExemptionType,
+        appliesToAllSubjects: selectedExemptionType === 'ALARM_EXEMPTION' ? true : exemptionAppliesToAll,
+        subjectIds: selectedExemptionType === 'ALARM_EXEMPTION' || exemptionAppliesToAll
+          ? []
+          : selectedExemptionSubjectIds,
       };
 
       await api.post('/admin/fees/exemptions', request);
       setExemptionStudentIdCode('');
+      setExemptionSubjects([]);
+      setSelectedExemptionSubjectIds([]);
+      setExemptionAppliesToAll(true);
       await loadFeeExemptions();
+
+      const successMessage = selectedExemptionType === 'ALARM_EXEMPTION'
+        ? 'Alarm exemption added successfully'
+        : selectedExemptionType === 'HALF_PAYMENT'
+          ? 'Half payment exemption added successfully'
+          : 'Free card added successfully';
 
       addToast({
         type: 'success',
         title: 'Exemption Added',
-        message: exemptionType === 'ALARM_EXEMPTION'
-          ? 'Alarm exemption added successfully'
-          : 'Free card added successfully',
+        message: successMessage,
       });
     } catch (error: any) {
       addToast({
@@ -657,54 +719,151 @@ export default function FeesPage() {
 
           {/* Fee Exemption Tab */}
           {activeTab === 'exemption' && (
-            <div className="space-y-4">
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-6">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
-                    <Users className="h-5 w-5 text-white" />
+            <div className="space-y-3">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-4">
+                <div className="flex items-center space-x-3 mb-3">
+                  <div className="w-9 h-9 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
+                    <Users className="h-4 w-4 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Fee Exemption</h2>
-                    <p className="text-gray-600">Add student exemptions for all months until manually removed</p>
+                    <h2 className="text-xl font-bold text-gray-900">Fee Exemption</h2>
+                    <p className="text-sm text-gray-600">Add student exemptions for all months until manually removed</p>
                   </div>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
                   <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-800">Student ID Code</label>
-                    <input
-                      type="text"
-                      value={exemptionStudentIdCode}
-                      onChange={(e) => setExemptionStudentIdCode(e.target.value)}
-                      placeholder="Enter student ID (e.g., 5001, 8250)"
-                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-amber-100 focus:border-amber-500 transition-all duration-200 bg-gray-50 hover:bg-white"
-                    />
+                    <label className="block text-sm font-semibold text-gray-800">Exemption Type</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedExemptionType('ALARM_EXEMPTION')}
+                        className={`px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                          selectedExemptionType === 'ALARM_EXEMPTION'
+                            ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white border-transparent'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        Alarm Exemption
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedExemptionType('FREE_CARD')}
+                        className={`px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                          selectedExemptionType === 'FREE_CARD'
+                            ? 'bg-gradient-to-r from-teal-500 to-cyan-600 text-white border-transparent'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        Free Card
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedExemptionType('HALF_PAYMENT')}
+                        className={`px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                          selectedExemptionType === 'HALF_PAYMENT'
+                            ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-transparent'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        Half Payment
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-semibold text-gray-800">Student ID Code</label>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <input
+                        type="text"
+                        value={exemptionStudentIdCode}
+                        onChange={(e) => {
+                          setExemptionStudentIdCode(e.target.value);
+                          setExemptionSubjects([]);
+                          setSelectedExemptionSubjectIds([]);
+                        }}
+                        placeholder="Enter student ID (e.g., 5001, 8250)"
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-amber-100 focus:border-amber-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                      />
+                      {selectedExemptionType !== 'ALARM_EXEMPTION' && (
+                        <button
+                          type="button"
+                          onClick={loadExemptionSubjects}
+                          disabled={loadingExemptionSubjects || !exemptionStudentIdCode.trim()}
+                          className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {loadingExemptionSubjects ? 'Loading...' : 'Load Subjects'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {selectedExemptionType !== 'ALARM_EXEMPTION' && (
+                    <div className="space-y-3">
+                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-800">
+                        <input
+                          type="checkbox"
+                          checked={exemptionAppliesToAll}
+                          onChange={(e) => {
+                            setExemptionAppliesToAll(e.target.checked);
+                            if (e.target.checked) {
+                              setSelectedExemptionSubjectIds([]);
+                            }
+                          }}
+                          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span>Apply to all enrolled subjects</span>
+                      </label>
+
+                      {loadingExemptionSubjects ? (
+                        <div className="flex items-center justify-center py-4">
+                          <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                      ) : exemptionSubjects.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                          {exemptionSubjects.map(subject => (
+                            <label key={subject.id} className={`flex items-center space-x-2 rounded-lg border px-3 py-2 ${
+                              exemptionAppliesToAll ? 'bg-gray-50 text-gray-400 border-gray-200' : 'bg-white text-gray-700 border-gray-200'
+                            }`}>
+                              <input
+                                type="checkbox"
+                                disabled={exemptionAppliesToAll}
+                                checked={selectedExemptionSubjectIds.includes(subject.id)}
+                                onChange={() => {
+                                  setSelectedExemptionSubjectIds(prev =>
+                                    prev.includes(subject.id)
+                                      ? prev.filter(id => id !== subject.id)
+                                      : [...prev, subject.id]
+                                  );
+                                }}
+                                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <span className="text-sm font-medium">{subject.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">Load subjects to choose partial exemptions.</p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="sticky bottom-0 flex justify-end bg-white/90 backdrop-blur-sm py-2">
                     <button
                       type="button"
-                      onClick={() => handleAddExemption('ALARM_EXEMPTION')}
+                      onClick={handleAddExemption}
                       disabled={addingExemptionType !== null || !exemptionStudentIdCode.trim()}
-                      className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                      className="px-6 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                     >
-                      {addingExemptionType === 'ALARM_EXEMPTION' ? 'Adding...' : 'Alarm Exemption'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAddExemption('FREE_CARD')}
-                      disabled={addingExemptionType !== null || !exemptionStudentIdCode.trim()}
-                      className="px-6 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl hover:from-teal-600 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
-                    >
-                      {addingExemptionType === 'FREE_CARD' ? 'Adding...' : 'Free Card'}
+                      {addingExemptionType ? 'Adding...' : 'Add Exemption'}
                     </button>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xl font-bold text-gray-900">Exempted Students</h3>
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-bold text-gray-900">Exempted Students</h3>
                   <span className="text-sm text-gray-600">Total: {feeExemptions.length}</span>
                 </div>
 
@@ -715,13 +874,14 @@ export default function FeesPage() {
                 ) : feeExemptions.length === 0 ? (
                   <p className="text-gray-600">No fee exemptions available.</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto max-h-72 overflow-y-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-gray-200">
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Student ID</th>
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Name</th>
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Type</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-900">Subjects</th>
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Added On</th>
                           <th className="text-right py-3 px-4 font-semibold text-gray-900">Action</th>
                         </tr>
@@ -736,11 +896,22 @@ export default function FeesPage() {
                                 <span className="fee-exemption-alarm inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                                   Alarm Exemption
                                 </span>
+                              ) : exemption.exemptionType === 'HALF_PAYMENT' ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                  Half Payment
+                                </span>
                               ) : (
                                 <span className="fee-exemption-free inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
                                   Free Card
                                 </span>
                               )}
+                            </td>
+                            <td className="py-3 px-4 text-gray-700">
+                              {exemption.exemptionType === 'ALARM_EXEMPTION'
+                                ? 'N/A'
+                                : exemption.appliesToAllSubjects
+                                  ? 'All Subjects'
+                                  : (exemption.subjects?.map(subject => subject.name).join(', ') || '-')}
                             </td>
                             <td className="py-3 px-4 text-gray-600">{new Date(exemption.createdAt).toLocaleDateString()}</td>
                             <td className="py-3 px-4 text-right">
@@ -900,13 +1071,19 @@ export default function FeesPage() {
                         <div className="fee-status-unpaid flex items-center space-x-2 px-3 py-1 bg-red-100 rounded-lg">
                           <XCircle className="h-4 w-4 text-red-600" />
                           <span className="text-red-800">
-                            Unpaid: {reportData.filter(r => !r.isPaid && !isFreeCardStudent(r.studentId)).length}
+                            Unpaid: {reportData.filter(r => getReportStatus(r) === 'Unpaid').length}
                           </span>
                         </div>
                         <div className="fee-status-free flex items-center space-x-2 px-3 py-1 bg-teal-100 rounded-lg">
                           <CheckCircle2 className="h-4 w-4 text-teal-600" />
                           <span className="text-teal-800">
-                            Free Card: {reportData.filter(r => !r.isPaid && isFreeCardStudent(r.studentId)).length}
+                            Free Card: {reportData.filter(r => getReportStatus(r) === 'Free Card').length}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2 px-3 py-1 bg-indigo-100 rounded-lg">
+                          <CheckCircle2 className="h-4 w-4 text-indigo-600" />
+                          <span className="text-indigo-800">
+                            Half Payment: {reportData.filter(r => getReportStatus(r) === 'Half Payment').length}
                           </span>
                         </div>
                       </div>
@@ -963,6 +1140,11 @@ export default function FeesPage() {
                                 <span className="fee-status-free inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
                                   <CheckCircle2 className="h-3 w-3 mr-1" />
                                   Free Card
+                                </span>
+                              ) : getReportStatus(record) === 'Half Payment' ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  Half Payment
                                 </span>
                               ) : (
                                 <span className="fee-status-unpaid inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">

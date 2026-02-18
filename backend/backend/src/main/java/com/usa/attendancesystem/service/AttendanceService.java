@@ -143,7 +143,8 @@ public class AttendanceService {
                     .map(exemption -> exemption.getExemptionType() == FeeExemptionType.ALARM_EXEMPTION)
                     .orElse(false);
                 boolean isFreeCard = feeExemption
-                    .map(exemption -> exemption.getExemptionType() == FeeExemptionType.FREE_CARD)
+                    .map(exemption -> exemption.getExemptionType() == FeeExemptionType.FREE_CARD
+                        && exemption.isAppliesToAllSubjects())
                     .orElse(false);
 
                 boolean hasFeePaymentIssue = !hasPaidFees && !isFreeCard;
@@ -330,7 +331,8 @@ public class AttendanceService {
 
                         Optional<FeeExemption> feeExemption = feeExemptionRepository.findByStudentId(record.getStudent().getId());
                         boolean isFreeCard = feeExemption
-                            .map(exemption -> exemption.getExemptionType() == FeeExemptionType.FREE_CARD)
+                            .map(exemption -> exemption.getExemptionType() == FeeExemptionType.FREE_CARD
+                                && exemption.isAppliesToAllSubjects())
                             .orElse(false);
 
                     return new SessionAttendanceStatusDto.MarkedStudentDto(

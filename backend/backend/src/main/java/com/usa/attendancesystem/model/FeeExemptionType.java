@@ -2,5 +2,6 @@ package com.usa.attendancesystem.model;
 
 public enum FeeExemptionType {
     ALARM_EXEMPTION,
-    FREE_CARD
+    FREE_CARD,
+    HALF_PAYMENT
 }

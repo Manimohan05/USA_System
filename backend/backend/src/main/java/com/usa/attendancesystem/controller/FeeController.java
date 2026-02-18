@@ -19,6 +19,7 @@ import com.usa.attendancesystem.dto.FeeExemptionRequest;
 import com.usa.attendancesystem.dto.FeePaymentRequest;
 import com.usa.attendancesystem.dto.FeeReportDto;
 import com.usa.attendancesystem.dto.FeeReportRequest;
+import com.usa.attendancesystem.dto.SubjectDto;
 import com.usa.attendancesystem.dto.UpdateBillRequest;
 import com.usa.attendancesystem.dto.UpdatePaidDateRequest;
 import com.usa.attendancesystem.service.FeeService;
@@ -112,6 +113,11 @@ public class FeeController {
     @GetMapping("/exemptions")
     public ResponseEntity<List<FeeExemptionDto>> getFeeExemptions() {
         return ResponseEntity.ok(feeService.getFeeExemptions());
+    }
+
+    @GetMapping("/exemptions/subjects/{studentIdCode}")
+    public ResponseEntity<List<SubjectDto>> getExemptionSubjects(@PathVariable String studentIdCode) {
+        return ResponseEntity.ok(feeService.getEnrolledSubjects(studentIdCode));
     }
 
     @DeleteMapping("/exemptions/{exemptionId}")

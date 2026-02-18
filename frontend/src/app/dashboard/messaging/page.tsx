@@ -510,7 +510,7 @@ export default function MessagingPage() {
                       Sends overdue payment reminders to parents of students who haven't paid for the current month.
                     </p>
                     <p className="text-orange-800 mt-2">
-                      Free Card students are excluded, so their parents will not receive fee reminder messages.
+                      Students with Free Card for <span className="font-semibold">all subjects</span> are excluded. Students with Free Card for only some subjects will still receive reminders for their unpaid fees.
                     </p>
                   </div>
 

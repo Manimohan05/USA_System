@@ -1,9 +1,11 @@
 package com.usa.attendancesystem.service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -15,10 +17,12 @@ import com.usa.attendancesystem.dto.FeeExemptionRequest;
 import com.usa.attendancesystem.dto.FeePaymentRequest;
 import com.usa.attendancesystem.dto.FeeReportDto;
 import com.usa.attendancesystem.dto.FeeReportRequest;
+import com.usa.attendancesystem.dto.SubjectDto;
 import com.usa.attendancesystem.dto.UpdateBillRequest;
 import com.usa.attendancesystem.dto.UpdatePaidDateRequest;
 import com.usa.attendancesystem.exception.DuplicateResourceException;
 import com.usa.attendancesystem.model.FeeExemption;
+import com.usa.attendancesystem.model.FeeExemptionType;
 import com.usa.attendancesystem.exception.ResourceNotFoundException;
 import com.usa.attendancesystem.model.FeePayment;
 import com.usa.attendancesystem.model.Student;
@@ -44,7 +48,7 @@ public class FeeService {
 
         @Transactional
         public FeeExemptionDto addFeeExemption(FeeExemptionRequest request) {
-                Student student = studentRepository.findByStudentIdCode(request.studentIdCode().trim())
+                Student student = studentRepository.findByStudentIdCodeWithSubjects(request.studentIdCode().trim())
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                 "Student not found with ID: " + request.studentIdCode()));
 
@@ -58,7 +62,39 @@ public class FeeService {
                         throw new DuplicateResourceException("Student already has a fee exemption. Remove it first to change type.");
                 }
 
-                FeeExemption savedExemption = feeExemptionRepository.save(new FeeExemption(student, request.exemptionType()));
+                boolean appliesToAllSubjects = Boolean.TRUE.equals(request.appliesToAllSubjects());
+                List<Integer> subjectIds = request.subjectIds() == null ? List.of() : request.subjectIds();
+                Set<Subject> selectedSubjects = new HashSet<>();
+
+                if (request.exemptionType() == FeeExemptionType.ALARM_EXEMPTION) {
+                        appliesToAllSubjects = true;
+                } else {
+                        if (appliesToAllSubjects) {
+                                subjectIds = List.of();
+                        } else {
+                                if (subjectIds.isEmpty()) {
+                                        throw new IllegalArgumentException("Select at least one enrolled subject for this exemption.");
+                                }
+
+                                Map<Integer, Subject> subjectMap = student.getSubjects().stream()
+                                                .collect(Collectors.toMap(Subject::getId, subject -> subject));
+
+                                List<Integer> invalidSubjectIds = subjectIds.stream()
+                                                .filter(subjectId -> !subjectMap.containsKey(subjectId))
+                                                .toList();
+
+                                if (!invalidSubjectIds.isEmpty()) {
+                                        throw new IllegalArgumentException("Selected subjects are not enrolled by this student.");
+                                }
+
+                                selectedSubjects = subjectIds.stream()
+                                                .map(subjectMap::get)
+                                                .collect(Collectors.toSet());
+                        }
+                }
+
+                FeeExemption savedExemption = feeExemptionRepository.save(
+                                new FeeExemption(student, request.exemptionType(), appliesToAllSubjects, selectedSubjects));
 
                 return new FeeExemptionDto(
                                 savedExemption.getId(),
@@ -66,8 +102,27 @@ public class FeeService {
                                 student.getStudentIdCode(),
                                 student.getFullName(),
                                 savedExemption.getExemptionType(),
+                                savedExemption.isAppliesToAllSubjects(),
+                                savedExemption.getSubjects().stream()
+                                                .map(subject -> new SubjectDto(subject.getId(), subject.getName(), null))
+                                                .toList(),
                                 savedExemption.getCreatedAt()
                 );
+        }
+
+        @Transactional(readOnly = true)
+        public List<SubjectDto> getEnrolledSubjects(String studentIdCode) {
+                Student student = studentRepository.findByStudentIdCodeWithSubjects(studentIdCode.trim())
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                "Student not found with ID: " + studentIdCode));
+
+                if (!student.isActive()) {
+                        throw new IllegalStateException("Student account is not active");
+                }
+
+                return student.getSubjects().stream()
+                                .map(subject -> new SubjectDto(subject.getId(), subject.getName(), null))
+                                .toList();
         }
 
         @Transactional(readOnly = true)
@@ -79,6 +134,10 @@ public class FeeService {
                                 exemption.getStudent().getStudentIdCode(),
                                 exemption.getStudent().getFullName(),
                                 exemption.getExemptionType(),
+                                exemption.isAppliesToAllSubjects(),
+                                exemption.getSubjects().stream()
+                                                .map(subject -> new SubjectDto(subject.getId(), subject.getName(), null))
+                                                .toList(),
                                 exemption.getCreatedAt()
                 ))
                                 .toList();
@@ -135,6 +194,17 @@ public class FeeService {
         List<Student> students = feePaymentRepository.findStudentsForFeeReport(
                 request.batchId(), request.subjectId(), request.studentIdCode());
 
+        List<UUID> studentIds = students.stream()
+                .map(Student::getId)
+                .toList();
+
+        Map<UUID, FeeExemption> exemptionMap = studentIds.isEmpty()
+                ? Map.of()
+                : feeExemptionRepository.findByStudentIdIn(studentIds).stream()
+                        .collect(Collectors.toMap(
+                                exemption -> exemption.getStudent().getId(),
+                                exemption -> exemption));
+
         // Get all fee payments for the month/year with the same filters
         List<FeePayment> feePayments = feePaymentRepository.findFeePaymentsByFilters(
                 request.month(), request.year(), request.batchId(),
@@ -153,10 +223,21 @@ public class FeeService {
             Subject subject = subjectRepository.findById(request.subjectId())
                     .orElseThrow(() -> new ResourceNotFoundException("Subject not found"));
 
-            for (Student student : students) {
+                        for (Student student : students) {
                 // Only include students enrolled in the subject
                 if (student.getSubjects().stream().anyMatch(s -> s.getId().equals(request.subjectId()))) {
                     FeePayment payment = paymentMap.get(student.getId().toString());
+                                        FeeExemption exemption = exemptionMap.get(student.getId());
+                                        FeeExemptionType exemptionType = null;
+                                        boolean exemptionApplies = false;
+
+                                        if (exemption != null) {
+                                                exemptionType = exemption.getExemptionType();
+                                                if (exemptionType == FeeExemptionType.FREE_CARD || exemptionType == FeeExemptionType.HALF_PAYMENT) {
+                                                        exemptionApplies = exemption.isAppliesToAllSubjects()
+                                                                        || exemption.getSubjects().stream().anyMatch(s -> s.getId().equals(request.subjectId()));
+                                                }
+                                        }
 
                     reportDtos.add(new FeeReportDto(
                             student.getId(),
@@ -168,7 +249,9 @@ public class FeeService {
                             request.year(),
                             payment != null,
                             payment != null ? payment.getBillNumber() : null,
-                            payment != null ? payment.getPaidAt() : null
+                                                        payment != null ? payment.getPaidAt() : null,
+                                                        exemptionType,
+                                                        exemptionApplies
                     ));
                 }
             }
@@ -176,6 +259,16 @@ public class FeeService {
             // Show general fee status per student
             for (Student student : students) {
                 FeePayment payment = paymentMap.get(student.getId().toString());
+                                FeeExemption exemption = exemptionMap.get(student.getId());
+                                FeeExemptionType exemptionType = null;
+                                boolean exemptionApplies = false;
+
+                                if (exemption != null) {
+                                        exemptionType = exemption.getExemptionType();
+                                        if (exemptionType == FeeExemptionType.FREE_CARD || exemptionType == FeeExemptionType.HALF_PAYMENT) {
+                                                exemptionApplies = exemption.isAppliesToAllSubjects();
+                                        }
+                                }
 
                 reportDtos.add(new FeeReportDto(
                         student.getId(),
@@ -187,7 +280,9 @@ public class FeeService {
                         request.year(),
                         payment != null,
                         payment != null ? payment.getBillNumber() : null,
-                        payment != null ? payment.getPaidAt() : null
+                                                payment != null ? payment.getPaidAt() : null,
+                                                exemptionType,
+                                                exemptionApplies
                 ));
             }
         }

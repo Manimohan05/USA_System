@@ -71,11 +71,13 @@ public class ParentMessagingService {
                 return false;
                 }
 
-                boolean isFreeCard = feeExemptionRepository.findByStudentId(student.getId())
-                    .map(exemption -> exemption.getExemptionType() == FeeExemptionType.FREE_CARD)
-                    .orElse(false);
+                // Only skip reminder if student has a FREE_CARD that applies to ALL subjects
+                // If free card is only for some subjects, student should still receive fee reminder
+                boolean hasFullFreeCard = feeExemptionRepository
+                        .existsByStudentIdAndExemptionTypeAndAppliesToAllSubjects(
+                                student.getId(), FeeExemptionType.FREE_CARD);
 
-                return !isFreeCard;
+                return !hasFullFreeCard;
                 })
                 .filter(student -> student.getParentPhone() != null && !student.getParentPhone().trim().isEmpty())
                 .collect(Collectors.toList());
