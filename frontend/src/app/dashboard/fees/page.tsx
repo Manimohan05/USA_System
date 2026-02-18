@@ -396,7 +396,7 @@ export default function FeesPage() {
   return (
     <ProtectedRoute>
       <DashboardLayout>
-        <div className="space-y-8">
+        <div className={activeTab === 'marking' ? 'space-y-4' : 'space-y-8'}>
           {/* Modern Header Section */}
           <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 rounded-2xl shadow-2xl">
             {/* Background Elements */}
@@ -404,7 +404,7 @@ export default function FeesPage() {
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32"></div>
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-24 -translate-x-24"></div>
             
-            <div className="relative px-8 py-12">
+            <div className={activeTab === 'marking' ? 'relative px-8 py-6' : 'relative px-8 py-12'}>
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center space-x-3 mb-4">
@@ -425,7 +425,7 @@ export default function FeesPage() {
           </div>
 
           {/* Tab Navigation */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-6">
+          <div className={activeTab === 'marking' ? 'bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-3' : 'bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-6'}>
             <div className="flex items-center space-x-1 bg-gray-100/60 backdrop-blur-sm rounded-xl p-1">
               <button
                 onClick={() => setActiveTab('marking')}
@@ -465,27 +465,27 @@ export default function FeesPage() {
 
           {/* Fee Marking Tab */}
           {activeTab === 'marking' && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-8">
-              <div className="flex items-center space-x-3 mb-8">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-5 lg:p-6">
+              <div className="flex items-center space-x-3 mb-4">
                 <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
                   <Receipt className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Mark Fee Payment</h2>
+                  <h2 className="text-xl font-bold text-gray-900">Mark Fee Payment</h2>
                   <p className="text-gray-600">Record student fee payments for specific months</p>
                 </div>
               </div>
 
-              <form onSubmit={handleMarkPayment} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
+              <form onSubmit={handleMarkPayment} className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
                     <label className="block text-sm font-semibold text-gray-800">
                       Month
                     </label>
                     <select
                       value={selectedMonth}
                       onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
                     >
                       {MONTHS.map((month, index) => (
                         <option key={index} value={index + 1}>
@@ -495,14 +495,14 @@ export default function FeesPage() {
                     </select>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <label className="block text-sm font-semibold text-gray-800">
                       Year
                     </label>
                     <select
                       value={selectedYear}
                       onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
                     >
                       {yearRange.map((year) => (
                         <option key={year} value={year}>
@@ -511,7 +511,7 @@ export default function FeesPage() {
                       ))}
                     </select>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <label className="block text-sm font-semibold text-gray-800">
                       Student ID Code*
                     </label>
@@ -521,11 +521,11 @@ export default function FeesPage() {
                       onChange={(e) => setStudentIdCode(e.target.value)}
                       placeholder="Enter student ID (e.g., 5001, 8250)"
                       required
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <label className="block text-sm font-semibold text-gray-800">
                       Bill Number *
                     </label>
@@ -536,13 +536,13 @@ export default function FeesPage() {
                         onChange={(e) => setBillNumber(e.target.value)}
                         placeholder="Enter bill number"
                         required
-                        className="w-full px-4 py-3 pr-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                        className="w-full px-4 py-2.5 pr-10 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-4">
+                <div className="flex justify-end pt-1">
                   <button
                     type="submit"
                     disabled={submitting || !studentIdCode.trim() || !billNumber.trim()}
@@ -567,9 +567,9 @@ export default function FeesPage() {
 
           {/* Fee Exemption Tab */}
           {activeTab === 'exemption' && (
-            <div className="space-y-6">
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-8">
-                <div className="flex items-center space-x-3 mb-6">
+            <div className="space-y-4">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-6">
+                <div className="flex items-center space-x-3 mb-4">
                   <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
                     <Users className="h-5 w-5 text-white" />
                   </div>
@@ -579,15 +579,15 @@ export default function FeesPage() {
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="space-y-2">
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
                     <label className="block text-sm font-semibold text-gray-800">Student ID Code</label>
                     <input
                       type="text"
                       value={exemptionStudentIdCode}
                       onChange={(e) => setExemptionStudentIdCode(e.target.value)}
                       placeholder="Enter student ID (e.g., 5001, 8250)"
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-amber-100 focus:border-amber-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-amber-100 focus:border-amber-500 transition-all duration-200 bg-gray-50 hover:bg-white"
                     />
                   </div>
 
@@ -596,7 +596,7 @@ export default function FeesPage() {
                       type="button"
                       onClick={() => handleAddExemption('ALARM_EXEMPTION')}
                       disabled={addingExemptionType !== null || !exemptionStudentIdCode.trim()}
-                      className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                      className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                     >
                       {addingExemptionType === 'ALARM_EXEMPTION' ? 'Adding...' : 'Alarm Exemption'}
                     </button>
@@ -604,7 +604,7 @@ export default function FeesPage() {
                       type="button"
                       onClick={() => handleAddExemption('FREE_CARD')}
                       disabled={addingExemptionType !== null || !exemptionStudentIdCode.trim()}
-                      className="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl hover:from-teal-600 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                      className="px-6 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl hover:from-teal-600 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                     >
                       {addingExemptionType === 'FREE_CARD' ? 'Adding...' : 'Free Card'}
                     </button>
@@ -612,14 +612,14 @@ export default function FeesPage() {
                 </div>
               </div>
 
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-6">
-                <div className="flex items-center justify-between mb-4">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-5">
+                <div className="flex items-center justify-between mb-3">
                   <h3 className="text-xl font-bold text-gray-900">Exempted Students</h3>
                   <span className="text-sm text-gray-600">Total: {feeExemptions.length}</span>
                 </div>
 
                 {loadingExemptions ? (
-                  <div className="flex items-center justify-center py-10">
+                  <div className="flex items-center justify-center py-8">
                     <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
                   </div>
                 ) : feeExemptions.length === 0 ? (
@@ -677,24 +677,24 @@ export default function FeesPage() {
           {activeTab === 'report' && (
             <div className="space-y-6">
               {/* Filters Section */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-8">
-                <div className="flex items-center space-x-3 mb-6">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-5 lg:p-6">
+                <div className="flex items-center space-x-3 mb-4">
                   <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
                     <Filter className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Fee Report Filters</h2>
+                    <h2 className="text-xl font-bold text-gray-900">Fee Report Filters</h2>
                     <p className="text-gray-600">Filter fee payment reports by various criteria</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <div className="space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+                  <div className="space-y-1.5">
                     <label className="block text-sm font-semibold text-gray-800">Month</label>
                     <select
                       value={reportMonth}
                       onChange={(e) => setReportMonth(parseInt(e.target.value))}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 bg-gray-50 hover:bg-white"
                     >
                       {MONTHS.map((month, index) => (
                         <option key={index} value={index + 1}>
@@ -704,12 +704,12 @@ export default function FeesPage() {
                     </select>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <label className="block text-sm font-semibold text-gray-800">Year</label>
                     <select
                       value={reportYear}
                       onChange={(e) => setReportYear(parseInt(e.target.value))}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 bg-gray-50 hover:bg-white"
                     >
                       {yearRange.map((year) => (
                         <option key={year} value={year}>
@@ -719,12 +719,12 @@ export default function FeesPage() {
                     </select>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <label className="block text-sm font-semibold text-gray-800">Batch (Optional)</label>
                     <select
                       value={selectedBatch}
                       onChange={(e) => setSelectedBatch(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 bg-gray-50 hover:bg-white"
                     >
                       <option value="">All Batches</option>
                       {batches.map((batch) => (
@@ -735,12 +735,12 @@ export default function FeesPage() {
                     </select>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <label className="block text-sm font-semibold text-gray-800">Subject (Optional)</label>
                     <select
                       value={selectedSubject}
                       onChange={(e) => setSelectedSubject(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 bg-gray-50 hover:bg-white"
                     >
                       <option value="">All Subjects</option>
                       {subjects.map((subject) => (
@@ -751,14 +751,14 @@ export default function FeesPage() {
                     </select>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <label className="block text-sm font-semibold text-gray-800">Student ID (Optional)</label>
                     <input
                       type="text"
                       value={reportStudentId}
                       onChange={(e) => setReportStudentId(e.target.value)}
                       placeholder="Enter student ID"
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 bg-gray-50 hover:bg-white"
                     />
                   </div>
 
@@ -766,7 +766,7 @@ export default function FeesPage() {
                     <button
                       onClick={handleGenerateReport}
                       disabled={loadingReport}
-                      className="group w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
+                      className="group w-full px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
                     >
                       {loadingReport ? (
                         <>
