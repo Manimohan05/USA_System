@@ -24,6 +24,7 @@ import {
   Mail,
   User,
   Lock,
+  Power,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
@@ -235,7 +236,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Sidebar */}
       <div
         className={cn(
-          'fixed top-16 bottom-0 left-0 z-25 w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out border-r border-slate-700/50 flex flex-col',
+          'fixed top-0 bottom-0 left-0 z-25 w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out border-r border-slate-700/50 flex flex-col',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -314,12 +315,35 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </nav>
         </div>
 
+        <div className="relative p-4 border-t border-slate-700/50 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="relative h-10 w-10 overflow-visible">
+              <button
+                onClick={openProfileSidebar}
+                className="h-10 w-10 rounded-full overflow-hidden border border-gray-200 bg-white shadow-lg hover:scale-110 transition-transform duration-200 cursor-pointer"
+                title="Open profile"
+                aria-label="Open profile"
+              >
+                <Image src={profileImage || DEFAULT_PROFILE_IMAGE} alt="Profile" width={40} height={40} className="h-full w-full object-cover" />
+              </button>
+              <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-slate-800 rounded-full animate-pulse"></span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-slate-300 bg-red-500/10 rounded-lg hover:bg-red-500/20 hover:text-red-400 border border-red-500/20 transition-all duration-200 group"
+            >
+              <LogOut className="mr-2 h-4 w-4 group-hover:rotate-12 transition-transform duration-200" />
+              Sign Out
+            </button>
+          </div>
+        </div>
+
       </div>
 
       {/* Right Profile Sidebar */}
       <div
         className={cn(
-          'fixed top-16 bottom-0 right-0 z-25 w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out border-l border-slate-700/50 flex flex-col',
+          'fixed top-0 bottom-0 right-0 z-25 w-72 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out border-l border-slate-700/50 flex flex-col',
           profileSidebarOpen ? 'translate-x-0' : 'translate-x-full'
         )}
       >
@@ -387,6 +411,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     <span>{PROFILE_EMAIL}</span>
                   </div>
                 </div>
+
               </div>
 
               {profileError && (
@@ -469,16 +494,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="relative p-4 border-t border-slate-700/50 flex-shrink-0">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-slate-300 bg-red-500/10 rounded-lg hover:bg-red-500/20 hover:text-red-400 border border-red-500/20 transition-all duration-200 group"
+            className="w-10 h-10 ml-auto flex items-center justify-center text-slate-300 bg-red-500/10 rounded-lg hover:bg-red-500/20 hover:text-red-400 border border-red-500/20 transition-all duration-200"
+            title="Sign Out"
+            aria-label="Sign Out"
           >
-            <LogOut className="mr-2 h-4 w-4 group-hover:rotate-12 transition-transform duration-200" />
-            Sign Out
+            <Power className="h-5 w-5" />
           </button>
         </div>
+
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div
+        className={cn(
+          'flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out',
+          sidebarOpen ? 'lg:pl-72' : 'pl-0'
+        )}
+      >
         {/* Top header */}
         <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm shadow-lg border-b border-gray-200/50">
           <div className="relative flex items-center justify-between h-16 px-4 sm:px-6">
@@ -504,16 +536,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               {/* Notifications */}
               <NotificationDropdown />
               {/* User Icon - Right corner */}
-              <button
-                type="button"
-                onClick={openProfileSidebar}
-                className="relative h-10 w-10 rounded-full overflow-hidden border border-gray-200 bg-white shadow-lg hover:scale-110 transition-transform duration-200 cursor-pointer"
-                title="Open profile"
-                aria-label="Open profile"
-              >
-                <Image src={profileImage || DEFAULT_PROFILE_IMAGE} alt="Profile" width={40} height={40} className="h-full w-full object-cover" />
+              <div className="relative h-10 w-10 overflow-visible">
+                <button
+                  type="button"
+                  onClick={openProfileSidebar}
+                  className="h-10 w-10 rounded-full overflow-hidden border border-gray-200 bg-white shadow-lg hover:scale-110 transition-transform duration-200 cursor-pointer"
+                  title="Open profile"
+                  aria-label="Open profile"
+                >
+                  <Image src={profileImage || DEFAULT_PROFILE_IMAGE} alt="Profile" width={40} height={40} className="h-full w-full object-cover" />
+                </button>
                 <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-white rounded-full animate-pulse shadow-sm"></div>
-              </button>
+              </div>
             </div>
           </div>
         </div>
