@@ -194,7 +194,7 @@ export default function FeesPage() {
       if (key === 'Enter') {
         const scannedValue = barcodeBufferRef.current;
         const scanDurationMs = barcodeStartTimeRef.current ? now - barcodeStartTimeRef.current : Number.POSITIVE_INFINITY;
-        const isLikelyScan = barcodeEnabled || (scanDurationMs <= 500 && scannedValue.length >= 4);
+        const isLikelyScan = barcodeEnabled || (scanDurationMs <= 1200 && scannedValue.length >= 4);
 
         resetBuffer();
 
@@ -553,19 +553,16 @@ export default function FeesPage() {
                     <p className="text-gray-600">Record student fee payments for specific months</p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setBarcodeEnabled(prev => !prev)}
-                  className={`inline-flex items-center px-4 py-2 text-xs font-semibold rounded-full border transition-colors ${
+                <span
+                  className={`inline-flex items-center px-4 py-2 text-xs font-semibold rounded-full border ${
                     barcodeEnabled
                       ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      : 'bg-white text-gray-600 border-gray-200'
                   }`}
-                  aria-pressed={barcodeEnabled}
                 >
                   <ScanLine className="h-4 w-4 mr-2" />
-                  {barcodeEnabled ? 'Barcode On' : 'Barcode Off'}
-                </button>
+                  {barcodeEnabled ? 'Barcode Active' : 'Barcode Waiting'}
+                </span>
               </div>
 
               <form onSubmit={handleMarkPayment} className="space-y-3">

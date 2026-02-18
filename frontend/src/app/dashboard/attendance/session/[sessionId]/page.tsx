@@ -350,7 +350,7 @@ export default function AttendanceSessionPage() {
       if (key === 'Enter') {
         const scannedValue = barcodeBufferRef.current;
         const scanDurationMs = barcodeStartTimeRef.current ? now - barcodeStartTimeRef.current : Number.POSITIVE_INFINITY;
-        const isLikelyScan = barcodeEnabled || (scanDurationMs <= 500 && scannedValue.length >= 4);
+        const isLikelyScan = barcodeEnabled || (scanDurationMs <= 1200 && scannedValue.length >= 4);
 
         resetBuffer();
 
@@ -644,19 +644,16 @@ export default function AttendanceSessionPage() {
                   <h2 className="text-l font-bold text-white">Mark Attendance</h2>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setBarcodeEnabled(prev => !prev)}
-                    className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full border transition-colors ${
+                  <span
+                    className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full border ${
                       barcodeEnabled
                         ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                        : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
+                        : 'bg-white/10 text-white border-white/20'
                     }`}
-                    aria-pressed={barcodeEnabled}
                   >
                     <ScanLine className="h-3.5 w-3.5 mr-1" />
-                    {barcodeEnabled ? 'Barcode On' : 'Barcode Off'}
-                  </button>
+                    {barcodeEnabled ? 'Barcode Active' : 'Barcode Waiting'}
+                  </span>
                   <span className={`px-3 py-1 text-sm font-semibold rounded-full ${
                     session.isActive 
                       ? 'bg-green-100 text-green-800'
