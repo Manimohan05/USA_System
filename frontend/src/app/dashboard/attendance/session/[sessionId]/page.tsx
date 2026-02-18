@@ -21,7 +21,8 @@ import {
   ExternalLink,
   Play,
   RefreshCw,
-  Flag
+  Flag,
+  ScanLine
 } from 'lucide-react';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
@@ -49,6 +50,11 @@ export default function AttendanceSessionPage() {
   const [validationResponse, setValidationResponse] = useState<AttendanceValidationResponseDto | null>(null);
   const [sessionStatus, setSessionStatus] = useState<SessionAttendanceStatusDto | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
+  const [barcodeEnabled, setBarcodeEnabled] = useState(false);
+  const barcodeBufferRef = useRef('');
+  const barcodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastBarcodeKeyTimeRef = useRef<number>(0);
+  const barcodeStartTimeRef = useRef<number>(0);
   
   // Countdown Timer State (60 minutes = 3600 seconds)
   const [timeRemaining, setTimeRemaining] = useState<number>(3600); // countdown from 60 minutes
@@ -236,9 +242,9 @@ export default function AttendanceSessionPage() {
     }
   };
 
-  const handleAttendanceMark = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const markAttendanceByIndex = async (rawIndex: string) => {
+    if (marking) return;
+
     if (!session) {
       setValidationResponse({
         success: false,
@@ -248,7 +254,8 @@ export default function AttendanceSessionPage() {
       return;
     }
 
-    if (!indexInput.trim()) {
+    const normalizedIndex = rawIndex.trim().toUpperCase();
+    if (!normalizedIndex) {
       setValidationResponse({
         success: false,
         message: 'Please enter your student ID or index number.',
@@ -262,7 +269,7 @@ export default function AttendanceSessionPage() {
 
     try {
       const request: AttendanceMarkByIndexRequest = {
-        indexNumber: indexInput.trim().toUpperCase(),
+        indexNumber: normalizedIndex,
         sessionId: session.id,
       };
       
@@ -304,6 +311,84 @@ export default function AttendanceSessionPage() {
       setMarking(false);
     }
   };
+
+  const handleAttendanceMark = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await markAttendanceByIndex(indexInput);
+  };
+
+  const handleBarcodeScan = async (rawValue: string) => {
+    if (!session?.isActive || marking) return;
+
+    const normalizedValue = rawValue.trim().toUpperCase();
+    if (!normalizedValue) return;
+
+    setIndexInput(normalizedValue);
+    await markAttendanceByIndex(normalizedValue);
+  };
+
+  useEffect(() => {
+    const resetBuffer = () => {
+      barcodeBufferRef.current = '';
+      lastBarcodeKeyTimeRef.current = 0;
+      barcodeStartTimeRef.current = 0;
+      if (barcodeTimerRef.current) {
+        clearTimeout(barcodeTimerRef.current);
+        barcodeTimerRef.current = null;
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!document.hasFocus() || !session?.isActive || marking) return;
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+
+      const key = event.key;
+      const now = Date.now();
+      const timeSinceLastKey = now - lastBarcodeKeyTimeRef.current;
+      const resetDelayMs = 240;
+
+      if (key === 'Enter') {
+        const scannedValue = barcodeBufferRef.current;
+        const scanDurationMs = barcodeStartTimeRef.current ? now - barcodeStartTimeRef.current : Number.POSITIVE_INFINITY;
+        const isLikelyScan = barcodeEnabled || (scanDurationMs <= 500 && scannedValue.length >= 4);
+
+        resetBuffer();
+
+        if (isLikelyScan && scannedValue.length >= 4) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!barcodeEnabled) {
+            setBarcodeEnabled(true);
+          }
+          handleBarcodeScan(scannedValue);
+        }
+        return;
+      }
+
+      if (key.length !== 1) return;
+
+      if (timeSinceLastKey > resetDelayMs) {
+        barcodeBufferRef.current = key;
+        barcodeStartTimeRef.current = now;
+      } else {
+        barcodeBufferRef.current += key;
+      }
+      lastBarcodeKeyTimeRef.current = now;
+
+      if (barcodeTimerRef.current) {
+        clearTimeout(barcodeTimerRef.current);
+      }
+      barcodeTimerRef.current = setTimeout(() => {
+        resetBuffer();
+      }, resetDelayMs + 60);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      resetBuffer();
+    };
+  }, [barcodeEnabled, session?.isActive, marking]);
 
   // Close session temporarily (can be reopened)
   const closeSession = async () => {
@@ -558,20 +643,35 @@ export default function AttendanceSessionPage() {
                   <CheckCircle className="h-4 w-4 text-white" />
                   <h2 className="text-l font-bold text-white">Mark Attendance</h2>
                 </div>
-                <span className={`px-3 py-1 text-sm font-semibold rounded-full ${
-                  session.isActive 
-                    ? 'bg-green-100 text-green-800'
-                    : session.isClosed
-                    ? 'bg-yellow-100 text-yellow-800' 
-                    : session.canReactivate
-                    ? 'bg-red-100 text-red-800 animate-pulse'
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {session.isActive ? 'Active' : 
-                   session.isClosed ? 'Closed' :
-                   session.canReactivate ? 'Can Reactivate' :
-                   'Ended'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBarcodeEnabled(prev => !prev)}
+                    className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full border transition-colors ${
+                      barcodeEnabled
+                        ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                        : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
+                    }`}
+                    aria-pressed={barcodeEnabled}
+                  >
+                    <ScanLine className="h-3.5 w-3.5 mr-1" />
+                    {barcodeEnabled ? 'Barcode On' : 'Barcode Off'}
+                  </button>
+                  <span className={`px-3 py-1 text-sm font-semibold rounded-full ${
+                    session.isActive 
+                      ? 'bg-green-100 text-green-800'
+                      : session.isClosed
+                      ? 'bg-yellow-100 text-yellow-800' 
+                      : session.canReactivate
+                      ? 'bg-red-100 text-red-800 animate-pulse'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {session.isActive ? 'Active' : 
+                     session.isClosed ? 'Closed' :
+                     session.canReactivate ? 'Can Reactivate' :
+                     'Ended'}
+                  </span>
+                </div>
               </div>
 
               <div className="p-3">

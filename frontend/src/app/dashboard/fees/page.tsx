@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { DollarSign, CheckCircle, Search, Filter, CreditCard, BarChart3, CalendarDays, Building, BookOpen, Receipt, Clock, Sparkles, Users, CheckCircle2, XCircle, Edit3, Save, X, Download } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { DollarSign, CheckCircle, Search, Filter, CreditCard, BarChart3, CalendarDays, Building, BookOpen, Receipt, Clock, Sparkles, Users, CheckCircle2, XCircle, Edit3, Save, X, Download, ScanLine } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -84,6 +84,12 @@ export default function FeesPage() {
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<'marking' | 'report' | 'exemption'>('marking');
   const [loading, setLoading] = useState(false);
+  const [barcodeEnabled, setBarcodeEnabled] = useState(false);
+  const barcodeBufferRef = useRef('');
+  const barcodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastBarcodeKeyTimeRef = useRef<number>(0);
+  const barcodeStartTimeRef = useRef<number>(0);
+  const billNumberInputRef = useRef<HTMLInputElement | null>(null);
 
   // Get current year from local machine and create year range
   const currentYear = new Date().getFullYear();
@@ -156,6 +162,77 @@ export default function FeesPage() {
     loadInitialData();
     loadFeeExemptions();
   }, []);
+
+  const handleBarcodeScan = (rawValue: string) => {
+    const normalizedValue = rawValue.trim().toUpperCase();
+    if (!normalizedValue) return;
+
+    setStudentIdCode(normalizedValue);
+    requestAnimationFrame(() => billNumberInputRef.current?.focus());
+  };
+
+  useEffect(() => {
+    const resetBuffer = () => {
+      barcodeBufferRef.current = '';
+      lastBarcodeKeyTimeRef.current = 0;
+      barcodeStartTimeRef.current = 0;
+      if (barcodeTimerRef.current) {
+        clearTimeout(barcodeTimerRef.current);
+        barcodeTimerRef.current = null;
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!document.hasFocus() || activeTab !== 'marking') return;
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+
+      const key = event.key;
+      const now = Date.now();
+      const timeSinceLastKey = now - lastBarcodeKeyTimeRef.current;
+      const resetDelayMs = 240;
+
+      if (key === 'Enter') {
+        const scannedValue = barcodeBufferRef.current;
+        const scanDurationMs = barcodeStartTimeRef.current ? now - barcodeStartTimeRef.current : Number.POSITIVE_INFINITY;
+        const isLikelyScan = barcodeEnabled || (scanDurationMs <= 500 && scannedValue.length >= 4);
+
+        resetBuffer();
+
+        if (isLikelyScan && scannedValue.length >= 4) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!barcodeEnabled) {
+            setBarcodeEnabled(true);
+          }
+          handleBarcodeScan(scannedValue);
+        }
+        return;
+      }
+
+      if (key.length !== 1) return;
+
+      if (timeSinceLastKey > resetDelayMs) {
+        barcodeBufferRef.current = key;
+        barcodeStartTimeRef.current = now;
+      } else {
+        barcodeBufferRef.current += key;
+      }
+      lastBarcodeKeyTimeRef.current = now;
+
+      if (barcodeTimerRef.current) {
+        clearTimeout(barcodeTimerRef.current);
+      }
+      barcodeTimerRef.current = setTimeout(() => {
+        resetBuffer();
+      }, resetDelayMs + 60);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      resetBuffer();
+    };
+  }, [barcodeEnabled, activeTab]);
 
   const loadInitialData = async () => {
     try {
@@ -466,14 +543,29 @@ export default function FeesPage() {
           {/* Fee Marking Tab */}
           {activeTab === 'marking' && (
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-5 lg:p-6">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-                  <Receipt className="h-5 w-5 text-white" />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
+                    <Receipt className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Mark Fee Payment</h2>
+                    <p className="text-gray-600">Record student fee payments for specific months</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Mark Fee Payment</h2>
-                  <p className="text-gray-600">Record student fee payments for specific months</p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setBarcodeEnabled(prev => !prev)}
+                  className={`inline-flex items-center px-4 py-2 text-xs font-semibold rounded-full border transition-colors ${
+                    barcodeEnabled
+                      ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                  }`}
+                  aria-pressed={barcodeEnabled}
+                >
+                  <ScanLine className="h-4 w-4 mr-2" />
+                  {barcodeEnabled ? 'Barcode On' : 'Barcode Off'}
+                </button>
               </div>
 
               <form onSubmit={handleMarkPayment} className="space-y-3">
@@ -536,6 +628,7 @@ export default function FeesPage() {
                         onChange={(e) => setBillNumber(e.target.value)}
                         placeholder="Enter bill number"
                         required
+                        ref={billNumberInputRef}
                         className="w-full px-4 py-2.5 pr-10 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
                       />
                     </div>
