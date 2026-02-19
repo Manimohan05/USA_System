@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.usa.attendancesystem.dto.AttendanceMarkByIndexRequest;
+import com.usa.attendancesystem.dto.AttendanceMarkByIndexAutoRequest;
 import com.usa.attendancesystem.dto.AttendanceMarkRequest;
 import com.usa.attendancesystem.dto.AttendanceReportDto;
 import com.usa.attendancesystem.dto.AttendanceReportRequest;
@@ -192,6 +193,24 @@ public class AttendanceController {
             // Return 400 Bad Request for validation errors, but include the detailed response
             return ResponseEntity.badRequest().body(response);
         }
+    }
+
+    /**
+     * PUBLIC endpoint for common attendance marking across all active sessions.
+     * Auto-detects the correct active session based on student index number,
+     * batch and subject enrollment.
+     */
+    @PostMapping("/attendance/mark-by-index-auto")
+    public ResponseEntity<AttendanceValidationResponseDto> markAttendanceByIndexAuto(
+            @Valid @RequestBody AttendanceMarkByIndexAutoRequest request
+    ) {
+        AttendanceValidationResponseDto response = attendanceService.markAttendanceByIndexAutoWithValidation(request);
+
+        if (response.success()) {
+            return ResponseEntity.ok(response);
+        }
+
+        return ResponseEntity.badRequest().body(response);
     }
 
     /**
