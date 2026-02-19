@@ -60,4 +60,8 @@ public class Student {
     )
     @Builder.Default
     private Set<Subject> subjects = new HashSet<>();
+
+    @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private Set<FeeExemption> feeExemptions = new HashSet<>();
 }
