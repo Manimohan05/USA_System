@@ -131,4 +131,12 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("sessionDate") java.time.LocalDate sessionDate
     );
 
+    /**
+     * Deletes all attendance records for a specific batch.
+     * Used for batch permanent deletion.
+     */
+    @Modifying
+    @Query("DELETE FROM AttendanceRecord ar WHERE ar.student.batch.id = :batchId")
+    void deleteByBatchId(@Param("batchId") Integer batchId);
+
 }

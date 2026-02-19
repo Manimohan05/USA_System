@@ -38,6 +38,10 @@ public interface AttendanceSessionRepository extends JpaRepository<AttendanceSes
     @Query("SELECT s FROM AttendanceSession s WHERE s.id = :sessionId AND s.isActive = true")
     Optional<AttendanceSession> findActiveSessionById(@Param("sessionId") Long sessionId);
 
+        boolean existsByBatch_IdAndIsActiveTrue(Integer batchId);
+
+        boolean existsBySubject_IdAndIsActiveTrue(Integer subjectId);
+
     /**
      * Finds all sessions for a specific subject within a date range. Used for
      * calculating total class days for student reports.
