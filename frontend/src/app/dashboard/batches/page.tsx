@@ -131,11 +131,12 @@ export default function BatchesPage() {
         message: `Batch "${deleteConfirm.batch.displayName}" has been archived and can be recovered later.`,
         duration: 5000
       });
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Unable to archive batch. Please try again.';
       addToast({
         type: 'error',
         title: 'Failed to Archive Batch',
-        message: 'Unable to archive batch. Please try again.',
+        message: errorMessage,
         duration: 5000
       });
     } finally {
@@ -182,11 +183,12 @@ export default function BatchesPage() {
         message: `Batch "${permanentDeleteConfirm.batch.displayName}" has been permanently deleted.`,
         duration: 5000
       });
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Unable to delete batch. Please try again.';
       addToast({
         type: 'error',
         title: 'Failed to Delete Batch',
-        message: 'Unable to delete batch. Please try again.',
+        message: errorMessage,
         duration: 5000
       });
     } finally {
@@ -227,7 +229,7 @@ export default function BatchesPage() {
   return (
     <ProtectedRoute>
       <DashboardLayout>
-        <div className="space-y-8">
+        <div className="space-y-6">
           {/* Modern Header Section */}
           <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 rounded-2xl shadow-2xl">
             {/* Background Elements */}
@@ -235,7 +237,7 @@ export default function BatchesPage() {
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32"></div>
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-24 -translate-x-24"></div>
             
-            <div className="relative px-8 py-12">
+            <div className="relative px-6 py-6">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center space-x-3 mb-4">
@@ -288,7 +290,7 @@ export default function BatchesPage() {
                     <p className="text-gray-600">{editingBatch ? 'Update batch information' : 'Create a new academic batch'}</p>
                   </div>
                 </div>
-                <form onSubmit={handleCreateBatch} className="space-y-6">
+                <form onSubmit={handleCreateBatch} className="space-y-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-800 mb-3">
                       Academic Year *
@@ -429,7 +431,70 @@ export default function BatchesPage() {
             </div>
           )}
 
-          {/* Archived Batches Section - Collapsible at Top */}
+          {/* Active Batches Grid */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-6">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
+                <GraduationCap className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Academic Batches</h2>
+                <p className="text-gray-600">Total: {batches.length} {batches.length === 1 ? 'batch' : 'batches'}</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {batches.map((batch) => (
+                <div key={batch.id} className="group relative bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-6 border border-gray-100 hover:border-indigo-200 transform hover:scale-105">
+                  {/* Background decoration */}
+                  <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full -translate-y-10 translate-x-10 opacity-50 group-hover:opacity-70 transition-opacity"></div>
+                  
+                  <div className="relative">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl group-hover:scale-110 transition-transform duration-200">
+                          <Calendar className="h-6 w-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-indigo-700 transition-colors">
+                            {batch.displayName}
+                          </h3>
+                          <p className="text-sm text-gray-500 font-medium">
+                            Academic Year {batch.batchYear} {batch.isDayBatch ? '(Day Batch)' : ''}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between mt-4">
+                      <div className="flex items-center text-sm text-gray-500">
+                        <Users className="h-4 w-4 mr-1" />
+                        <span>Students: {batch.studentCount}</span>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => handleEditBatch(batch)}
+                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-200"
+                          title="Edit Batch"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleArchiveBatch(batch)}
+                          className="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-all duration-200"
+                          title="Archive Batch"
+                        >
+                          <Archive className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Archived Batches Section - Collapsible Below Active */}
           {archivedBatches.length > 0 && (
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-6">
               <button
@@ -506,69 +571,6 @@ export default function BatchesPage() {
             </div>
           )}
 
-          {/* Modern Batches Grid */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-6">
-            <div className="flex items-center space-x-3 mb-8">
-              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <GraduationCap className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Academic Batches</h2>
-                <p className="text-gray-600">Total: {batches.length} {batches.length === 1 ? 'batch' : 'batches'}</p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {batches.map((batch) => (
-                <div key={batch.id} className="group relative bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-6 border border-gray-100 hover:border-indigo-200 transform hover:scale-105">
-                  {/* Background decoration */}
-                  <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full -translate-y-10 translate-x-10 opacity-50 group-hover:opacity-70 transition-opacity"></div>
-                  
-                  <div className="relative">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl group-hover:scale-110 transition-transform duration-200">
-                          <Calendar className="h-6 w-6 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-indigo-700 transition-colors">
-                            {batch.displayName}
-                          </h3>
-                          <p className="text-sm text-gray-500 font-medium">
-                            Academic Year {batch.batchYear} {batch.isDayBatch ? '(Day Batch)' : ''}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between mt-4">
-                      <div className="flex items-center text-sm text-gray-500">
-                        <Users className="h-4 w-4 mr-1" />
-                        <span>Students: {batch.studentCount}</span>
-                      </div>
-                      <div className="flex space-x-2">
-                        <button 
-                          onClick={() => handleEditBatch(batch)}
-                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-200"
-                          title="Edit Batch"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleArchiveBatch(batch)}
-                          className="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-all duration-200"
-                          title="Archive Batch"
-                        >
-                          <Archive className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {batches.length === 0 && archivedBatches.length === 0 && (
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-12">
               <div className="text-center">
@@ -577,7 +579,7 @@ export default function BatchesPage() {
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">No Batches Created</h3>
                 <p className="text-gray-600 mb-2">Start organizing your institution by creating academic batches.</p>
-                <p className="text-sm text-gray-500 mb-8">Batches help you group students by enrollment year for better management.</p>
+                <p className="text-sm text-gray-500 mb-6">Batches help you group students by enrollment year for better management.</p>
                 <div className="space-y-4">
                   <button
                     onClick={() => setShowForm(true)}
