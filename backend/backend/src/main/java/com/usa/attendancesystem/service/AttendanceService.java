@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.usa.attendancesystem.dto.AttendanceMarkByIndexRequest;
+import com.usa.attendancesystem.dto.AttendanceMarkByIndexAutoRequest;
 import com.usa.attendancesystem.dto.AttendanceMarkRequest;
 import com.usa.attendancesystem.dto.AttendanceRecordDto;
 import com.usa.attendancesystem.dto.AttendanceReportDto;
@@ -226,6 +227,76 @@ public class AttendanceService {
             );
         }
     }
+
+        @Transactional
+        public AttendanceValidationResponseDto markAttendanceByIndexAutoWithValidation(AttendanceMarkByIndexAutoRequest request) {
+        String normalizedIndex = request.indexNumber() == null ? "" : request.indexNumber().trim().toUpperCase();
+        if (normalizedIndex.isEmpty()) {
+            return AttendanceValidationResponseDto.error("Please enter your Index Number.", "EMPTY_INPUT");
+        }
+
+        Student student = studentRepository.findByIndexNumberIgnoreCase(normalizedIndex)
+            .orElse(null);
+
+        if (student == null) {
+            return AttendanceValidationResponseDto.error(
+                "Student ID not found. Please check your ID and try again.",
+                "STUDENT_NOT_FOUND"
+            );
+        }
+
+        if (!student.isActive()) {
+            return AttendanceValidationResponseDto.error("Student account is not active.", "STUDENT_INACTIVE");
+        }
+
+        Set<Integer> studentSubjectIds = student.getSubjects().stream()
+            .map(Subject::getId)
+            .collect(Collectors.toSet());
+
+        List<AttendanceSession> matchingSessions = sessionRepository.findAllActiveSessions().stream()
+            .filter(session -> session.getBatch().getId().equals(student.getBatch().getId()))
+            .filter(session -> studentSubjectIds.contains(session.getSubject().getId()))
+            .toList();
+
+        if (matchingSessions.isEmpty()) {
+            return AttendanceValidationResponseDto.error(
+                "No active session found for this student. Please ask staff to open the correct batch/subject session.",
+                "SESSION_NOT_FOUND"
+            );
+        }
+
+        if (matchingSessions.size() > 1) {
+            String sessionSummary = matchingSessions.stream()
+                .map(s -> String.format("%s - %s", s.getBatch().getDisplayName(), s.getSubject().getName()))
+                .collect(Collectors.joining(", "));
+
+            return AttendanceValidationResponseDto.error(
+                "Multiple active sessions match this student (" + sessionSummary
+                    + "). Please use individual session marking for now.",
+                "MULTIPLE_MATCHING_SESSIONS"
+            );
+        }
+
+        AttendanceSession resolvedSession = matchingSessions.get(0);
+        AttendanceValidationResponseDto result = markAttendanceByIndexWithValidation(
+            new AttendanceMarkByIndexRequest(normalizedIndex, resolvedSession.getId())
+        );
+
+        if (result.success()) {
+            return new AttendanceValidationResponseDto(
+                true,
+                result.message() + " (Session: " + resolvedSession.getBatch().getDisplayName() + " - "
+                    + resolvedSession.getSubject().getName() + ", Session ID: " + resolvedSession.getId() + ")",
+                result.errorCode(),
+                result.student(),
+                result.markedAt(),
+                result.hasFeePaymentIssue(),
+                result.playFeeDueSound()
+            );
+        }
+
+        return result;
+        }
 
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void markAttendanceByIndex(AttendanceMarkByIndexRequest request) {
