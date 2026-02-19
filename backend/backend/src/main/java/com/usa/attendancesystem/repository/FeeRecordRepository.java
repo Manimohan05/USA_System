@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -27,4 +28,12 @@ public interface FeeRecordRepository extends JpaRepository<FeeRecord, Long> {
      */
     @Query("SELECT fr FROM FeeRecord fr WHERE fr.status IN :statuses AND fr.dueDate <= :currentDate")
     List<FeeRecord> findOverdueFees(@Param("statuses") List<FeeStatus> statuses, @Param("currentDate") LocalDate currentDate);
+
+    /**
+     * Deletes all fee records for students in a specific batch.
+     * Used for batch permanent deletion.
+     */
+    @Modifying
+    @Query("DELETE FROM FeeRecord fr WHERE fr.student.batch.id = :batchId")
+    void deleteByBatchId(@Param("batchId") Integer batchId);
 }

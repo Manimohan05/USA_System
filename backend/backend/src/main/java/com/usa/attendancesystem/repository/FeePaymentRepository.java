@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -72,4 +73,12 @@ public interface FeePaymentRepository extends JpaRepository<FeePayment, UUID> {
             @Param("year") Integer year,
             @Param("byDate") java.time.Instant byDate
     );
+
+    /**
+     * Deletes all fee payments for students in a specific batch.
+     * Used for batch permanent deletion.
+     */
+    @Modifying
+    @Query("DELETE FROM FeePayment fp WHERE fp.student.batch.id = :batchId")
+    void deleteByBatchId(@Param("batchId") Integer batchId);
 }

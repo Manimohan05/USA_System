@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -120,4 +121,12 @@ public interface StudentRepository extends JpaRepository<Student, UUID> {
      * Checks if an index number already exists.
      */
     boolean existsByIndexNumber(String indexNumber);
+
+    /**
+     * Deletes all students belonging to a specific batch.
+     * Used for batch permanent deletion to avoid ConcurrentModificationException.
+     */
+    @Modifying
+    @Query("DELETE FROM Student s WHERE s.batch.id = :batchId")
+    void deleteByBatchId(@Param("batchId") Integer batchId);
 }
