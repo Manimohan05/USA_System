@@ -1,5 +1,6 @@
 package com.usa.attendancesystem.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,4 +16,9 @@ public interface SubjectRepository extends JpaRepository<Subject, Integer> {
 
     // Custom query method to find a subject by its name, used for validation.
     Optional<Subject> findByName(String name);
+
+    // Query methods for archived subjects
+    List<Subject> findByIsArchivedFalse();
+    
+    List<Subject> findByIsArchivedTrue();
 }

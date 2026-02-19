@@ -17,7 +17,11 @@ public class Subject {
     @Column(unique = true, nullable = false, length = 100)
     private String name;
 
+    @Column(name = "is_archived", nullable = false)
+    private boolean isArchived = false;
+
     public Subject(String name) {
         this.name = name;
+        this.isArchived = false;
     }
 }
