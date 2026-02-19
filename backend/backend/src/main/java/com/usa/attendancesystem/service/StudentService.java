@@ -364,7 +364,7 @@ public class StudentService {
         Set<SubjectDto> subjectDtos = student.getSubjects().stream()
                 .map(subject -> {
                     Long studentCount = studentRepository.countActiveStudentsBySubject(subject.getId());
-                    return new SubjectDto(subject.getId(), subject.getName(), studentCount);
+                    return new SubjectDto(subject.getId(), subject.getName(), studentCount, subject.isArchived());
                 })
                 .collect(Collectors.toSet());
 
