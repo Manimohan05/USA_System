@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { useNotifications } from './notification';
 
 interface Toast {
   id: string;
@@ -20,12 +21,22 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const notificationContext = useNotifications();
 
   const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
     const id = Math.random().toString(36).substring(2, 9);
     const newToast = { ...toast, id };
     
     setToasts((prev) => [...prev, newToast]);
+
+    // Also save to notification center for persistent storage
+    if (notificationContext) {
+      notificationContext.addNotification({
+        type: toast.type,
+        title: toast.title,
+        message: toast.message || '',
+      });
+    }
 
     // Auto remove after duration (default 5 seconds)
     const duration = toast.duration || 5000;
@@ -34,7 +45,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         removeToast(id);
       }, duration);
     }
-  }, []);
+  }, [notificationContext]);
 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));

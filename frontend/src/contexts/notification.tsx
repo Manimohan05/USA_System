@@ -1,6 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+
+const STORAGE_KEY = 'usa_attendance_notifications';
+const RETENTION_HOURS = 20;
 
 export interface Notification {
   id: string;
@@ -9,6 +12,7 @@ export interface Notification {
   message: string;
   timestamp: Date;
   read: boolean;
+  expiresAt: Date;
   sessionId?: number;
   batchYear?: string;
   subjectName?: string;
@@ -17,11 +21,12 @@ export interface Notification {
 interface NotificationContextType {
   notifications: Notification[];
   unreadCount: number;
-  addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => void;
+  addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read' | 'expiresAt'>) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   removeNotification: (id: string) => void;
   clearAll: () => void;
+  clearOldNotifications: () => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -30,15 +35,70 @@ interface NotificationProviderProps {
   children: React.ReactNode;
 }
 
+// Helper to load notifications from localStorage
+const loadNotificationsFromStorage = (): Notification[] => {
+  if (typeof window === 'undefined') return [];
+  
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return [];
+    
+    const parsed = JSON.parse(stored);
+    const now = new Date();
+    
+    // Filter out expired notifications and parse dates
+    return parsed
+      .map((n: any) => ({
+        ...n,
+        timestamp: new Date(n.timestamp),
+        expiresAt: new Date(n.expiresAt),
+      }))
+      .filter((n: Notification) => n.expiresAt > now);
+  } catch (error) {
+    console.error('Failed to load notifications from storage:', error);
+    return [];
+  }
+};
+
+// Helper to save notifications to localStorage
+const saveNotificationsToStorage = (notifications: Notification[]) => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+  } catch (error) {
+    console.error('Failed to save notifications to storage:', error);
+  }
+};
+
 export function NotificationProvider({ children }: NotificationProviderProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  const addNotification = useCallback((notificationData: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
+  // Load from localStorage on mount
+  useEffect(() => {
+    const storedNotifications = loadNotificationsFromStorage();
+    setNotifications(storedNotifications);
+    setIsInitialized(true);
+  }, []);
+
+  // Save to localStorage whenever notifications change (after initial load)
+  useEffect(() => {
+    if (isInitialized) {
+      saveNotificationsToStorage(notifications);
+    }
+  }, [notifications, isInitialized]);
+
+  const addNotification = useCallback((notificationData: Omit<Notification, 'id' | 'timestamp' | 'read' | 'expiresAt'>) => {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + RETENTION_HOURS * 60 * 60 * 1000);
+    
     const newNotification: Notification = {
       ...notificationData,
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      timestamp: new Date(),
+      timestamp: now,
       read: false,
+      expiresAt,
     };
 
     setNotifications(prev => [newNotification, ...prev]);
@@ -68,6 +128,11 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     setNotifications([]);
   }, []);
 
+  const clearOldNotifications = useCallback(() => {
+    const now = new Date();
+    setNotifications(prev => prev.filter(n => n.expiresAt > now));
+  }, []);
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const value: NotificationContextType = {
@@ -78,6 +143,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     markAllAsRead,
     removeNotification,
     clearAll,
+    clearOldNotifications,
   };
 
   return (
