@@ -62,6 +62,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [profileError, setProfileError] = useState('');
   const [profileSuccess, setProfileSuccess] = useState('');
   const [updatingProfileImage, setUpdatingProfileImage] = useState(false);
+  const [currentDateTime, setCurrentDateTime] = useState<Date | null>(null);
   const profileFileInputRef = useRef<HTMLInputElement>(null);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -81,6 +82,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       localStorage.setItem('usa-theme', 'light');
     }
   }, [isDarkMode]);
+
+  useEffect(() => {
+    setCurrentDateTime(new Date());
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -217,6 +227,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       event.target.value = '';
     }
   };
+
+  const formattedDate = currentDateTime
+    ? currentDateTime.toLocaleDateString('en-GB', {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      })
+    : '--';
+
+  const formattedTime = currentDateTime
+    ? currentDateTime.toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+    : '--:--:--';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100 flex">
@@ -524,10 +551,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <div className="pl-12 sm:pl-14" aria-hidden="true">
             </div>
             
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-3">
+              <div className="hidden md:flex h-10 items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-3">
+                <Calendar className="h-4 w-4 text-indigo-600" />
+                <div className="leading-tight">
+                  <p className="text-[11px] font-semibold text-indigo-700">{formattedDate}</p>
+                  <p className="text-xs font-bold text-indigo-900">{formattedTime}</p>
+                </div>
+              </div>
               <button
                 onClick={() => setIsDarkMode(!isDarkMode)}
-                className="relative p-3 text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-all duration-200 hover:scale-105 group"
+                className="relative h-10 w-10 flex items-center justify-center text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-all duration-200 hover:scale-105 group"
                 title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 aria-label={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
               >

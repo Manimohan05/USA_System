@@ -46,13 +46,13 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
       >
-        <ToastProvider>
-          <AuthProvider>
-            <NotificationProvider>
+        <NotificationProvider>
+          <ToastProvider>
+            <AuthProvider>
               {children}
-            </NotificationProvider>
-          </AuthProvider>
-        </ToastProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </NotificationProvider>
       </body>
     </html>
   );

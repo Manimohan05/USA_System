@@ -1,7 +1,7 @@
 'use client';
 
 import { useNotifications } from '@/contexts/notification';
-import { Bell, Clock, CheckCircle2, AlertTriangle, Info, X } from 'lucide-react';
+import { Bell, Clock, CheckCircle2, AlertTriangle, Info, X, Trash2, Filter } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -9,10 +9,20 @@ interface NotificationDropdownProps {
   className?: string;
 }
 
+type FilterType = 'all' | 'success' | 'error' | 'warning' | 'info';
+
 export default function NotificationDropdown({ className }: NotificationDropdownProps) {
-  const { notifications, unreadCount, markAsRead, markAllAsRead, removeNotification } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, removeNotification, clearAll, clearOldNotifications } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
+  const [filter, setFilter] = useState<FilterType>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Auto-cleanup expired notifications when dropdown opens
+  useEffect(() => {
+    if (isOpen) {
+      clearOldNotifications();
+    }
+  }, [isOpen, clearOldNotifications]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -54,6 +64,16 @@ export default function NotificationDropdown({ className }: NotificationDropdown
     }
   };
 
+  // Filter notifications based on selected filter
+  const filteredNotifications = filter === 'all' 
+    ? notifications 
+    : notifications.filter(n => n.type === filter);
+
+  const getFilterBadgeCount = (type: FilterType) => {
+    if (type === 'all') return notifications.length;
+    return notifications.filter(n => n.type === type).length;
+  };
+
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
       {/* Notification Bell Button */}
@@ -81,31 +101,81 @@ export default function NotificationDropdown({ className }: NotificationDropdown
           <div className="p-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-lg">Notifications</h3>
-              {unreadCount > 0 && (
-                <button
-                  onClick={markAllAsRead}
-                  className="text-sm bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg transition-colors"
-                >
-                  Mark all read
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllAsRead}
+                    className="text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded-lg transition-colors"
+                  >
+                    Mark all read
+                  </button>
+                )}
+                {notifications.length > 0 && (
+                  <button
+                    onClick={clearAll}
+                    className="text-xs bg-white/20 hover:bg-red-500/50 px-2 py-1 rounded-lg transition-colors flex items-center gap-1"
+                    title="Clear all notifications"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Clear All
+                  </button>
+                )}
+              </div>
             </div>
             {unreadCount > 0 && (
               <p className="text-white/80 text-sm mt-1">{unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}</p>
             )}
           </div>
 
+          {/* Filter Tabs */}
+          {notifications.length > 0 && (
+            <div className="flex items-center gap-1 px-4 py-3 bg-gray-50 border-b border-gray-200 overflow-x-auto">
+              <Filter className="h-4 w-4 text-gray-500 flex-shrink-0" />
+              {(['all', 'success', 'error', 'warning', 'info'] as FilterType[]).map((type) => {
+                const count = getFilterBadgeCount(type);
+                if (count === 0 && type !== 'all') return null;
+                
+                return (
+                  <button
+                    key={type}
+                    onClick={() => setFilter(type)}
+                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-all flex items-center gap-1 ${
+                      filter === type
+                        ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300'
+                        : 'bg-white text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                    {count > 0 && (
+                      <span className={`px-1.5 py-0.5 text-[10px] rounded-full ${
+                        filter === type
+                          ? 'bg-indigo-200 text-indigo-800'
+                          : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Notifications List */}
           <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
+            {filteredNotifications.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 <Bell className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg font-medium">No notifications</p>
-                <p className="text-sm">You're all caught up!</p>
+                <p className="text-lg font-medium">
+                  {filter === 'all' ? 'No notifications' : `No ${filter} notifications`}
+                </p>
+                <p className="text-sm">
+                  {filter === 'all' ? "You're all caught up!" : `No ${filter} messages found`}
+                </p>
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {notifications.map((notification) => (
+                {filteredNotifications.map((notification) => (
                   <div
                     key={notification.id}
                     className={`p-4 hover:bg-gray-50 transition-colors border-l-4 ${getBorderColor(notification.type)} ${
