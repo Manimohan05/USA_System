@@ -1,23 +1,23 @@
 'use client';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useToast } from '@/contexts/toast';
 import { useNotifications } from '@/contexts/notification';
-import { Calendar, Users, CheckCircle, XCircle, Download, Search, Play, Pause, Settings, Clock, BookOpen, GraduationCap, User, ExternalLink, AlertTriangle, RotateCcw } from 'lucide-react';
+import { Calendar, Users, CheckCircle, XCircle, Download, Search, Play, Pause, Settings, Clock, BookOpen, GraduationCap, User, AlertTriangle, RotateCcw, ScanLine, Flag } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import api from '@/lib/api';
+import api, { messagingApi } from '@/lib/api';
 import { formatDate, formatDateForAPI } from '@/lib/utils';
 import type { 
   BatchDto, 
   SubjectDto, 
   AttendanceMarkRequest, 
   AttendanceReportDto,
+  AttendanceReportRequest,
   EnhancedAttendanceReportDto,
   AttendanceSessionDto,
   AttendanceSessionCreateRequest,
-  AttendanceMarkByIndexRequest,
   AttendanceValidationResponseDto,
   SessionAttendanceStatusDto,
   MarkedStudentDto,
@@ -34,6 +34,17 @@ const sanitizeForFileName = (value: string) =>
     .toLowerCase()
     .replace(/\s+/g, '_')
     .replace(/[^a-z0-9_-]/g, '') || 'unknown';
+
+const getSessionRunningDuration = (createdAt: string) => {
+  const elapsedMs = Math.max(0, Date.now() - new Date(createdAt).getTime());
+  const hours = Math.floor(elapsedMs / (1000 * 60 * 60));
+  const minutes = Math.floor((elapsedMs % (1000 * 60 * 60)) / (1000 * 60));
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+};
 
 function AttendancePageContent() {
   const { addToast } = useToast();
@@ -56,6 +67,7 @@ function AttendancePageContent() {
   const [currentSession, setCurrentSession] = useState<AttendanceSessionDto | null>(null);
   const [previousSessions, setPreviousSessions] = useState<AttendanceSessionDto[]>([]);
   const [showAllSessions, setShowAllSessions] = useState(false);
+  const [commonMarkingOpen, setCommonMarkingOpen] = useState(false);
   
   // Create Session State
   const [sessionBatch, setSessionBatch] = useState<string>('');
@@ -68,7 +80,13 @@ function AttendancePageContent() {
   const [marking, setMarking] = useState(false);
   const [validationResponse, setValidationResponse] = useState<AttendanceValidationResponseDto | null>(null);
   const [sessionStatus, setSessionStatus] = useState<SessionAttendanceStatusDto | null>(null);
+  const [sessionStatusMap, setSessionStatusMap] = useState<Record<number, SessionAttendanceStatusDto>>({});
   const [loadingStatus, setLoadingStatus] = useState(false);
+  const [barcodeEnabled, setBarcodeEnabled] = useState(false);
+  const barcodeBufferRef = useRef('');
+  const barcodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastBarcodeKeyTimeRef = useRef<number>(0);
+  const barcodeStartTimeRef = useRef<number>(0);
   
   // Report State
   const [reportDate, setReportDate] = useState(formatDateForAPI(new Date()));
@@ -119,6 +137,71 @@ function AttendancePageContent() {
       fetchSessionStatus(currentSession.id);
     }
   }, [currentSession]);
+
+  useEffect(() => {
+    const resetBuffer = () => {
+      barcodeBufferRef.current = '';
+      lastBarcodeKeyTimeRef.current = 0;
+      barcodeStartTimeRef.current = 0;
+      if (barcodeTimerRef.current) {
+        clearTimeout(barcodeTimerRef.current);
+        barcodeTimerRef.current = null;
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!document.hasFocus() || !commonMarkingOpen || marking) return;
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+
+      const key = event.key;
+      const now = Date.now();
+      const timeSinceLastKey = now - lastBarcodeKeyTimeRef.current;
+      const resetDelayMs = 240;
+
+      if (key === 'Enter') {
+        const scannedValue = barcodeBufferRef.current;
+        const scanDurationMs = barcodeStartTimeRef.current
+          ? now - barcodeStartTimeRef.current
+          : Number.POSITIVE_INFINITY;
+        const isLikelyScan = barcodeEnabled || (scanDurationMs <= 1200 && scannedValue.length >= 4);
+
+        resetBuffer();
+
+        if (isLikelyScan && scannedValue.length >= 4) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!barcodeEnabled) {
+            setBarcodeEnabled(true);
+          }
+          handleBarcodeScan(scannedValue);
+        }
+        return;
+      }
+
+      if (key.length !== 1) return;
+
+      if (timeSinceLastKey > resetDelayMs) {
+        barcodeBufferRef.current = key;
+        barcodeStartTimeRef.current = now;
+      } else {
+        barcodeBufferRef.current += key;
+      }
+      lastBarcodeKeyTimeRef.current = now;
+
+      if (barcodeTimerRef.current) {
+        clearTimeout(barcodeTimerRef.current);
+      }
+      barcodeTimerRef.current = setTimeout(() => {
+        resetBuffer();
+      }, resetDelayMs + 60);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      resetBuffer();
+    };
+  }, [barcodeEnabled, commonMarkingOpen, marking]);
 
   // Handle clicks outside student dropdown to close it
   useEffect(() => {
@@ -208,6 +291,30 @@ function AttendancePageContent() {
       console.log('Active sessions:', response.data.filter(s => s.isActive));
       console.log('Ended sessions:', response.data.filter(s => !s.isActive));
       setSessions(response.data);
+
+      const activeSessions = response.data.filter(session => session.isActive);
+      if (activeSessions.length === 0) {
+        setSessionStatusMap({});
+      } else {
+        const statusEntries = await Promise.all(
+          activeSessions.map(async (session) => {
+            try {
+              const statusRes = await api.get<SessionAttendanceStatusDto>(`/attendance/sessions/${session.id}/status`);
+              return [session.id, statusRes.data] as const;
+            } catch {
+              return [session.id, null] as const;
+            }
+          })
+        );
+
+        const nextStatusMap: Record<number, SessionAttendanceStatusDto> = {};
+        statusEntries.forEach(([id, status]) => {
+          if (status) {
+            nextStatusMap[id] = status;
+          }
+        });
+        setSessionStatusMap(nextStatusMap);
+      }
       
       // Auto-select session from URL parameter if available
       if (sessionIdFromUrl) {
@@ -502,7 +609,7 @@ function AttendancePageContent() {
     setConfirmAction(() => async () => {
       setShowConfirmModal(false);
       try {
-        await api.delete(`/admin/attendance/sessions/${sessionId}/fully-end`);
+        await messagingApi.delete(`/admin/attendance/sessions/${sessionId}/fully-end`);
         
         // Remove the session from the list since it's now fully ended or deleted
         setSessions(prev => prev.filter(s => s.id !== sessionId));
@@ -523,10 +630,14 @@ function AttendancePageContent() {
           });
         }
       } catch (error: any) {
+        const timeoutMessage = error.code === 'ECONNABORTED'
+          ? 'Request timed out while processing SMS notifications. Please wait a moment and refresh sessions to confirm the final state.'
+          : null;
+
         addToast({
           type: 'error',
           title: '❌ Failed to Process Session',
-          message: `Error: ${error.response?.data?.message || 'Please try again.'}`,
+          message: `Error: ${timeoutMessage || error.response?.data?.message || 'Please try again.'}`,
           duration: 6000
         });
       }
@@ -608,22 +719,21 @@ function AttendancePageContent() {
     }
   };
 
-  const handleSessionAttendance = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!currentSession) {
+  const markAttendanceByCommon = async (rawIndex: string) => {
+    if (!commonMarkingOpen) {
       setValidationResponse({
         success: false,
-        message: 'No active session selected. Please create or select a session first.',
-        errorCode: 'NO_SESSION'
+        message: 'Open Attendance Marking from the Today\'s Sessions card first.',
+        errorCode: 'COMMON_MARKING_NOT_OPEN'
       });
       return;
     }
 
-    if (!indexInput.trim()) {
+    const normalizedIndex = rawIndex.trim().toUpperCase();
+    if (!normalizedIndex) {
       setValidationResponse({
         success: false,
-        message: 'Please enter your Index Number.',
+        message: 'Please enter your student ID or index number.',
         errorCode: 'EMPTY_INPUT'
       });
       return;
@@ -633,33 +743,30 @@ function AttendancePageContent() {
     setValidationResponse(null);
 
     try {
-      const request: AttendanceMarkByIndexRequest = {
-        indexNumber: indexInput.trim().toUpperCase(),
-        sessionId: currentSession!.id,
-      };
-      
-      const response = await api.post<AttendanceValidationResponseDto>('/attendance/mark-by-index', request);
+      const response = await api.post<AttendanceValidationResponseDto>('/attendance/mark-by-index-auto', {
+        indexNumber: normalizedIndex,
+      });
       setValidationResponse(response.data);
-      
+
       if (response.data.success) {
         setIndexInput('');
-        // Auto-clear success message after 5 seconds
         setTimeout(() => setValidationResponse(null), 5000);
       }
-      
-      // Always refresh session status to show current state
-      // Add small delay to ensure backend transaction has completed
+
       setTimeout(async () => {
-        await fetchSessionStatus(currentSession!.id);
+        await fetchTodaysSessions();
+        const message = response.data.message || '';
+        const sessionIdMatch = message.match(/Session ID: (\d+)/);
+        if (sessionIdMatch) {
+          const detectedSessionId = parseInt(sessionIdMatch[1], 10);
+          await fetchSessionStatus(detectedSessionId);
+        }
       }, 100);
     } catch (error: any) {
-      // Handle server validation response in error case
       if (error.response?.data && typeof error.response.data === 'object' && 'success' in error.response.data) {
         setValidationResponse(error.response.data as AttendanceValidationResponseDto);
-        // Refresh session status even for structured error responses (like ALREADY_MARKED)
-        // Add small delay to ensure backend transaction has completed
         setTimeout(async () => {
-          await fetchSessionStatus(currentSession!.id);
+          await fetchTodaysSessions();
         }, 100);
       } else {
         const errorMessage = error.response?.data?.message || 'Failed to mark attendance. Please try again.';
@@ -672,6 +779,21 @@ function AttendancePageContent() {
     } finally {
       setMarking(false);
     }
+  };
+
+  const handleSessionAttendance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await markAttendanceByCommon(indexInput);
+  };
+
+  const handleBarcodeScan = async (rawValue: string) => {
+    if (!commonMarkingOpen || marking) return;
+
+    const normalizedValue = rawValue.trim().toUpperCase();
+    if (!normalizedValue) return;
+
+    setIndexInput(normalizedValue);
+    await markAttendanceByCommon(normalizedValue);
   };
 
 
@@ -893,7 +1015,7 @@ function AttendancePageContent() {
     // Generate filename based on report type
     const dateRange = `${enhancedReport.startDate}_to_${enhancedReport.endDate}`;
     const filename = enhancedReport.studentName
-      ? `${sanitizeForFileName(enhancedReport.studentIdCode)}_${sanitizeForFileName(enhancedReport.studentName)}_attendance_report_${dateRange}`
+      ? `${sanitizeForFileName(enhancedReport.studentIdCode || 'student')}_${sanitizeForFileName(enhancedReport.studentName)}_attendance_report_${dateRange}`
       : `${sanitizeForFileName(enhancedReport.batchName)}_attendance_report_${sanitizeForFileName(enhancedReport.subjectName)}_${dateRange}`;
 
     if (format === 'csv') {
@@ -987,7 +1109,7 @@ function AttendancePageContent() {
   return (
     <ProtectedRoute>
       <DashboardLayout>
-        <div className="space-y-8">
+        <div className="space-y-4">
           {/* Modern Header Section */}
           <div className="relative overflow-hidden bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-700 rounded-2xl shadow-2xl">
             {/* Background Elements */}
@@ -995,7 +1117,7 @@ function AttendancePageContent() {
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32"></div>
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-24 -translate-x-24"></div>
             
-            <div className="relative px-8 py-12">
+            <div className="relative px-6 py-6">
               <div className="flex items-center space-x-3 mb-4">
                 <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
                   <Calendar className="h-6 w-6 text-white" />
@@ -1041,37 +1163,37 @@ function AttendancePageContent() {
 
           {/* Sessions Management Tab */}
           {activeTab === 'sessions' && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* Create New Session */}
-              <div className="relative overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-xl shadow-lg border border-indigo-100 p-6">
+              <div className="relative overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-xl shadow-lg border border-indigo-100 p-4">
                 {/* Background Pattern */}
                 <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-200 to-purple-200 rounded-full -translate-y-16 translate-x-16 opacity-20"></div>
                 <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-blue-200 to-indigo-200 rounded-full translate-y-12 -translate-x-12 opacity-20"></div>
                 
                 {/* Header */}
-                <div className="relative mb-6">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                      <Play className="h-6 w-6 text-white" />
+                <div className="relative mb-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="flex-shrink-0 w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
+                      <Play className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-gray-900">Create Attendance Session</h2>
-                      <p className="text-sm text-gray-600">Start a new session to track student attendance</p>
+                      <h2 className="text-lg font-bold text-gray-900">Create Attendance Session</h2>
+                      <p className="text-xs text-gray-600">Start a new session to track student attendance</p>
                     </div>
                   </div>
                 </div>
                 
-                <form onSubmit={createSession} className="relative grid grid-cols-1 md:grid-cols-4 gap-4">
+                <form onSubmit={createSession} className="relative grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div className="group">
-                    <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                    <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 mb-2">
                       <Users className="h-4 w-4 text-indigo-500" />
                       <span>Batch</span>
                     </label>
                     <select
                       value={sessionBatch}
                       onChange={(e) => setSessionBatch(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 text-sm"
                       required
                     >
                       <option value="">Select batch</option>
@@ -1084,14 +1206,14 @@ function AttendancePageContent() {
                   </div>
 
                   <div className="group">
-                    <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                    <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 mb-2">
                       <Calendar className="h-4 w-4 text-indigo-500" />
                       <span>Subject</span>
                     </label>
                     <select
                       value={sessionSubject}
                       onChange={(e) => setSessionSubject(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 text-sm"
                       required
                     >
                       <option value="">Select subject</option>
@@ -1104,7 +1226,7 @@ function AttendancePageContent() {
                   </div>
 
                   <div className="group">
-                    <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                    <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 mb-2">
                       <Calendar className="h-4 w-4 text-indigo-500" />
                       <span>Date</span>
                     </label>
@@ -1112,7 +1234,7 @@ function AttendancePageContent() {
                       type="date"
                       value={sessionDate}
                       onChange={(e) => setSessionDate(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 text-sm"
                       required
                     />
                   </div>
@@ -1121,7 +1243,7 @@ function AttendancePageContent() {
                     <button
                       type="submit"
                       disabled={creatingSession}
-                      className="group w-full flex items-center justify-center py-3 px-6 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-xl active:scale-95"
+                      className="group w-full flex items-center justify-center py-2 px-4 border border-transparent rounded-lg shadow-lg text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-xl active:scale-95"
                     >
                       {creatingSession ? (
                         <>
@@ -1141,7 +1263,7 @@ function AttendancePageContent() {
 
               {/* Today's Sessions */}
               <div className="bg-white backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                <div className="px-6 py-6 bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-between">
+                <div className="px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div className="p-2 bg-white/10 rounded-xl">
                       <Calendar className="h-6 w-6 text-white" />
@@ -1156,22 +1278,33 @@ function AttendancePageContent() {
                   >
                     {showAllSessions ? 'Show Today Only' : 'Show All Sessions'}
                   </button>
-                  <button
-                    onClick={() => {
-                      console.log('Manual refresh clicked');
-                      // Fetch fresh data from backend
-                      fetchTodaysSessions();
-                    }}
-                    disabled={loadingSessions}
-                    className="group flex items-center px-4 py-2 text-sm font-medium bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 ml-2"
-                  >
-                    {loadingSessions ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    ) : (
-                      <Play className="h-4 w-4 mr-2 group-hover:animate-pulse" />
-                    )}
-                    Refresh
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        window.open('/dashboard/attendance/common-marking', '_blank');
+                      }}
+                      disabled={sessions.filter(session => session.isActive).length === 0}
+                      className="group flex items-center px-4 py-2 text-sm font-semibold bg-white/20 hover:bg-white/30 text-white rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Users className="h-4 w-4 mr-2 group-hover:animate-pulse" />
+                      Open Marking
+                    </button>
+                    <button
+                      onClick={() => {
+                        console.log('Manual refresh clicked');
+                        fetchTodaysSessions();
+                      }}
+                      disabled={loadingSessions}
+                      className="group flex items-center px-4 py-2 text-sm font-medium bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                    >
+                      {loadingSessions ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      ) : (
+                        <Play className="h-4 w-4 mr-2 group-hover:animate-pulse" />
+                      )}
+                      Refresh
+                    </button>
+                  </div>
                 </div>
 
                 <div className="p-6">
@@ -1185,75 +1318,85 @@ function AttendancePageContent() {
                       <p className="text-sm text-gray-400">Create a new session above to start marking attendance.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {sessions.filter(session => session.isActive).map((session) => (
+                    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {sessions.filter(session => session.isActive).map((session) => {
+                        const sessionCardStatus = sessionStatusMap[session.id];
+                        const absentCount = sessionCardStatus
+                          ? Math.max(0, sessionCardStatus.totalEnrolledStudents - sessionCardStatus.presentCount)
+                          : '--';
+
+                        return (
                         <div
                           key={session.id}
-                          className={`active-session-card group relative p-6 rounded-2xl border-2 transition-all duration-300 hover:shadow-lg ${
+                          className={`active-session-card group relative p-3 rounded-xl border-2 transition-all duration-300 hover:shadow-lg flex flex-col ${
                             currentSession?.id === session.id
                               ? 'border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg ring-2 ring-indigo-100'
                               : 'border-gray-100 hover:border-indigo-200 bg-white hover:shadow-md hover:bg-gradient-to-br hover:from-gray-50 hover:to-indigo-50'
                           }`}
                         >
                           <div 
-                            className="cursor-pointer"
+                            className="cursor-pointer flex-1 min-h-0"
                             onClick={() => {
                               setCurrentSession(session);
                               fetchSessionStatus(session.id);
                             }}
                           >
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center space-x-2">
-                                <div className={`p-2 rounded-lg ${currentSession?.id === session.id ? 'bg-indigo-100' : 'bg-gray-100 group-hover:bg-indigo-100'}`}>
-                                  <Users className={`h-5 w-5 ${currentSession?.id === session.id ? 'text-indigo-600' : 'text-gray-600 group-hover:text-indigo-600'}`} />
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex items-center space-x-1.5">
+                                <div className={`p-1.5 rounded-lg ${currentSession?.id === session.id ? 'bg-indigo-100' : 'bg-gray-100 group-hover:bg-indigo-100'}`}>
+                                  <Users className={`h-4 w-4 ${currentSession?.id === session.id ? 'text-indigo-600' : 'text-gray-600 group-hover:text-indigo-600'}`} />
                                 </div>
-                                <h3 className="font-bold text-gray-900">
+                                <h3 className="font-bold text-sm text-gray-900">
                                   {session.batchDisplayName || `Batch ${session.batchYear}`}
                                 </h3>
                               </div>
-                              <span className={`active-session-badge px-3 py-1 text-xs font-semibold rounded-full ${
-                                session.isActive 
-                                  ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' 
-                                  : 'bg-gray-100 text-gray-800 ring-1 ring-gray-200'
-                              }`}>
-                                {session.isActive ? '● Active' : '○ Ended'}
-                              </span>
+                              <div className="flex flex-col items-end gap-1">
+                                <span className={`active-session-badge px-3 py-1 text-xs font-semibold rounded-full ${
+                                  session.isActive 
+                                    ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' 
+                                    : 'bg-gray-100 text-gray-800 ring-1 ring-gray-200'
+                                }`}>
+                                  {session.isActive ? '● Active' : '○ Ended'}
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="inline-flex items-center rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+                                    Present: {sessionCardStatus ? sessionCardStatus.presentCount : '--'}
+                                  </span>
+                                  <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+                                    Absent: {absentCount}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                            <div className="space-y-2">
-                              <p className="font-medium text-gray-800">{session.subjectName}</p>
-                              <p className="text-sm text-gray-500 flex items-center">
-                                <Clock className="h-4 w-4 mr-1" />
+                            <div className="space-y-1">
+                              <p className="text-sm font-bold text-gray-900 truncate">{session.subjectName}</p>
+                              <p className="text-xs text-gray-500 flex items-center">
+                                <Clock className="h-3 w-3 mr-1" />
                                 {formatDate(session.sessionDate)}
+                              </p>
+                              <p className="text-xs text-gray-500 flex items-center">
+                                <Clock className="h-3 w-3 mr-1" />
+                                Running: {getSessionRunningDuration(session.createdAt)}
                               </p>
                             </div>
                           </div>
-                          <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                window.open(`/dashboard/attendance/session/${session.id}`, '_blank');
-                              }}
-                              className="active-session-open-btn group w-full bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-indigo-100 hover:to-purple-100 hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
-                            >
-                              <ExternalLink className="w-4 h-4 inline mr-2 group-hover:animate-pulse" />
-                              Open Session
-                            </button>
+                          <div className="mt-2 pt-2 border-t border-gray-200">
                             {session.isActive && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   endSession(session.id);
                                 }}
-                                className="active-session-end-btn group w-full bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-red-100 hover:to-rose-100 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
+                                className="active-session-end-btn group w-full bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200 rounded-lg px-2 py-1.5 text-xs font-semibold hover:from-red-100 hover:to-rose-100 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
                                 title="End session without sending SMS (can be reopened)"
                               >
-                                <Pause className="w-4 h-4 inline mr-2 group-hover:animate-pulse" />
+                                <Pause className="w-3 h-3 inline mr-1 group-hover:animate-pulse" />
                                 END SESSION
                               </button>
                             )}
                           </div>
                         </div>
-                      ))}
+                      );})}
                     </div>
                   )}
                 </div>
@@ -1261,7 +1404,7 @@ function AttendancePageContent() {
 
               {/* Recovery Section - Ended Sessions */}
               <div className="bg-white backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                <div className="px-6 py-6 bg-gradient-to-r from-orange-500 to-amber-600 flex items-center justify-between">
+                <div className="px-4 py-3 bg-gradient-to-r from-orange-500 to-amber-600 flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div className="p-2 bg-white/10 rounded-xl">
                       <RotateCcw className="h-6 w-6 text-white" />
@@ -1284,48 +1427,48 @@ function AttendancePageContent() {
                       <p className="text-sm text-gray-400">Only temporarily ended sessions appear here for recovery.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       {sessions.filter(session => session.canReactivate).map((session) => (
                         <div
                           key={`ended-${session.id}`}
-                          className="recovery-session-card group relative p-6 rounded-2xl border-2 border-orange-100 bg-gradient-to-br from-orange-50 to-amber-50 hover:border-orange-200 transition-all duration-300 hover:shadow-lg"
+                          className="recovery-session-card group relative p-3 rounded-xl border-2 border-orange-100 bg-gradient-to-br from-orange-50 to-amber-50 hover:border-orange-200 transition-all duration-300 hover:shadow-lg flex flex-col"
                         >
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center space-x-2">
-                              <div className="p-2 rounded-lg bg-orange-100">
-                                <Users className="h-5 w-5 text-orange-600" />
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center space-x-1.5">
+                              <div className="p-1.5 rounded-lg bg-orange-100">
+                                <Users className="h-4 w-4 text-orange-600" />
                               </div>
-                              <h3 className="font-bold text-gray-900">
+                              <h3 className="font-bold text-sm text-gray-900">
                                 {session.batchDisplayName || `Batch ${session.batchYear}`}
                               </h3>
                             </div>
-                            <span className="px-3 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800 ring-1 ring-gray-200">
+                            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-100 text-gray-800 ring-1 ring-gray-200">
                               ○ Ended
                             </span>
                           </div>
                           
-                          <div className="space-y-2 mb-4">
-                            <p className="font-medium text-gray-800">{session.subjectName}</p>
-                            <p className="text-sm text-gray-500 flex items-center">
-                              <Clock className="h-4 w-4 mr-1" />
+                          <div className="space-y-1 mb-2 flex-1 min-h-0">
+                            <p className="text-sm font-bold text-gray-900 truncate">{session.subjectName}</p>
+                            <p className="text-xs text-gray-500 flex items-center">
+                              <Clock className="h-3 w-3 mr-1" />
                               {formatDate(session.sessionDate)}
                             </p>
                           </div>
                           
-                          <div className="space-y-2">
+                          <div className="space-y-1.5">
                             <button
                               onClick={() => reopenSession(session.id)}
-                              className="recovery-session-reopen-btn group w-full bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-orange-100 hover:to-amber-100 hover:border-orange-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
+                              className="recovery-session-reopen-btn group w-full bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 rounded-lg px-2 py-1.5 text-xs font-semibold hover:from-orange-100 hover:to-amber-100 hover:border-orange-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
                             >
-                              <RotateCcw className="w-4 h-4 inline mr-2 group-hover:animate-spin" />
+                              <RotateCcw className="w-3 h-3 inline mr-1 group-hover:animate-spin" />
                               Reopen Session
                             </button>
                             <button
                               onClick={() => fullyEndSession(session.id, session)}
-                              className="recovery-session-end-btn group w-full bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200 rounded-xl px-4 py-3 text-sm font-semibold hover:from-red-100 hover:to-rose-100 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
+                              className="recovery-session-end-btn group w-full bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200 rounded-lg px-2 py-1.5 text-xs font-semibold hover:from-red-100 hover:to-rose-100 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 transform hover:scale-105 active:scale-95"
                               title="Permanently end session and send SMS notifications"
                             >
-                              <XCircle className="w-4 h-4 inline mr-2 group-hover:animate-pulse" />
+                              <XCircle className="w-3 h-3 inline mr-1 group-hover:animate-pulse" />
                               Fully End
                             </button>
                           </div>
@@ -1340,10 +1483,10 @@ function AttendancePageContent() {
 
           {/* Reports Tab */}
           {activeTab === 'report' && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* Report Mode Selection */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-6">
-                <div className="flex items-center space-x-4 mb-6">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-4">
+                <div className="flex items-center space-x-4 mb-4">
                   <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
                     <Calendar className="h-6 w-6 text-white" />
                   </div>
@@ -1354,7 +1497,7 @@ function AttendancePageContent() {
                 </div>
                 
                 {/* Report Mode Tabs */}
-                <div className="flex space-x-1 mb-6 bg-gray-100 rounded-xl p-1">
+                <div className="flex space-x-1 mb-4 bg-gray-100 rounded-xl p-1">
                   <button
                     onClick={() => setReportMode('single')}
                     className={`flex-1 py-3 px-4 rounded-lg font-semibold text-sm transition-all duration-200 ${
@@ -1379,9 +1522,9 @@ function AttendancePageContent() {
 
                 {/* Single Day Report Form */}
                 {reportMode === 'single' && (
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div className="group">
-                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                      <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 mb-2">
                         <Calendar className="h-4 w-4 text-indigo-500" />
                         <span>Date</span>
                       </label>
@@ -1389,19 +1532,19 @@ function AttendancePageContent() {
                         type="date"
                         value={reportDate}
                         onChange={(e) => setReportDate(e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 text-sm"
                       />
                     </div>
                     
                     <div className="group">
-                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                      <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 mb-2">
                         <Users className="h-4 w-4 text-indigo-500" />
                         <span>Batch</span>
                       </label>
                       <select
                         value={reportBatch}
                         onChange={(e) => setReportBatch(e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 text-sm"
                       >
                         <option value="">Select batch</option>
                         {batches.map((batch) => (
@@ -1413,14 +1556,14 @@ function AttendancePageContent() {
                     </div>
                     
                     <div className="group">
-                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                      <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 mb-2">
                         <BookOpen className="h-4 w-4 text-indigo-500" />
                         <span>Subject</span>
                       </label>
                       <select
                         value={reportSubject}
                         onChange={(e) => setReportSubject(e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 text-sm"
                       >
                         <option value="">Select subject</option>
                         {subjects.map((subject) => (
@@ -1435,7 +1578,7 @@ function AttendancePageContent() {
                       <button
                         onClick={fetchAttendanceReport}
                         disabled={loadingReport}
-                        className="group w-full flex items-center justify-center py-3 px-6 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-xl active:scale-95"
+                        className="group w-full flex items-center justify-center py-2 px-4 border border-transparent rounded-lg shadow-lg text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-xl active:scale-95"
                       >
                         {loadingReport ? (
                           <>
@@ -1457,9 +1600,9 @@ function AttendancePageContent() {
 
                 {/* Student Report Form */}
                 {reportMode === 'student' && (
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div className="group relative">
-                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                      <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 mb-2">
                         <User className="h-4 w-4 text-indigo-500" />
                         <span>Student</span>
                       </label>
@@ -1470,7 +1613,7 @@ function AttendancePageContent() {
                           value={studentSearch}
                           onChange={(e) => handleStudentSearch(e.target.value)}
                           onFocus={() => setShowStudentDropdown(true)}
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 text-sm"
                         />
                         <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                         
@@ -1499,7 +1642,7 @@ function AttendancePageContent() {
                     </div>
                     
                     <div className="group">
-                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                      <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 mb-2">
                         <Calendar className="h-4 w-4 text-indigo-500" />
                         <span>Start Date</span>
                       </label>
@@ -1507,12 +1650,12 @@ function AttendancePageContent() {
                         type="date"
                         value={reportStartDate}
                         onChange={(e) => setReportStartDate(e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 text-sm"
                       />
                     </div>
                     
                     <div className="group">
-                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                      <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 mb-2">
                         <Calendar className="h-4 w-4 text-indigo-500" />
                         <span>End Date</span>
                       </label>
@@ -1520,19 +1663,19 @@ function AttendancePageContent() {
                         type="date"
                         value={reportEndDate}
                         onChange={(e) => setReportEndDate(e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 text-sm"
                       />
                     </div>
                     
                     <div className="group">
-                      <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700 mb-3">
+                      <label className="flex items-center space-x-2 text-xs font-semibold text-gray-700 mb-2">
                         <BookOpen className="h-4 w-4 text-indigo-500" />
                         <span>Subject (Optional)</span>
                       </label>
                       <select
                         value={reportSubject}
                         onChange={(e) => setReportSubject(e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 group-hover:shadow-md"
+                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 text-sm"
                       >
                         <option value="">All subjects</option>
                         {subjects.map((subject) => (
@@ -1546,11 +1689,11 @@ function AttendancePageContent() {
                 )}
                 
                 {reportMode === 'student' && (
-                  <div className="mt-6 flex justify-end">
+                  <div className="mt-4 flex justify-end">
                     <button
                       onClick={fetchEnhancedReport}
                       disabled={loadingReport}
-                      className="group flex items-center justify-center py-3 px-6 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-xl active:scale-95"
+                      className="group flex items-center justify-center py-2 px-4 border border-transparent rounded-lg shadow-lg text-sm font-bold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-xl active:scale-95"
                     >
                       {loadingReport ? (
                         <>
@@ -1571,7 +1714,7 @@ function AttendancePageContent() {
               {/* Legacy Report Results (Single Day) */}
               {attendanceReport && (
                 <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                  <div className="px-8 py-6 bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-between">
+                  <div className="px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                       <div className="p-3 bg-white/20 rounded-xl">
                         <Calendar className="h-6 w-6 text-white" />
@@ -1601,8 +1744,8 @@ function AttendancePageContent() {
                     </div>
                   </div>
 
-                  <div className="px-8 py-6 bg-gradient-to-br from-gray-50 to-indigo-50">
-                    <div className="grid grid-cols-3 gap-8">
+                  <div className="px-4 py-4 bg-gradient-to-br from-gray-50 to-indigo-50">
+                    <div className="grid grid-cols-3 gap-6">
                       <div className="text-center">
                         <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
                           <Users className="h-8 w-8 text-white" />
@@ -1628,8 +1771,8 @@ function AttendancePageContent() {
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2">
-                    <div className="p-8 border-r border-gray-200">
-                      <h4 className="text-lg font-bold text-emerald-700 mb-6 flex items-center">
+                    <div className="p-4 border-r border-gray-200">
+                      <h4 className="text-lg font-bold text-emerald-700 mb-4 flex items-center">
                         <CheckCircle className="h-6 w-6 mr-3" />
                         Present Students ({attendanceReport.presentStudents.length})
                       </h4>
@@ -1656,8 +1799,8 @@ function AttendancePageContent() {
                       </div>
                     </div>
 
-                    <div className="p-8">
-                      <h4 className="text-lg font-bold text-red-700 mb-6 flex items-center">
+                    <div className="p-4">
+                      <h4 className="text-lg font-bold text-red-700 mb-4 flex items-center">
                         <XCircle className="h-6 w-6 mr-3" />
                         Absent Students ({attendanceReport.absentStudents.length})
                       </h4>
@@ -1688,7 +1831,7 @@ function AttendancePageContent() {
               {/* Enhanced Report Results */}
               {enhancedReport && (
                 <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                  <div className="px-8 py-6 bg-gradient-to-r from-purple-500 to-indigo-600 flex items-center justify-between">
+                  <div className="px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                       <div className="p-3 bg-white/20 rounded-xl">
                         <Calendar className="h-6 w-6 text-white" />
@@ -1725,8 +1868,8 @@ function AttendancePageContent() {
 
                   {/* Student-specific stats */}
                   {enhancedReport.studentName && enhancedReport.totalClassDays > 0 && (
-                    <div className="px-8 py-6 bg-gradient-to-br from-gray-50 to-purple-50">
-                      <div className="grid grid-cols-4 gap-8">
+                    <div className="px-4 py-4 bg-gradient-to-br from-gray-50 to-purple-50">
+                      <div className="grid grid-cols-4 gap-4">
                         <div className="text-center">
                           <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
                             <Calendar className="h-8 w-8 text-white" />
