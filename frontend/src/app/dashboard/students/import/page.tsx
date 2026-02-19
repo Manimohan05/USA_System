@@ -91,7 +91,7 @@ export default function BulkImportPage() {
         {/* Modern Background */}
         <div className="min-h-screen relative overflow-hidden">
           {/* Animated background gradient */}
-          <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-white to-blue-50 animate-gradient-x"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 animate-gradient-x"></div>
           
           {/* Floating particles */}
           <div className="absolute inset-0 overflow-hidden">
@@ -115,9 +115,9 @@ export default function BulkImportPage() {
             ))}
           </div>
 
-          <div className="relative z-10 space-y-8 p-6">
+          <div className="relative z-10 space-y-6 p-6">
             {/* Modern Header */}
-            <div className="backdrop-blur-md bg-white/70 rounded-2xl shadow-xl border border-white/20 p-6">
+            <div className="backdrop-blur-md bg-white/70 dark:bg-slate-900/70 rounded-2xl shadow-xl border border-white/20 dark:border-slate-700/50 p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <Link
@@ -131,10 +131,10 @@ export default function BulkImportPage() {
                       <Users className="h-8 w-8 text-white" />
                     </div>
                     <div>
-                      <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                      <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
                         Bulk Student Import
                       </h1>
-                      <p className="text-gray-600 flex items-center mt-1">
+                      <p className="text-gray-600 dark:text-gray-400 flex items-center mt-1">
                         <Sparkles className="h-4 w-4 mr-2 text-indigo-500" />
                         Import multiple students from CSV file
                       </p>
@@ -145,12 +145,12 @@ export default function BulkImportPage() {
                 {/* Quick Stats */}
                 <div className="flex space-x-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-indigo-600">{batches.length}</div>
-                    <div className="text-sm text-gray-500">Batches</div>
+                    <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{batches.length}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">Batches</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{subjects.length}</div>
-                    <div className="text-sm text-gray-500">Subjects</div>
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{subjects.length}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">Subjects</div>
                   </div>
                 </div>
               </div>
@@ -159,28 +159,28 @@ export default function BulkImportPage() {
           {!importResult ? (
             <>
               {/* Batch Selection Section */}
-              <div className="backdrop-blur-md bg-white/70 rounded-2xl shadow-xl border border-white/20 p-8">
+              <div className="backdrop-blur-md bg-white/70 dark:bg-slate-900/70 rounded-2xl shadow-xl border border-white/20 dark:border-slate-700/50 p-8">
                 <div className="flex items-center space-x-4 mb-6">
                   <div className="p-3 bg-gradient-to-br from-green-500 to-teal-600 rounded-xl shadow-lg">
                     <GraduationCap className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
                       Select Target Batch
                     </h2>
-                    <p className="text-gray-600">Choose which batch to import these students into</p>
+                    <p className="text-gray-600 dark:text-gray-400">Choose which batch to import these students into</p>
                   </div>
                 </div>
                 
                 <div className="max-w-md">
-                  <label htmlFor="batch-select" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="batch-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Batch *
                   </label>
                   <select
                     id="batch-select"
                     value={selectedBatchId || ''}
                     onChange={(e) => setSelectedBatchId(Number(e.target.value) || null)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focused:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-gray-900"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focused:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                   >
                     <option value="">-- Select a batch --</option>
                     {batches.map((batch) => (
@@ -190,14 +190,14 @@ export default function BulkImportPage() {
                     ))}
                   </select>
                   {!selectedBatchId && (
-                    <p className="mt-2 text-sm text-red-600 flex items-center">
+                    <p className="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center">
                       <AlertCircle className="h-4 w-4 mr-1" />
                       Please select a batch to proceed
                     </p>
                   )}
                   {selectedBatch && selectedBatchFormatPrefix && (
-                    <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <p className="text-sm text-blue-700">
+                    <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
                         <span className="font-semibold">Student ID Format:</span>{' '}
                         {`${selectedBatchFormatPrefix}XXX (e.g., ${selectedBatchFormatPrefix}001, ${selectedBatchFormatPrefix}002)`}
                       </p>
@@ -207,16 +207,16 @@ export default function BulkImportPage() {
               </div>
 
               {/* Modern Upload Section */}
-              <div className="backdrop-blur-md bg-white/70 rounded-2xl shadow-xl border border-white/20 p-8">
+              <div className="backdrop-blur-md bg-white/70 dark:bg-slate-900/70 rounded-2xl shadow-xl border border-white/20 dark:border-slate-700/50 p-8">
                 <div className="flex items-center space-x-4 mb-6">
                   <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl shadow-lg">
                     <Upload className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
                       Upload CSV or Excel File
                     </h2>
-                    <p className="text-gray-600">Drag and drop or click to select your file (.csv, .xlsx)</p>
+                    <p className="text-gray-600 dark:text-gray-400">Drag and drop or click to select your file (.csv, .xlsx)</p>
                   </div>
                 </div>
                 
@@ -227,17 +227,17 @@ export default function BulkImportPage() {
                     key={resetKey}
                   />
                 ) : (
-                  <div className="flex items-center justify-center p-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                  <div className="flex items-center justify-center p-12 bg-gray-50 dark:bg-slate-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-600">
                     <div className="text-center">
-                      <AlertCircle className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-gray-600 font-medium">Select a batch first to upload students</p>
+                      <AlertCircle className="h-8 w-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+                      <p className="text-gray-600 dark:text-gray-400 font-medium">Select a batch first to upload students</p>
                     </div>
                   </div>
                 )}
               </div>
 
               {/* Modern Instructions Card */}
-              <div className="backdrop-blur-md bg-white/70 rounded-2xl shadow-xl border border-white/20 p-8">
+              <div className="backdrop-blur-md bg-white/70 dark:bg-slate-900/70 rounded-2xl shadow-xl border border-white/20 dark:border-slate-700/50 p-8">
                 <div 
                   className="flex items-center justify-between cursor-pointer group"
                   onClick={() => setInstructionsExpanded(!instructionsExpanded)}
@@ -246,15 +246,15 @@ export default function BulkImportPage() {
                     <div className="p-3 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl shadow-lg group-hover:shadow-xl transition-all duration-300">
                       <FileText className="h-6 w-6 text-white" />
                     </div>
-                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                    <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
                       How to Import Students
                     </h2>
                   </div>
-                  <div className="p-2 hover:bg-white/50 rounded-lg transition-all duration-200">
+                  <div className="p-2 hover:bg-white/50 dark:hover:bg-slate-800 rounded-lg transition-all duration-200">
                     {instructionsExpanded ? (
-                      <ChevronUp className="h-5 w-5 text-gray-600" />
+                      <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                     ) : (
-                      <ChevronDown className="h-5 w-5 text-gray-600" />
+                      <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                     )}
                   </div>
                 </div>
@@ -289,7 +289,7 @@ export default function BulkImportPage() {
                           icon: CheckCircle
                         }
                       ].map((item, i) => (
-                        <div key={i} className="group p-4 rounded-xl hover:bg-white/50 transition-all duration-300">
+                        <div key={i} className="group p-4 rounded-xl hover:bg-white/50 dark:hover:bg-slate-800 transition-all duration-300">
                           <div className="flex items-start space-x-3">
                             <div className="flex-shrink-0">
                               <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
@@ -298,10 +298,10 @@ export default function BulkImportPage() {
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center space-x-2 mb-2">
-                                <item.icon className="h-4 w-4 text-indigo-600" />
-                                <h3 className="font-semibold text-gray-900">{item.title}</h3>
+                                <item.icon className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                                <h3 className="font-semibold text-gray-900 dark:text-white">{item.title}</h3>
                               </div>
-                              <p className="text-sm text-gray-600">{item.desc}</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">{item.desc}</p>
                             </div>
                           </div>
                         </div>
@@ -314,15 +314,15 @@ export default function BulkImportPage() {
               {/* Modern Requirements & Available Data */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Requirements Card */}
-                <div className="backdrop-blur-md bg-gradient-to-br from-yellow-50/80 to-orange-50/80 rounded-2xl shadow-xl border border-yellow-200/50 p-6">
+                <div className="backdrop-blur-md bg-gradient-to-br from-yellow-50/80 to-orange-50/80 dark:from-yellow-950/30 dark:to-orange-950/30 rounded-2xl shadow-xl border border-yellow-200/50 dark:border-yellow-800/30 p-6">
                   <div className="flex items-center space-x-3 mb-4">
                     <div className="p-2 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-lg">
                       <AlertCircle className="h-5 w-5 text-white" />
                     </div>
-                    <h3 className="text-lg font-bold text-yellow-900">Requirements</h3>
+                    <h3 className="text-lg font-bold text-yellow-900 dark:text-yellow-200">Requirements</h3>
                   </div>
                   
-                  <ul className="space-y-3 text-sm text-yellow-800">
+                  <ul className="space-y-3 text-sm text-yellow-800 dark:text-yellow-100">
                     {[
                       'Batch: Select from dropdown before uploading (no longer needed in file)',
                       selectedBatchFormatPrefix
@@ -347,28 +347,28 @@ export default function BulkImportPage() {
                 </div>
 
                 {/* Available Data Card */}
-                <div className="backdrop-blur-md bg-gradient-to-br from-blue-50/80 to-indigo-50/80 rounded-2xl shadow-xl border border-blue-200/50 p-6">
+                <div className="backdrop-blur-md bg-gradient-to-br from-blue-50/80 to-indigo-50/80 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-2xl shadow-xl border border-blue-200/50 dark:border-blue-800/30 p-6">
                   <div className="flex items-center space-x-3 mb-4">
                     <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg">
                       <BookOpen className="h-5 w-5 text-white" />
                     </div>
-                    <h3 className="text-lg font-bold text-blue-900">Available Data</h3>
+                    <h3 className="text-lg font-bold text-blue-900 dark:text-blue-200">Available Data</h3>
                   </div>
                   
                   <div className="space-y-4">
                     <div>
-                      <h4 className="font-semibold text-blue-800 mb-2 flex items-center">
+                      <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center">
                         <GraduationCap className="h-4 w-4 mr-2" />
                         Batches ({batches.length})
                       </h4>
                       <div className="flex flex-wrap gap-2">
                         {batches.slice(0, 4).map((batch) => (
-                          <span key={batch.id} className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium">
+                          <span key={batch.id} className="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 rounded-lg text-xs font-medium">
                             {batch.batchYear}
                           </span>
                         ))}
                         {batches.length > 4 && (
-                          <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs">
+                          <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 rounded-lg text-xs">
                             +{batches.length - 4} more
                           </span>
                         )}
@@ -376,18 +376,18 @@ export default function BulkImportPage() {
                     </div>
                     
                     <div>
-                      <h4 className="font-semibold text-blue-800 mb-2 flex items-center">
+                      <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center">
                         <BookOpen className="h-4 w-4 mr-2" />
                         Subjects ({subjects.length})
                       </h4>
                       <div className="flex flex-wrap gap-2">
                         {subjects.slice(0, 3).map((subject) => (
-                          <span key={subject.id} className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium">
+                          <span key={subject.id} className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-200 rounded-lg text-xs font-medium">
                             {subject.name}
                           </span>
                         ))}
                         {subjects.length > 3 && (
-                          <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs">
+                          <span className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-200 rounded-lg text-xs">
                             +{subjects.length - 3} more
                           </span>
                         )}
@@ -399,16 +399,16 @@ export default function BulkImportPage() {
             </>
           ) : (
             /* Modern Results Section */
-            <div className="backdrop-blur-md bg-white/70 rounded-2xl shadow-xl border border-white/20 p-8">
+            <div className="backdrop-blur-md bg-white/70 dark:bg-slate-900/70 rounded-2xl shadow-xl border border-white/20 dark:border-slate-700/50 p-8">
               <div className="flex items-center space-x-4 mb-6">
                 <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-lg">
                   <CheckCircle className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                  <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
                     Import Results
                   </h2>
-                  <p className="text-gray-600">Review your bulk import results</p>
+                  <p className="text-gray-600 dark:text-gray-400">Review your bulk import results</p>
                 </div>
               </div>
               

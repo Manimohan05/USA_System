@@ -175,27 +175,27 @@ export default function CsvFileUpload({ onImportComplete, selectedBatchId }: Csv
   return (
     <div className="space-y-6">
       {/* Download Template Section */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <div className="flex items-start space-x-3">
-          <FileText className="h-5 w-5 text-blue-600 mt-0.5" />
+          <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
           <div className="flex-1">
-            <h3 className="text-sm font-medium text-blue-900">
+            <h3 className="text-sm font-medium text-blue-900 dark:text-blue-200">
               Download Import Template
             </h3>
-            <p className="text-sm text-blue-700 mt-1">
+            <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
               Download the template file to see the required format. Student ID codes will be auto-generated during import.
             </p>
             <div className="mt-2 flex space-x-2">
               <button
                 onClick={() => downloadTemplate('csv')}
-                className="inline-flex items-center px-3 py-1 border border-blue-300 rounded-md text-sm font-medium text-blue-700 bg-white hover:bg-blue-50 transition-colors"
+                className="inline-flex items-center px-3 py-1 border border-blue-300 dark:border-blue-700 rounded-md text-sm font-medium text-blue-700 dark:text-blue-300 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors"
               >
                 <Download className="h-4 w-4 mr-1" />
                 CSV Template
               </button>
               <button
                 onClick={() => downloadTemplate('excel')}
-                className="inline-flex items-center px-3 py-1 border border-blue-300 rounded-md text-sm font-medium text-blue-700 bg-white hover:bg-blue-50 transition-colors"
+                className="inline-flex items-center px-3 py-1 border border-blue-300 dark:border-blue-700 rounded-md text-sm font-medium text-blue-700 dark:text-blue-300 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors"
               >
                 <Download className="h-4 w-4 mr-1" />
                 Excel Template
@@ -210,8 +210,8 @@ export default function CsvFileUpload({ onImportComplete, selectedBatchId }: Csv
         <div
           className={`relative border-2 border-dashed rounded-lg p-6 transition-colors ${
             dragActive
-              ? 'border-indigo-500 bg-indigo-50'
-              : 'border-gray-300 hover:border-gray-400'
+              ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30'
+              : 'border-gray-300 dark:border-slate-600 hover:border-gray-400 dark:hover:border-slate-500'
           }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
@@ -219,12 +219,12 @@ export default function CsvFileUpload({ onImportComplete, selectedBatchId }: Csv
           onDrop={handleDrop}
         >
           <div className="text-center">
-            <Upload className="mx-auto h-12 w-12 text-gray-400" />
+            <Upload className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
             <div className="mt-4">
               <label htmlFor="csv-upload" className="cursor-pointer">
-                <span className="mt-2 block text-sm font-medium text-gray-900">
+                <span className="mt-2 block text-sm font-medium text-gray-900 dark:text-gray-100">
                   Drop your CSV or Excel file here, or{' '}
-                  <span className="text-indigo-600 hover:text-indigo-500">browse</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300">browse</span>
                 </span>
               </label>
               <input
@@ -238,7 +238,7 @@ export default function CsvFileUpload({ onImportComplete, selectedBatchId }: Csv
                 disabled={uploadProgress.uploading}
               />
             </div>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               CSV or Excel files up to 10MB
             </p>
           </div>
@@ -246,12 +246,12 @@ export default function CsvFileUpload({ onImportComplete, selectedBatchId }: Csv
 
         {/* Selected File Display */}
         {selectedFile && (
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-800 rounded-lg">
             <div className="flex items-center space-x-3">
-              <FileText className="h-5 w-5 text-gray-500" />
+              <FileText className="h-5 w-5 text-gray-500 dark:text-gray-400" />
               <div>
-                <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
-                <p className="text-xs text-gray-500">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedFile.name}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
                   {(selectedFile.size / 1024).toFixed(1)} KB
                 </p>
               </div>
@@ -259,7 +259,7 @@ export default function CsvFileUpload({ onImportComplete, selectedBatchId }: Csv
             {!uploadProgress.uploading && (
               <button
                 onClick={clearFile}
-                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -271,12 +271,12 @@ export default function CsvFileUpload({ onImportComplete, selectedBatchId }: Csv
         {uploadProgress.uploading && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600">Uploading...</span>
-              <span className="text-gray-600">{uploadProgress.progress}%</span>
+              <span className="text-gray-600 dark:text-gray-400">Uploading...</span>
+              <span className="text-gray-600 dark:text-gray-400">{uploadProgress.progress}%</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2">
               <div
-                className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                className="bg-indigo-600 dark:bg-indigo-500 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${uploadProgress.progress}%` }}
               />
             </div>
@@ -285,14 +285,14 @@ export default function CsvFileUpload({ onImportComplete, selectedBatchId }: Csv
 
         {/* Upload Status */}
         {uploadProgress.error && (
-          <div className="flex items-center space-x-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+          <div className="flex items-center space-x-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
             <AlertCircle className="h-4 w-4" />
             <span>{uploadProgress.error}</span>
           </div>
         )}
 
         {uploadProgress.completed && (
-          <div className="flex items-center space-x-2 text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg p-3">
+          <div className="flex items-center space-x-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
             <CheckCircle className="h-4 w-4" />
             <span>File uploaded successfully!</span>
           </div>
@@ -302,7 +302,7 @@ export default function CsvFileUpload({ onImportComplete, selectedBatchId }: Csv
         {selectedFile && !uploadProgress.completed && !uploadProgress.uploading && (
           <button
             onClick={handleUpload}
-            className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+            className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 dark:bg-indigo-700 hover:bg-indigo-700 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 focus:ring-indigo-500 transition-colors"
           >
             {uploadProgress.uploading ? (
               <>
