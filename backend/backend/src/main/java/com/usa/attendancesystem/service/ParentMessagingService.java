@@ -86,7 +86,7 @@ public class ParentMessagingService {
         for (Student student : unpaidStudents) {
             // English message
             String englishMessage = String.format(
-                    "Dear Parent, this is a reminder from USA that a fee payment for %s was due by %s and is now overdue. Please complete the payment at your earliest convenience. Thank you.",
+                    "Dear Parent, this is a reminder from USA that a fee payment for %s was due by %s and is now overdue. Please complete the payment within 2 days. Thank you.",
                     student.getFullName(),
                     currentDate.toString()
             );
