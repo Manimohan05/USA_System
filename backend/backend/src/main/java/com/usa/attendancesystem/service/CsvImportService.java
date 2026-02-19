@@ -107,6 +107,7 @@ public class CsvImportService {
         return headers.toArray(new String[0]);
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public CsvImportResultDto importStudentsFromCsv(MultipartFile file, Integer batchId) {
         log.info("Starting import process for file: {} with batch ID: {}", file.getOriginalFilename(), batchId);
 
@@ -147,6 +148,7 @@ public class CsvImportService {
 
             // PHASE 1: Validate all records first
             List<StudentCsvImportRequest> validatedRequests = new ArrayList<>();
+            Set<String> seenStudentIdsInFile = new HashSet<>();
             for (int i = 0; i < records.size(); i++) {
                 CSVRecord record = records.get(i);
                 int rowNumber = i + 2; // +2 because CSV rows start from 1 and we have a header
@@ -155,6 +157,12 @@ public class CsvImportService {
                     StudentCsvImportRequest studentRequest = parseRecord(record, rowNumber);
                     // Validate the request (including Student ID format)
                     validateStudentRequest(studentRequest, batch);
+
+                    String normalizedStudentId = studentRequest.studentIdCode().trim().toUpperCase();
+                    if (!seenStudentIdsInFile.add(normalizedStudentId)) {
+                        throw new RuntimeException("Duplicate Student ID Code found in file: " + studentRequest.studentIdCode());
+                    }
+
                     validatedRequests.add(studentRequest);
                 } catch (Exception e) {
                     String errorMsg = "Row " + rowNumber + ": " + e.getMessage();
@@ -172,16 +180,9 @@ public class CsvImportService {
             // PHASE 3: All records validated successfully - now import them
             log.info("CSV validation successful with {} records. Importing to database...", totalRows);
             for (StudentCsvImportRequest studentRequest : validatedRequests) {
-                try {
-                    StudentDto createdStudent = createStudentFromRequest(studentRequest, batch);
-                    importedStudents.add(createdStudent);
-                    log.debug("Successfully imported student: {}", studentRequest.fullName());
-                } catch (Exception e) {
-                    // This should rarely happen since we already validated, but handle it
-                    String errorMsg = "Row import error: " + e.getMessage();
-                    errors.add(errorMsg);
-                    log.error("Error creating student during import phase: {}", e.getMessage());
-                }
+                StudentDto createdStudent = createStudentFromRequest(studentRequest, batch);
+                importedStudents.add(createdStudent);
+                log.debug("Successfully imported student: {}", studentRequest.fullName());
             }
 
         } catch (Exception e) {
@@ -236,6 +237,10 @@ public class CsvImportService {
     private void validateStudentRequest(StudentCsvImportRequest studentRequest, Batch batch) {
         // Validate Student ID format against batch format
         validateStudentIdFormat(studentRequest.studentIdCode(), batch);
+
+        if (studentRepository.findByStudentIdCode(studentRequest.studentIdCode().trim()).isPresent()) {
+            throw new RuntimeException("Student ID Code already exists: " + studentRequest.studentIdCode());
+        }
         
         // Validate required fields
         if (studentRequest.fullName() == null || studentRequest.fullName().trim().isEmpty()) {
@@ -257,7 +262,7 @@ public class CsvImportService {
             throw new RuntimeException("At least one subject is required");
         }
         
-        // Validate NIC format if provided
+        // Validate NIC format if provided (NIC is optional)
         if (studentRequest.nic() != null && !studentRequest.nic().trim().isEmpty()) {
             validateNicFormat(studentRequest.nic());
         }
@@ -294,6 +299,7 @@ public class CsvImportService {
 
             // PHASE 1: Validate all records first
             List<StudentCsvImportRequest> validatedRequests = new ArrayList<>();
+            Set<String> seenStudentIdsInFile = new HashSet<>();
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) {
@@ -306,6 +312,12 @@ public class CsvImportService {
                     StudentCsvImportRequest studentRequest = parseExcelRow(row, headers, rowNumber);
                     // Validate the request (including Student ID format)
                     validateStudentRequest(studentRequest, batch);
+
+                    String normalizedStudentId = studentRequest.studentIdCode().trim().toUpperCase();
+                    if (!seenStudentIdsInFile.add(normalizedStudentId)) {
+                        throw new RuntimeException("Duplicate Student ID Code found in file: " + studentRequest.studentIdCode());
+                    }
+
                     validatedRequests.add(studentRequest);
                 } catch (Exception e) {
                     String error = String.format("Row %d: %s", rowNumber, e.getMessage());
@@ -323,22 +335,14 @@ public class CsvImportService {
             // PHASE 3: All records validated successfully - now import them
             log.info("Excel validation successful with {} records. Importing to database...", totalRows);
             for (StudentCsvImportRequest studentRequest : validatedRequests) {
-                try {
-                    StudentDto createdStudent = createStudentFromRequest(studentRequest, batch);
-                    importedStudents.add(createdStudent);
-                    log.debug("Successfully imported student: {}", studentRequest.fullName());
-                } catch (Exception e) {
-                    // This should rarely happen since we already validated, but handle it
-                    String error = "Import error: " + e.getMessage();
-                    errors.add(error);
-                    log.error("Error creating student during import phase: {}", e.getMessage());
-                }
+                StudentDto createdStudent = createStudentFromRequest(studentRequest, batch);
+                importedStudents.add(createdStudent);
+                log.debug("Successfully imported student: {}", studentRequest.fullName());
             }
 
         } catch (Exception e) {
-            String error = "Failed to read Excel file: " + e.getMessage();
-            errors.add(error);
-            log.error("Excel file reading error", e);
+            log.error("Error reading Excel file", e);
+            throw new RuntimeException("Failed to read Excel file: " + e.getMessage(), e);
         }
 
         int successfulImports = importedStudents.size();

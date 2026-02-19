@@ -55,6 +55,7 @@ function AttendancePageContent() {
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [currentSession, setCurrentSession] = useState<AttendanceSessionDto | null>(null);
   const [previousSessions, setPreviousSessions] = useState<AttendanceSessionDto[]>([]);
+  const [showAllSessions, setShowAllSessions] = useState(false);
   
   // Create Session State
   const [sessionBatch, setSessionBatch] = useState<string>('');
@@ -106,6 +107,13 @@ function AttendancePageContent() {
   }, []);
 
   useEffect(() => {
+    // Fetch sessions when showAllSessions toggle changes
+    if (!loading) {
+      fetchTodaysSessions();
+    }
+  }, [showAllSessions]);
+
+  useEffect(() => {
     // Fetch session status when current session changes
     if (currentSession) {
       fetchSessionStatus(currentSession.id);
@@ -151,7 +159,8 @@ function AttendancePageContent() {
   const fetchTodaysSessions = async () => {
     try {
       setLoadingSessions(true);
-      const response = await api.get<AttendanceSessionDto[]>('/admin/attendance/sessions');
+      const endpoint = showAllSessions ? '/admin/attendance/sessions/all' : '/admin/attendance/sessions';
+      const response = await api.get<AttendanceSessionDto[]>(endpoint);
       console.log('Raw sessions from backend:', response.data);
       
       // Check for auto-expired sessions (sessions that were in previousSessions but not in current response)
@@ -1137,8 +1146,16 @@ function AttendancePageContent() {
                     <div className="p-2 bg-white/10 rounded-xl">
                       <Calendar className="h-6 w-6 text-white" />
                     </div>
-                    <h2 className="text-xl font-bold text-white">Today's Active Sessions</h2>
+                    <h2 className="text-xl font-bold text-white">
+                      {showAllSessions ? 'All Sessions' : "Today's Active Sessions"}
+                    </h2>
                   </div>
+                  <button
+                    onClick={() => setShowAllSessions(!showAllSessions)}
+                    className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-medium transition-all duration-200 text-sm"
+                  >
+                    {showAllSessions ? 'Show Today Only' : 'Show All Sessions'}
+                  </button>
                   <button
                     onClick={() => {
                       console.log('Manual refresh clicked');
@@ -1146,7 +1163,7 @@ function AttendancePageContent() {
                       fetchTodaysSessions();
                     }}
                     disabled={loadingSessions}
-                    className="group flex items-center px-4 py-2 text-sm font-medium bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 mr-2"
+                    className="group flex items-center px-4 py-2 text-sm font-medium bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 ml-2"
                   >
                     {loadingSessions ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
@@ -1155,8 +1172,7 @@ function AttendancePageContent() {
                     )}
                     Refresh
                   </button>
-                  
-                   </div>
+                </div>
 
                 <div className="p-6">
                   {sessions.filter(session => session.isActive).length === 0 ? (

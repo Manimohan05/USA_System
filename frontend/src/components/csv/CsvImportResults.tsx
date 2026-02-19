@@ -102,30 +102,67 @@ export default function CsvImportResults({ result, onClose, onRetry }: CsvImport
 
       {/* Error Details */}
       {hasErrors && (
-        <div className={`${hasNoSuccessfulImports ? 'bg-red-50 border-2 border-red-300' : 'bg-orange-50 border border-orange-200'} rounded-lg p-4`}>
-          <div className="flex items-start">
-            <AlertCircle className={`h-5 w-5 ${hasNoSuccessfulImports ? 'text-red-600' : 'text-orange-600'} mt-0.5`} />
-            <div className="ml-3 flex-1">
-              <h3 className={`text-sm font-medium ${hasNoSuccessfulImports ? 'text-red-900' : 'text-orange-900'}`}>
+        <div className={`${hasNoSuccessfulImports ? 'bg-red-50 border-2 border-red-300' : 'bg-orange-50 border border-orange-200'} rounded-lg p-6`}>
+          <div className="flex items-start mb-4">
+            <div className={`flex-shrink-0 w-10 h-10 rounded-full ${hasNoSuccessfulImports ? 'bg-red-100' : 'bg-orange-100'} flex items-center justify-center`}>
+              <AlertCircle className={`h-6 w-6 ${hasNoSuccessfulImports ? 'text-red-600' : 'text-orange-600'}`} />
+            </div>
+            <div className="ml-4 flex-1">
+              <h3 className={`text-lg font-bold ${hasNoSuccessfulImports ? 'text-red-900' : 'text-orange-900'}`}>
                 {result.errors.length} record{result.errors.length !== 1 ? 's' : ''} with validation error{result.errors.length !== 1 ? 's' : ''}
               </h3>
-              <div className="mt-2 max-h-64 overflow-y-auto">
-                <ul className={`text-sm ${hasNoSuccessfulImports ? 'text-red-700' : 'text-orange-700'} space-y-1`}>
-                  {result.errors.map((error, index) => (
-                    <li key={index} className="flex items-start font-mono text-xs">
-                      <span className={`inline-block w-1 h-1 ${hasNoSuccessfulImports ? 'bg-red-400' : 'bg-orange-400'} rounded-full mt-1.5 mr-2 flex-shrink-0`}></span>
-                      <span>{error}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              {hasNoSuccessfulImports && (
-                <p className="text-sm text-red-700 mt-3 font-medium">
-                  Fix these errors in your file and upload again.
-                </p>
-              )}
+              <p className={`text-sm ${hasNoSuccessfulImports ? 'text-red-700' : 'text-orange-700'} mt-1`}>
+                {hasNoSuccessfulImports 
+                  ? 'Please fix these errors in your CSV/Excel file and try again.'
+                  : 'The following records had errors and were not imported:'}
+              </p>
             </div>
           </div>
+          
+          <div className={`${hasNoSuccessfulImports ? 'bg-white' : 'bg-white/50'} rounded-lg border ${hasNoSuccessfulImports ? 'border-red-200' : 'border-orange-200'} max-h-96 overflow-y-auto`}>
+            <div className="divide-y divide-gray-200">
+              {result.errors.map((error, index) => {
+                // Parse error message to extract row number and error detail
+                const rowMatch = error.match(/Row (\d+):\s*(.+)/);
+                const rowNumber = rowMatch ? rowMatch[1] : (index + 1).toString();
+                const errorMessage = rowMatch ? rowMatch[2] : error;
+                
+                return (
+                  <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-start space-x-3">
+                      <div className={`flex-shrink-0 w-8 h-8 rounded-lg ${hasNoSuccessfulImports ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'} flex items-center justify-center font-bold text-sm`}>
+                        {rowNumber}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 leading-relaxed">
+                          {errorMessage}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          
+          {hasNoSuccessfulImports && (
+            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <RefreshCw className="h-5 w-5 text-amber-600" />
+                </div>
+                <div className="ml-3">
+                  <h4 className="text-sm font-semibold text-amber-900">Next Steps:</h4>
+                  <ol className="mt-2 text-sm text-amber-800 space-y-1 list-decimal list-inside">
+                    <li>Open your CSV/Excel file</li>
+                    <li>Fix the errors listed above</li>
+                    <li>Save the file</li>
+                    <li>Upload again using the "Try Again" button below</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

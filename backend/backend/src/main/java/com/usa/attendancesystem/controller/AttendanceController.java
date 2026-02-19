@@ -78,6 +78,17 @@ public class AttendanceController {
     }
 
     /**
+     * ADMIN endpoint to get all sessions (including past ones).
+     */
+    @GetMapping("/admin/attendance/sessions/all")
+    public ResponseEntity<List<AttendanceSessionDto>> getAllSessions() {
+        System.out.println("AttendanceController - Getting all sessions (including past ones)");
+        List<AttendanceSessionDto> sessions = sessionService.getAllSessions();
+        System.out.println("AttendanceController - Found " + sessions.size() + " total sessions");
+        return ResponseEntity.ok(sessions);
+    }
+
+    /**
      * ADMIN endpoint to get today's active sessions.
      */
     @GetMapping("/admin/attendance/sessions/today")

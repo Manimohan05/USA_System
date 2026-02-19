@@ -127,6 +127,18 @@ public class AttendanceSessionService {
     }
 
     @Transactional(readOnly = true)
+    public List<AttendanceSessionDto> getAllSessions() {
+        List<AttendanceSession> allSessions = sessionRepository.findAll();
+        
+        // Return all sessions ordered by most recent first
+        return allSessions
+                .stream()
+                .sorted((s1, s2) -> s2.getCreatedAt().compareTo(s1.getCreatedAt()))
+                .map(this::mapToDto)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public AttendanceSessionDto getSessionById(Long sessionId) {
         // Use findById instead of findActiveSessionById to allow viewing ended sessions
         AttendanceSession session = sessionRepository.findById(sessionId)
