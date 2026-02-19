@@ -162,9 +162,9 @@ export default function MessagingPage() {
       <DashboardLayout>
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
           {/* Modern Header */}
-          <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-2xl mb-8 shadow-xl">
+          <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-2xl mb-6 shadow-xl">
             <div className="absolute inset-0 bg-black/20"></div>
-            <div className="relative px-8 py-12">
+            <div className="relative px-6 py-6">
               <div className="flex items-center space-x-3 mb-4">
                 <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
                   <Sparkles className="h-8 w-8 text-white" />
@@ -189,7 +189,7 @@ export default function MessagingPage() {
           </div>
 
           {/* Modern Tab Navigation */}
-          <div className="flex justify-center mb-8">
+          <div className="flex justify-center mb-6">
             <div className="bg-white p-2 rounded-2xl shadow-lg border border-gray-200/50">
               <nav className="flex space-x-2">
                 <button
@@ -220,7 +220,7 @@ export default function MessagingPage() {
 
           {/* Broadcast Message Tab */}
           {messageType === 'broadcast' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Modern Message Composer */}
               <div className="lg:col-span-2">
                 <div className="bg-white/70 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-8">
@@ -231,7 +231,7 @@ export default function MessagingPage() {
                     <h2 className="text-2xl font-bold text-gray-900">Compose Message</h2>
                   </div>
                 
-                  <form onSubmit={handleSendBroadcast} className="space-y-6">
+                  <form onSubmit={handleSendBroadcast} className="space-y-4">
                     {/* Modern Recipients Selection */}
                     <div className="space-y-4">
                       <label className="block text-sm font-semibold text-gray-800 mb-4 flex items-center">
@@ -503,7 +503,7 @@ export default function MessagingPage() {
                   </div>
                 </div>
                 
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {/* Simple Description */}
                   <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
                     <p className="text-orange-800">
