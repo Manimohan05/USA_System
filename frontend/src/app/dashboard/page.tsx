@@ -4,15 +4,32 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Users, BookOpen, Calendar, TrendingUp, AlertCircle, RefreshCw, Clock, Play, GraduationCap, ExternalLink } from 'lucide-react';
+import { Users, BookOpen, Calendar, TrendingUp, AlertCircle, RefreshCw, Clock, Play, GraduationCap, ExternalLink, DollarSign } from 'lucide-react';
 import api from '@/lib/api';
 import type { StudentDto, BatchDto, SubjectDto, AttendanceSessionDto } from '@/types';
+
+interface FeeReportDto {
+  studentId: string;
+  studentIdCode: string;
+  studentName: string;
+  batchName: string;
+  subjectName: string;
+  month: number;
+  year: number;
+  isPaid: boolean;
+  billNumber: string | null;
+  paidAt: string | null;
+  exemptionType: string | null;
+  exemptionApplies: boolean;
+}
 
 interface DashboardStats {
   totalStudents: number;
   totalBatches: number;
   totalSubjects: number;
   activeSessions: number;
+  feeDueCount: number;
+  isCollectionComplete: boolean;
 }
 
 export default function DashboardPage() {
@@ -21,6 +38,8 @@ export default function DashboardPage() {
     totalBatches: 0,
     totalSubjects: 0,
     activeSessions: 0,
+    feeDueCount: 0,
+    isCollectionComplete: false,
   });
   const [activeSessions, setActiveSessions] = useState<AttendanceSessionDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,12 +59,24 @@ export default function DashboardPage() {
         setLoading(true);
       }
 
-      const [studentsRes, batchesRes, subjectsRes, sessionsRes] = await Promise.all([
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth() + 1;
+      const currentYear = currentDate.getFullYear();
+
+      const [studentsRes, batchesRes, subjectsRes, sessionsRes, feeReportRes] = await Promise.all([
         api.get<StudentDto[]>('/admin/students/all'),
         api.get<BatchDto[]>('/admin/institute/batches'),
         api.get<SubjectDto[]>('/admin/institute/subjects'),
         api.get<AttendanceSessionDto[]>('/admin/attendance/sessions'),
+        api.post<FeeReportDto[]>('/admin/fees/report', {
+          month: currentMonth,
+          year: currentYear,
+        }),
       ]);
+
+      // Calculate fee due count (unpaid fees)
+      const feeDueCount = feeReportRes.data.filter(fee => !fee.isPaid && !fee.exemptionApplies).length;
+      const isCollectionComplete = feeDueCount === 0;
 
       // Log what we got from backend for debugging
       console.log('Dashboard - Raw sessions from backend:', sessionsRes.data.length);
@@ -64,6 +95,8 @@ export default function DashboardPage() {
         totalBatches: batchesRes.data.length,
         totalSubjects: subjectsRes.data.length,
         activeSessions: sessionsRes.data.length,
+        feeDueCount,
+        isCollectionComplete,
       });
       
       setActiveSessions(sessionsRes.data);
@@ -121,6 +154,16 @@ export default function DashboardPage() {
       textColor: 'text-orange-600',
       href: '/dashboard/attendance',
       description: 'Sessions open',
+    },
+    {
+      name: 'Fee Due Status',
+      value: stats.feeDueCount,
+      icon: DollarSign,
+      gradient: 'from-red-500 to-pink-600',
+      bgColor: 'bg-red-50',
+      textColor: 'text-red-600',
+      href: '/dashboard/fees',
+      description: stats.isCollectionComplete ? 'Collection complete' : 'Pending payments',
     },
   ];
 
@@ -181,7 +224,7 @@ export default function DashboardPage() {
   return (
     <ProtectedRoute>
       <DashboardLayout>
-        <div className="space-y-8">
+        <div className="space-y-6">
           {/* Hero Header Section */}
           <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-700 rounded-2xl shadow-2xl">
             {/* Background Elements */}
@@ -189,7 +232,7 @@ export default function DashboardPage() {
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32"></div>
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-24 -translate-x-24"></div>
             
-            <div className="relative px-8 py-12">
+            <div className="relative px-6 py-6">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center space-x-3 mb-4">
@@ -218,7 +261,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             {statCards.map((card, index) => {
               const Icon = card.icon;
               return (
