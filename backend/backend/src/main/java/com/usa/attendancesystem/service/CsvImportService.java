@@ -857,7 +857,8 @@ public class CsvImportService {
                         .map(subject -> new SubjectDto(
                         subject.getId(),
                         subject.getName(),
-                        0L // We don't need exact count for import, so set to 0
+                        0L, // We don't need exact count for import, so set to 0
+                        subject.isArchived()
                 ))
                         .collect(java.util.stream.Collectors.toSet())
         );
