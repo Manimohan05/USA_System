@@ -221,6 +221,7 @@ public class CsvImportService {
                     .build();
 
             Student savedStudent = studentRepository.save(student);
+            studentService.sendWelcomeMessage(savedStudent);
 
             // Convert to DTO and return
             return studentToDto(savedStudent);

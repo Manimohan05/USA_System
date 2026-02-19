@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 @Service
-@ConditionalOnProperty(name = "twilio.enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(name = "sms.provider", havingValue = "mock")
 public class MockSmsService implements SmsService {
 
     private static final Logger log = LoggerFactory.getLogger(MockSmsService.class);

@@ -38,6 +38,6 @@ public interface FeeExemptionRepository extends JpaRepository<FeeExemption, UUID
     void deleteExemptionSubjectsByBatchId(@Param("batchId") Integer batchId);
 
     @Modifying
-    @Query("DELETE FROM FeeExemption fe WHERE fe.student.batch.id = :batchId")
+    @Query(value = "DELETE FROM fee_exemptions fe USING students s WHERE fe.student_id = s.id AND s.batch_id = :batchId", nativeQuery = true)
     void deleteByBatchId(@Param("batchId") Integer batchId);
 }

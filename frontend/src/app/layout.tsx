@@ -39,12 +39,13 @@ export default function RootLayout({
   `;
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
+        suppressHydrationWarning
       >
         <NotificationProvider>
           <ToastProvider>

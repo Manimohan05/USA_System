@@ -129,19 +129,25 @@ public class InstituteManagementService {
         // 2. Delete all attendance records for students in this batch
         attendanceRecordRepository.deleteByBatchId(batchId);
 
-        // 3. Delete all fee payments for students in this batch
+        // 3. Delete all attendance sessions for this batch (active and inactive)
+        attendanceSessionRepository.deleteByBatchId(batchId);
+
+        // 4. Delete all fee payments for students in this batch
         feePaymentRepository.deleteByBatchId(batchId);
 
-        // 4. Delete all fee records for students in this batch
+        // 5. Delete all fee records for students in this batch
         feeRecordRepository.deleteByBatchId(batchId);
 
-        // 5. Delete all fee exemptions for students in this batch
+        // 6. Delete all fee exemptions for students in this batch
         feeExemptionRepository.deleteByBatchId(batchId);
 
-        // 6. Delete all students in this batch (cascades to any remaining related records)
+        // 7. Delete student-subject join rows for this batch
+        studentRepository.deleteStudentSubjectsByBatchId(batchId);
+
+        // 8. Delete all students in this batch
         studentRepository.deleteByBatchId(batchId);
 
-        // 7. Finally, delete the batch itself
+        // 9. Finally, delete the batch itself
         batchRepository.delete(batch);
     }
 

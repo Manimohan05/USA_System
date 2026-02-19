@@ -127,6 +127,14 @@ public interface StudentRepository extends JpaRepository<Student, UUID> {
      * Used for batch permanent deletion to avoid ConcurrentModificationException.
      */
     @Modifying
+    @Query(value = "DELETE FROM student_subjects ss USING students s WHERE ss.student_id = s.id AND s.batch_id = :batchId", nativeQuery = true)
+    void deleteStudentSubjectsByBatchId(@Param("batchId") Integer batchId);
+
+    /**
+     * Deletes all students belonging to a specific batch.
+     * Used for batch permanent deletion.
+     */
+    @Modifying
     @Query("DELETE FROM Student s WHERE s.batch.id = :batchId")
     void deleteByBatchId(@Param("batchId") Integer batchId);
 }

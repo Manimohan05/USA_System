@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -56,5 +57,13 @@ public interface AttendanceSessionRepository extends JpaRepository<AttendanceSes
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate
     );
+
+        /**
+         * Deletes all attendance sessions for a specific batch.
+         * Used for batch permanent deletion.
+         */
+        @Modifying
+        @Query("DELETE FROM AttendanceSession s WHERE s.batch.id = :batchId")
+        void deleteByBatchId(@Param("batchId") Integer batchId);
 
 }

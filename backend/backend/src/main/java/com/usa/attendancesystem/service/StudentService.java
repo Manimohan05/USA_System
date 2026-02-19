@@ -32,6 +32,7 @@ public class StudentService {
     private final StudentRepository studentRepository;
     private final BatchRepository batchRepository;
     private final SubjectRepository subjectRepository;
+    private final SmsService smsService;
 
     @Transactional
     public StudentDto createStudent(CreateStudentRequest request) {
@@ -71,7 +72,34 @@ public class StudentService {
                 .build();
 
         Student savedStudent = studentRepository.save(student);
+        sendWelcomeMessage(savedStudent);
         return mapToStudentDto(savedStudent);
+    }
+
+    public void sendWelcomeMessage(Student student) {
+        if (student == null || student.getParentPhone() == null || student.getParentPhone().trim().isEmpty()) {
+            return;
+        }
+
+        String subjectList = student.getSubjects().stream()
+                .map(Subject::getName)
+                .sorted()
+                .collect(Collectors.joining(", "));
+
+        String message = String.format(
+            "Welcome to Universal Science Academy! Student: %s. Batch: %s. Enrolled Subjects: %s. Student ID: %s.",
+                student.getFullName(),
+                student.getBatch().getDisplayName(),
+                subjectList,
+                student.getStudentIdCode()
+        );
+
+        try {
+            smsService.sendSms(student.getParentPhone(), message);
+        } catch (Exception e) {
+            System.err.printf("StudentService - Failed to send welcome SMS for student %s: %s%n",
+                    student.getFullName(), e.getMessage());
+        }
     }
 
     /**

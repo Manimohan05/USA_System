@@ -32,8 +32,8 @@ public class TestController {
 
             return ResponseEntity.ok("SMS test sent successfully to: " + phoneNumber
                     + "\n\nCheck the console logs for details."
-                    + "\n\nIf using Twilio (twilio.enabled=true), check your phone."
-                    + "\nIf using Mock (twilio.enabled=false), check the console logs.");
+                    + "\n\nIf using real provider (sms.provider=smslenz or twilio), check your phone."
+                    + "\nIf using Mock (sms.provider=mock), check the console logs.");
         } catch (Exception e) {
             log.error("SMS test failed for {}: {}", phoneNumber, e.getMessage(), e);
             return ResponseEntity.badRequest().body("SMS test failed: " + e.getMessage());
@@ -51,9 +51,9 @@ public class TestController {
                     - Service Class: %s
                     - %s
                     
-                    To switch modes, set twilio.enabled=true/false in application.properties"""
+                    To switch modes, set sms.provider=smslenz|twilio|mock in application.properties"""
                     .formatted(smsServiceClass,
-                            smsServiceClass.equals("TwilioSmsService") ? "REAL SMS (Twilio)" : "MOCK SMS (Console Only)"));
+                        smsServiceClass.equals("MockSmsService") ? "MOCK SMS (Console Only)" : "REAL SMS PROVIDER"));
         } catch (Exception e) {
             log.error("Failed to get SMS config: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body("Failed to get SMS config: " + e.getMessage());
