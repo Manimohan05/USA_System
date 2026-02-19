@@ -104,7 +104,7 @@ public class FeeService {
                                 savedExemption.getExemptionType(),
                                 savedExemption.isAppliesToAllSubjects(),
                                 savedExemption.getSubjects().stream()
-                                                .map(subject -> new SubjectDto(subject.getId(), subject.getName(), null))
+                                                .map(subject -> new SubjectDto(subject.getId(), subject.getName(), null, subject.isArchived()))
                                                 .toList(),
                                 savedExemption.getCreatedAt()
                 );
@@ -121,7 +121,7 @@ public class FeeService {
                 }
 
                 return student.getSubjects().stream()
-                                .map(subject -> new SubjectDto(subject.getId(), subject.getName(), null))
+                                .map(subject -> new SubjectDto(subject.getId(), subject.getName(), null, subject.isArchived()))
                                 .toList();
         }
 
@@ -136,7 +136,7 @@ public class FeeService {
                                 exemption.getExemptionType(),
                                 exemption.isAppliesToAllSubjects(),
                                 exemption.getSubjects().stream()
-                                                .map(subject -> new SubjectDto(subject.getId(), subject.getName(), null))
+                                                .map(subject -> new SubjectDto(subject.getId(), subject.getName(), null, subject.isArchived()))
                                                 .toList(),
                                 exemption.getCreatedAt()
                 ))
