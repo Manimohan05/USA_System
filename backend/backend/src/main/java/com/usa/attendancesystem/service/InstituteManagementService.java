@@ -14,9 +14,14 @@ import com.usa.attendancesystem.exception.DuplicateResourceException;
 import com.usa.attendancesystem.exception.ResourceNotFoundException;
 import com.usa.attendancesystem.model.Batch;
 import com.usa.attendancesystem.model.Subject;
+import com.usa.attendancesystem.repository.AttendanceSessionRepository;
 import com.usa.attendancesystem.repository.BatchRepository;
 import com.usa.attendancesystem.repository.StudentRepository;
 import com.usa.attendancesystem.repository.SubjectRepository;
+import com.usa.attendancesystem.repository.AttendanceRecordRepository;
+import com.usa.attendancesystem.repository.FeeRecordRepository;
+import com.usa.attendancesystem.repository.FeePaymentRepository;
+import com.usa.attendancesystem.repository.FeeExemptionRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,6 +35,11 @@ public class InstituteManagementService {
     private final BatchRepository batchRepository;
     private final SubjectRepository subjectRepository;
     private final StudentRepository studentRepository;
+    private final AttendanceSessionRepository attendanceSessionRepository;
+    private final AttendanceRecordRepository attendanceRecordRepository;
+    private final FeeRecordRepository feeRecordRepository;
+    private final FeePaymentRepository feePaymentRepository;
+    private final FeeExemptionRepository feeExemptionRepository;
 
     // --- Batch Methods ---
     @Transactional
@@ -73,6 +83,11 @@ public class InstituteManagementService {
     public BatchDto archiveBatch(Integer batchId) {
         Batch batch = batchRepository.findById(batchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Batch not found with ID: " + batchId));
+
+        if (attendanceSessionRepository.existsByBatch_IdAndIsActiveTrue(batchId)) {
+            throw new IllegalStateException(
+                "Cannot archive this batch because an active attendance session exists. End the session first.");
+        }
         
         batch.setArchived(true);
         Batch archivedBatch = batchRepository.save(batch);
@@ -98,10 +113,35 @@ public class InstituteManagementService {
         Batch batch = batchRepository.findById(batchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Batch not found with ID: " + batchId));
 
+        if (attendanceSessionRepository.existsByBatch_IdAndIsActiveTrue(batchId)) {
+            throw new IllegalStateException(
+                    "Cannot permanently delete this batch because an active attendance session exists. End the session first.");
+        }
+
         if (!batch.isArchived()) {
             throw new IllegalStateException("Only archived batches can be permanently deleted. Archive the batch first.");
         }
 
+        // Delete in correct order to avoid foreign key constraint issues:
+        // 1. Delete all fee exemption-subject join table entries first
+        feeExemptionRepository.deleteExemptionSubjectsByBatchId(batchId);
+
+        // 2. Delete all attendance records for students in this batch
+        attendanceRecordRepository.deleteByBatchId(batchId);
+
+        // 3. Delete all fee payments for students in this batch
+        feePaymentRepository.deleteByBatchId(batchId);
+
+        // 4. Delete all fee records for students in this batch
+        feeRecordRepository.deleteByBatchId(batchId);
+
+        // 5. Delete all fee exemptions for students in this batch
+        feeExemptionRepository.deleteByBatchId(batchId);
+
+        // 6. Delete all students in this batch (cascades to any remaining related records)
+        studentRepository.deleteByBatchId(batchId);
+
+        // 7. Finally, delete the batch itself
         batchRepository.delete(batch);
     }
 
@@ -115,15 +155,25 @@ public class InstituteManagementService {
         Subject newSubject = new Subject(request.name());
         Subject savedSubject = subjectRepository.save(newSubject);
         Long studentCount = studentRepository.countActiveStudentsBySubject(savedSubject.getId());
-        return new SubjectDto(savedSubject.getId(), savedSubject.getName(), studentCount);
+        return new SubjectDto(savedSubject.getId(), savedSubject.getName(), studentCount, savedSubject.isArchived());
     }
 
     @Transactional(readOnly = true)
     public List<SubjectDto> getAllSubjects() {
-        return subjectRepository.findAll().stream()
+        return subjectRepository.findByIsArchivedFalse().stream()
                 .map(subject -> {
                     Long studentCount = studentRepository.countActiveStudentsBySubject(subject.getId());
-                    return new SubjectDto(subject.getId(), subject.getName(), studentCount);
+                    return new SubjectDto(subject.getId(), subject.getName(), studentCount, subject.isArchived());
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<SubjectDto> getArchivedSubjects() {
+        return subjectRepository.findByIsArchivedTrue().stream()
+                .map(subject -> {
+                    Long studentCount = studentRepository.countActiveStudentsBySubject(subject.getId());
+                    return new SubjectDto(subject.getId(), subject.getName(), studentCount, subject.isArchived());
                 })
                 .collect(Collectors.toList());
     }
@@ -143,7 +193,53 @@ public class InstituteManagementService {
         subject.setName(request.name());
         Subject updatedSubject = subjectRepository.save(subject);
         Long studentCount = studentRepository.countActiveStudentsBySubject(updatedSubject.getId());
-        return new SubjectDto(updatedSubject.getId(), updatedSubject.getName(), studentCount);
+        return new SubjectDto(updatedSubject.getId(), updatedSubject.getName(), studentCount, updatedSubject.isArchived());
+    }
+
+    @Transactional
+    public SubjectDto archiveSubject(Integer subjectId) {
+        Subject subject = subjectRepository.findById(subjectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Subject not found with ID: " + subjectId));
+
+        if (attendanceSessionRepository.existsBySubject_IdAndIsActiveTrue(subjectId)) {
+            throw new IllegalStateException(
+                "Cannot archive this subject because an active attendance session exists. End the session first.");
+        }
+        
+        subject.setArchived(true);
+        Subject archivedSubject = subjectRepository.save(subject);
+        Long studentCount = studentRepository.countActiveStudentsBySubject(archivedSubject.getId());
+        return new SubjectDto(archivedSubject.getId(), archivedSubject.getName(), studentCount, archivedSubject.isArchived());
+    }
+
+    @Transactional
+    public SubjectDto recoverSubject(Integer subjectId) {
+        Subject subject = subjectRepository.findById(subjectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Subject not found with ID: " + subjectId));
+        
+        subject.setArchived(false);
+        Subject recoveredSubject = subjectRepository.save(subject);
+        Long studentCount = studentRepository.countActiveStudentsBySubject(recoveredSubject.getId());
+        return new SubjectDto(recoveredSubject.getId(), recoveredSubject.getName(), studentCount, recoveredSubject.isArchived());
+    }
+
+    @Transactional
+    public void permanentlyDeleteSubject(Integer subjectId) {
+        Subject subject = subjectRepository.findById(subjectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Subject not found with ID: " + subjectId));
+
+        if (attendanceSessionRepository.existsBySubject_IdAndIsActiveTrue(subjectId)) {
+            throw new IllegalStateException(
+                    "Cannot permanently delete this subject because an active attendance session exists. End the session first.");
+        }
+
+        if (!subject.isArchived()) {
+            throw new IllegalStateException("Only archived subjects can be permanently deleted. Archive the subject first.");
+        }
+
+        // Students are NOT deleted when a subject is deleted due to @ManyToMany relationship
+        // The join table entries will be removed automatically by JPA cascade behavior
+        subjectRepository.delete(subject);
     }
 
     @Transactional
@@ -151,9 +247,14 @@ public class InstituteManagementService {
         Subject subject = subjectRepository.findById(subjectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Subject not found with ID: " + subjectId));
 
-        // Note: In a real application, you might want to check if the subject is being used
-        // by any students or in any attendance records before allowing deletion
-        subjectRepository.delete(subject);
+        if (attendanceSessionRepository.existsBySubject_IdAndIsActiveTrue(subjectId)) {
+            throw new IllegalStateException(
+                "Cannot archive this subject because an active attendance session exists. End the session first.");
+        }
+
+        // Archive the subject instead of permanently deleting it
+        subject.setArchived(true);
+        subjectRepository.save(subject);
     }
 
     @Transactional
@@ -178,6 +279,11 @@ public class InstituteManagementService {
     public void deleteBatch(Integer batchId) {
         Batch batch = batchRepository.findById(batchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Batch not found with ID: " + batchId));
+
+        if (attendanceSessionRepository.existsByBatch_IdAndIsActiveTrue(batchId)) {
+            throw new IllegalStateException(
+                "Cannot archive this batch because an active attendance session exists. End the session first.");
+        }
 
         // Archive the batch instead of permanently deleting it
         batch.setArchived(true);

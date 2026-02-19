@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -26,4 +27,17 @@ public interface FeeExemptionRepository extends JpaRepository<FeeExemption, UUID
 
     @Query("SELECT DISTINCT fe FROM FeeExemption fe JOIN FETCH fe.student s LEFT JOIN FETCH fe.subjects WHERE s.id IN :studentIds")
     List<FeeExemption> findByStudentIdIn(@Param("studentIds") List<UUID> studentIds);
+
+    /**
+     * Deletes all fee exemptions for students in a specific batch.
+     * Used for batch permanent deletion.
+     * First clears the join table, then deletes the exemptions.
+     */
+    @Modifying
+    @Query(value = "DELETE FROM fee_exemption_subjects WHERE exemption_id IN (SELECT fe.id FROM fee_exemptions fe JOIN students s ON fe.student_id = s.id WHERE s.batch_id = :batchId)", nativeQuery = true)
+    void deleteExemptionSubjectsByBatchId(@Param("batchId") Integer batchId);
+
+    @Modifying
+    @Query("DELETE FROM FeeExemption fe WHERE fe.student.batch.id = :batchId")
+    void deleteByBatchId(@Param("batchId") Integer batchId);
 }
