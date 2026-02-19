@@ -186,4 +186,60 @@ public class InstituteManagementController {
             throw e;
         }
     }
+
+    @GetMapping("/subjects/archived")
+    public ResponseEntity<List<SubjectDto>> getArchivedSubjects() {
+        System.out.println("InstituteManagementController - getArchivedSubjects() called");
+        try {
+            List<SubjectDto> subjects = instituteManagementService.getArchivedSubjects();
+            System.out.println("InstituteManagementController - Found " + subjects.size() + " archived subjects");
+            return ResponseEntity.ok(subjects);
+        } catch (Exception e) {
+            System.out.println("InstituteManagementController - Error in getArchivedSubjects: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
+
+    @PutMapping("/subjects/{id}/archive")
+    public ResponseEntity<SubjectDto> archiveSubject(@PathVariable Integer id) {
+        System.out.println("InstituteManagementController - archiveSubject() called for ID: " + id);
+        try {
+            SubjectDto archivedSubject = instituteManagementService.archiveSubject(id);
+            System.out.println("InstituteManagementController - Subject archived successfully");
+            return ResponseEntity.ok(archivedSubject);
+        } catch (Exception e) {
+            System.out.println("InstituteManagementController - Error in archiveSubject: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
+
+    @PutMapping("/subjects/{id}/recover")
+    public ResponseEntity<SubjectDto> recoverSubject(@PathVariable Integer id) {
+        System.out.println("InstituteManagementController - recoverSubject() called for ID: " + id);
+        try {
+            SubjectDto recoveredSubject = instituteManagementService.recoverSubject(id);
+            System.out.println("InstituteManagementController - Subject recovered successfully");
+            return ResponseEntity.ok(recoveredSubject);
+        } catch (Exception e) {
+            System.out.println("InstituteManagementController - Error in recoverSubject: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
+
+    @DeleteMapping("/subjects/{id}/permanent")
+    public ResponseEntity<Void> permanentlyDeleteSubject(@PathVariable Integer id) {
+        System.out.println("InstituteManagementController - permanentlyDeleteSubject() called for ID: " + id);
+        try {
+            instituteManagementService.permanentlyDeleteSubject(id);
+            System.out.println("InstituteManagementController - Subject permanently deleted successfully");
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            System.out.println("InstituteManagementController - Error in permanentlyDeleteSubject: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
 }
