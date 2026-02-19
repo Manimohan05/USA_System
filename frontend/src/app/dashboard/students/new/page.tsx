@@ -265,7 +265,7 @@ export default function NewStudentPage() {
             ))}
           </div>
 
-          <div className="relative z-10 max-w-4xl mx-auto space-y-8 p-6">
+          <div className="relative z-10 max-w-4xl mx-auto space-y-6 p-6">
             {/* Modern Header */}
             <div className="backdrop-blur-md bg-white/70 rounded-2xl shadow-xl border border-white/20 p-6">
               <div className="flex items-center justify-between">
@@ -302,7 +302,7 @@ export default function NewStudentPage() {
 
             {/* Modern Form */}
             <div className="backdrop-blur-md bg-white/70 rounded-2xl shadow-xl border border-white/20 p-8">
-              <form onSubmit={handleSubmit} className="space-y-8">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 {/* 1. Batch Selection - First Field */}
                 <div className="space-y-3">
                   <label className="flex items-center text-lg font-semibold text-gray-800">

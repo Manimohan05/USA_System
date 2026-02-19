@@ -221,7 +221,7 @@ export default function StudentsPage() {
   return (
     <ProtectedRoute>
       <DashboardLayout>
-        <div className="space-y-8">
+        <div className="space-y-6">
           {/* Modern Header Section */}
           <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-2xl shadow-2xl">
             {/* Background Elements */}
@@ -229,7 +229,7 @@ export default function StudentsPage() {
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32"></div>
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-24 -translate-x-24"></div>
             
-            <div className="relative px-8 py-12">
+            <div className="relative px-6 py-6">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center space-x-3 mb-4">
