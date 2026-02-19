@@ -638,7 +638,7 @@ export default function FeesPage() {
   return (
     <ProtectedRoute>
       <DashboardLayout>
-        <div className={activeTab === 'marking' ? 'space-y-4' : 'space-y-8'}>
+        <div className={activeTab === 'marking' ? 'space-y-4' : 'space-y-6'}>
           {/* Modern Header Section */}
           <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 rounded-2xl shadow-2xl">
             {/* Background Elements */}
@@ -646,7 +646,7 @@ export default function FeesPage() {
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32"></div>
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-24 -translate-x-24"></div>
             
-            <div className={activeTab === 'marking' ? 'relative px-8 py-6' : 'relative px-8 py-12'}>
+            <div className="relative px-6 py-6">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center space-x-3 mb-4">
@@ -1085,7 +1085,7 @@ export default function FeesPage() {
 
           {/* Fee Report Tab */}
           {activeTab === 'report' && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* Filters Section */}
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-5 lg:p-6">
                 <div className="flex items-center space-x-3 mb-4">
@@ -1457,7 +1457,7 @@ export default function FeesPage() {
                       <BarChart3 className="h-12 w-12 text-gray-400" />
                     </div>
                     <h3 className="text-2xl font-bold text-gray-900 mb-2">No Data Available</h3>
-                    <p className="text-gray-600 mb-8">Click "Generate Report" to view fee payment data</p>
+                    <p className="text-gray-600 mb-6">Click "Generate Report" to view fee payment data</p>
                   </div>
                 </div>
               )}
