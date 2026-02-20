@@ -499,13 +499,13 @@ public class AttendanceService {
                     
                     Dear Parent,
                     
-                    Your child %s has successfully checked in for %s class.
+                    Your child %s has successfully checked in to the %s class.
                     
                     Date: %s
                     Time: %s
                     
                     Thank you,
-                    USA Institute""",
+                    Universal Science Academy""",
                     student.getFullName(),
                     subject.getName(),
                     date,

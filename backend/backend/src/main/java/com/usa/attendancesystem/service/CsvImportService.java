@@ -158,9 +158,12 @@ public class CsvImportService {
                     // Validate the request (including Student ID format)
                     validateStudentRequest(studentRequest, batch);
 
-                    String normalizedStudentId = studentRequest.studentIdCode().trim().toUpperCase();
-                    if (!seenStudentIdsInFile.add(normalizedStudentId)) {
-                        throw new RuntimeException("Duplicate Student ID Code found in file: " + studentRequest.studentIdCode());
+                    String studentIdCode = studentRequest.studentIdCode();
+                    if (studentIdCode != null && !studentIdCode.trim().isEmpty()) {
+                        String normalizedStudentId = studentIdCode.trim().toUpperCase();
+                        if (!seenStudentIdsInFile.add(normalizedStudentId)) {
+                            throw new RuntimeException("Duplicate Student ID Code found in file: " + studentIdCode);
+                        }
                     }
 
                     validatedRequests.add(studentRequest);
@@ -202,8 +205,13 @@ public class CsvImportService {
             // Parse selected subjects and find subject entities
             Set<Subject> subjects = parseSubjects(studentRequest.subjectNames());
 
-            // Use the provided Student ID Code (not auto-generated for bulk import)
+            // Use provided Student ID Code when available; otherwise auto-generate
             String studentId = studentRequest.studentIdCode();
+            if (studentId == null || studentId.trim().isEmpty()) {
+                studentId = studentService.getNextStudentIdForBatch(batch.getId());
+            } else {
+                studentId = studentId.trim();
+            }
 
             // Create and save student
             Student student = Student.builder()
@@ -214,7 +222,7 @@ public class CsvImportService {
                     .school(studentRequest.school())
                     .admissionDate(studentRequest.admissionDate())
                     .parentPhone(studentRequest.phoneNumber())
-                    .indexNumber(studentService.getNextIndexNumberForBatch(batch.getId()))
+                    .indexNumber(studentId)
                     .isActive(true)
                     .batch(batch)
                     .subjects(subjects)
@@ -237,10 +245,17 @@ public class CsvImportService {
      */
     private void validateStudentRequest(StudentCsvImportRequest studentRequest, Batch batch) {
         // Validate Student ID format against batch format
-        validateStudentIdFormat(studentRequest.studentIdCode(), batch);
+        String studentIdCode = studentRequest.studentIdCode();
+        if (studentIdCode != null && !studentIdCode.trim().isEmpty()) {
+            validateStudentIdFormat(studentIdCode, batch);
 
-        if (studentRepository.findByStudentIdCode(studentRequest.studentIdCode().trim()).isPresent()) {
-            throw new RuntimeException("Student ID Code already exists: " + studentRequest.studentIdCode());
+            if (studentRepository.findByStudentIdCode(studentIdCode.trim()).isPresent()) {
+                throw new RuntimeException("Student ID Code already exists: " + studentIdCode);
+            }
+
+            if (studentRepository.existsByIndexNumber(studentIdCode.trim())) {
+                throw new RuntimeException("Index number already exists: " + studentIdCode);
+            }
         }
         
         // Validate required fields
@@ -397,7 +412,7 @@ public class CsvImportService {
     private StudentCsvImportRequest parseExcelRow(Row row, List<String> headers, int rowNumber) {
         try {
             // Parse fields in the exact order as add student form
-            String studentIdCode = getCellValueByHeader(row, headers, "Student ID Code");
+            String studentIdCode = getCellValueByHeaderAllowEmpty(row, headers, "Student ID Code");
             String admissionDateStr = getCellValueByHeader(row, headers, "Admission Date (YYYY-MM-DD or DD/MM/YYYY)");
             String fullName = getCellValueByHeader(row, headers, "Full Name");
             String address = getCellValueByHeader(row, headers, "Address");
@@ -474,6 +489,16 @@ public class CsvImportService {
         return value;
     }
 
+    private String getCellValueByHeaderAllowEmpty(Row row, List<String> headers, String headerName) {
+        int columnIndex = headers.indexOf(headerName);
+        if (columnIndex == -1) {
+            throw new IllegalArgumentException("Required column '" + headerName + "' not found");
+        }
+
+        Cell cell = row.getCell(columnIndex);
+        return getCellValueAsString(cell);
+    }
+
     private String getCellValueByHeaderOptional(Row row, List<String> headers, String headerName) {
         int columnIndex = headers.indexOf(headerName);
         if (columnIndex == -1) {
@@ -487,7 +512,7 @@ public class CsvImportService {
     private StudentCsvImportRequest parseRecord(CSVRecord record, int rowNumber) {
         try {
             // Parse fields in the exact order as add student form
-            String studentIdCode = getFieldValue(record, "Student ID Code", rowNumber);
+            String studentIdCode = getFieldValueAllowEmpty(record, "Student ID Code", rowNumber);
             String admissionDateStr = getFieldValue(record, "Admission Date (YYYY-MM-DD or DD/MM/YYYY)", rowNumber);
             String fullName = getFieldValue(record, "Full Name", rowNumber);
             String address = getFieldValue(record, "Address", rowNumber);
@@ -583,6 +608,18 @@ public class CsvImportService {
                 throw new IllegalArgumentException(header + " is required but was empty");
             }
             return value;
+        } catch (IllegalArgumentException e) {
+            if (e.getMessage().contains("Mapping for")) {
+                throw new IllegalArgumentException("Missing required column: " + header);
+            }
+            throw e;
+        }
+    }
+
+    private String getFieldValueAllowEmpty(CSVRecord record, String header, int rowNumber) {
+        try {
+            String value = record.get(header);
+            return value == null ? "" : value;
         } catch (IllegalArgumentException e) {
             if (e.getMessage().contains("Mapping for")) {
                 throw new IllegalArgumentException("Missing required column: " + header);

@@ -87,11 +87,11 @@ public class StudentService {
                 .collect(Collectors.joining(", "));
 
         String message = String.format(
-            "Welcome to Universal Science Academy! Student: %s. Batch: %s. Enrolled Subjects: %s. Student ID: %s.",
+            "மரியாதைக்குரிய பெற்றோரே, Universal Science Academy க்கு வரவேற்கின்றோம். உங்கள் பிள்ளையின் பெயர் \"%s\" எமது கல்வி நிலையத்தில் வெற்றிகரமாக பதிவு செய்யப்பட்டுள்ளது. Batch: %s. Student ID: %s. Enrolled Subjects: %s. நன்றி.",
                 student.getFullName(),
                 student.getBatch().getDisplayName(),
-                subjectList,
-                student.getStudentIdCode()
+                student.getStudentIdCode(),
+                subjectList
         );
 
         try {

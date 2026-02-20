@@ -10,7 +10,6 @@ import jakarta.validation.constraints.Size;
  * DTO representing a single student row from CSV import file.
  */
 public record StudentCsvImportRequest(
-        @NotBlank(message = "Student ID Code is required")
         @Size(max = 20, message = "Student ID Code must not exceed 20 characters")
         String studentIdCode,
         @NotNull(message = "Admission date is required")

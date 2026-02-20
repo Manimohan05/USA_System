@@ -400,13 +400,11 @@ public class AttendanceSessionService {
         String formattedDate = session.getSessionDate().format(dateFormatter);
 
         return String.format(
-                "Dear Parent, we would like to inform you that %s was absent from the %s class (Batch %s) held on %s. "
-                + "If this was due to illness or other circumstances, please contact the institute. "
-                + "Regular attendance is important for your child's academic progress. Thank you.",
+            "மரியாதைக்குரிய பெற்றோரே, உங்கள் பிள்ளை \"%s\" (Batch %s), %s இன்று நடைபெற்ற %s வகுப்பிற்கு வருகைதரவில்லை. இது தொடர்பாக ஏதாவது தகுந்த காரணங்கள் இருப்பின் எமக்கு அறியத்தரவும். ஒழுங்கான வருகை உங்கள் பிள்ளையின் கல்வி முன்னேற்றத்திற்கு அவசியமானதாகும். முன்னறிவிப்பின்றி தொடர்ச்சியாக வருகைதராதவிடத்து எமது கல்வி நிலையத்திலிருந்து இடைநிறுத்தப்பட நேரிடும். நன்றி.",
                 student.getFullName(),
-                session.getSubject().getName(),
                 session.getBatch().getBatchYear(),
-                formattedDate
+                formattedDate,
+                session.getSubject().getName()
         );
     }
 }

@@ -84,23 +84,14 @@ public class ParentMessagingService {
 
         // Send reminders
         for (Student student : unpaidStudents) {
-            // English message
-            String englishMessage = String.format(
-                    "Dear Parent, this is a reminder from Universal Science Academy that a fee payment for %s was due by %s and is now overdue. Please complete the payment within 2 days. Thank you.",
-                    student.getFullName(),
-                    currentDate.toString()
-            );
-
             // Tamil message
             String tamilMessage = String.format(
-                    "அன்புள்ள பெற்றோர், USA இலிருந்து %s என்ற மாணவர்/மாணவிக்கான கட்டணம் %s தேதிக்குள் செலுத்த வேண்டியிருந்தது. தயவுசெய்து விரைவில் கட்டணத்தை செலுத்தவும். நன்றி.",
+                    "மரியாதைக்குரிய பெற்றோரே, இது Universal Science Academy யின் நினைவூட்டல். உங்கள் பிள்ளை \"%s\" இன் இம்மாதத்திற்குரிய கட்டணம் %s வரை செலுத்தப்படவில்லை. தயவுசெய்து அடுத்த இரண்டு நாட்களுக்குள் கட்டணத்தை செலுத்துமாறு கேட்டுக்கொள்கின்றோம். நன்றி.",
                     student.getFullName(),
                     currentDate.toString()
             );
 
-            // Send only English message (uncomment Tamil line if needed)
-            smsService.sendSms(student.getParentPhone(), englishMessage);
-            // smsService.sendSms(student.getParentPhone(), tamilMessage);
+            smsService.sendSms(student.getParentPhone(), tamilMessage);
         }
 
         return unpaidStudents.size(); // Return count of students who received reminders
