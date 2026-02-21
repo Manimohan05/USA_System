@@ -101,6 +101,7 @@ public class FeeService {
                                 student.getId(),
                                 student.getStudentIdCode(),
                                 student.getFullName(),
+                                student.getNic(),
                                 savedExemption.getExemptionType(),
                                 savedExemption.isAppliesToAllSubjects(),
                                 savedExemption.getSubjects().stream()
@@ -133,6 +134,7 @@ public class FeeService {
                                 exemption.getStudent().getId(),
                                 exemption.getStudent().getStudentIdCode(),
                                 exemption.getStudent().getFullName(),
+                                exemption.getStudent().getNic(),
                                 exemption.getExemptionType(),
                                 exemption.isAppliesToAllSubjects(),
                                 exemption.getSubjects().stream()

@@ -1074,9 +1074,11 @@ function AttendancePageContent() {
   };
 
   const filterStudents = (searchTerm: string) => {
+    const normalizedTerm = searchTerm.toLowerCase();
     return students.filter(student =>
-      student.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.studentIdCode.toLowerCase().includes(searchTerm.toLowerCase())
+      student.fullName.toLowerCase().includes(normalizedTerm) ||
+      student.studentIdCode.toLowerCase().includes(normalizedTerm) ||
+      (student.nic && student.nic.toLowerCase().includes(normalizedTerm))
     );
   };
 
@@ -1609,7 +1611,7 @@ function AttendancePageContent() {
                       <div className="relative student-search-container">
                         <input
                           type="text"
-                          placeholder="Search student by name or ID..."
+                          placeholder="Search student by name, ID, or NIC..."
                           value={studentSearch}
                           onChange={(e) => handleStudentSearch(e.target.value)}
                           onFocus={() => setShowStudentDropdown(true)}

@@ -25,6 +25,8 @@ import {
   User,
   Lock,
   Power,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
@@ -54,6 +56,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [updatingPassword, setUpdatingPassword] = useState(false);
@@ -121,6 +126,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     setCurrentPassword('');
     setNewPassword('');
     setConfirmNewPassword('');
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmNewPassword(false);
     setPasswordError('');
     setPasswordSuccess('');
   };
@@ -167,6 +175,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmNewPassword(false);
     } catch (error: unknown) {
       if (axios.isAxiosError<{ message?: string }>(error)) {
         setPasswordError(error.response?.data?.message || 'Failed to update password. Please try again.');
@@ -469,33 +480,63 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <form onSubmit={handleUpdatePassword} className="mt-4 space-y-3">
                 <div>
                   <label className="block text-xs text-slate-300 mb-1">Current Password</label>
-                  <input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(event) => setCurrentPassword(event.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-900/70 border border-slate-600 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(event) => setCurrentPassword(event.target.value)}
+                      className="w-full px-3 py-2 pr-10 rounded-lg bg-slate-900/70 border border-slate-600 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute inset-y-0 right-0 px-3 text-slate-300 hover:text-slate-100"
+                      aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
+                    >
+                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs text-slate-300 mb-1">Create New Password</label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(event) => setNewPassword(event.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-900/70 border border-slate-600 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                      className="w-full px-3 py-2 pr-10 rounded-lg bg-slate-900/70 border border-slate-600 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute inset-y-0 right-0 px-3 text-slate-300 hover:text-slate-100"
+                      aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
+                    >
+                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                   <p className="text-[11px] text-slate-400 mt-1">
                     Minimum 8 characters with uppercase, lowercase, number, and special character.
                   </p>
                 </div>
                 <div>
                   <label className="block text-xs text-slate-300 mb-1">Re-enter New Password</label>
-                  <input
-                    type="password"
-                    value={confirmNewPassword}
-                    onChange={(event) => setConfirmNewPassword(event.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-900/70 border border-slate-600 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirmNewPassword ? 'text' : 'password'}
+                      value={confirmNewPassword}
+                      onChange={(event) => setConfirmNewPassword(event.target.value)}
+                      className="w-full px-3 py-2 pr-10 rounded-lg bg-slate-900/70 border border-slate-600 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                      className="absolute inset-y-0 right-0 px-3 text-slate-300 hover:text-slate-100"
+                      aria-label={showConfirmNewPassword ? 'Hide confirm password' : 'Show confirm password'}
+                    >
+                      {showConfirmNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 {passwordError && (

@@ -31,10 +31,18 @@ interface FeeExemptionDto {
   studentId: string;
   studentIdCode: string;
   fullName: string;
+  nic?: string;
   exemptionType: FeeExemptionType;
   appliesToAllSubjects?: boolean;
   subjects?: { id: number; name: string }[];
   createdAt: string;
+}
+
+interface StudentSearchDto {
+  id: string;
+  studentIdCode: string;
+  fullName: string;
+  nic: string;
 }
 
 interface FeeReportRequest {
@@ -148,6 +156,7 @@ export default function FeesPage() {
   // Data State
   const [batches, setBatches] = useState<Batch[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [students, setStudents] = useState<StudentSearchDto[]>([]);
 
   const getReportStatus = (record: FeeReportDto) => {
     if (record.isPaid) return 'Paid';
@@ -173,9 +182,13 @@ export default function FeesPage() {
 
   const filteredExemptions = feeExemptions.filter((exemption) => {
     const idFilter = exemptionStudentIdFilter.trim().toLowerCase();
-    const matchesStudentId = idFilter.length === 0 || exemption.studentIdCode.toLowerCase().includes(idFilter);
+    const matchesStudent =
+      idFilter.length === 0 ||
+      exemption.studentIdCode.toLowerCase().includes(idFilter) ||
+      exemption.fullName.toLowerCase().includes(idFilter) ||
+      (exemption.nic && exemption.nic.toLowerCase().includes(idFilter));
     const matchesType = exemptionTypeFilter === 'ALL' || exemption.exemptionType === exemptionTypeFilter;
-    return matchesStudentId && matchesType;
+    return matchesStudent && matchesType;
   });
 
   const getExemptionsFileBaseName = () => {
@@ -317,17 +330,19 @@ export default function FeesPage() {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      const [batchesRes, subjectsRes] = await Promise.all([
+      const [batchesRes, subjectsRes, studentsRes] = await Promise.all([
         api.get<Batch[]>('/admin/institute/batches'),
         api.get<Subject[]>('/admin/institute/subjects'),
+        api.get<StudentSearchDto[]>('/admin/students'),
       ]);
       setBatches(batchesRes.data);
       setSubjects(subjectsRes.data);
+      setStudents(studentsRes.data);
     } catch (error) {
       addToast({
         type: 'error',
         title: 'Failed to Load Data',
-        message: 'Unable to load batches and subjects',
+        message: 'Unable to load batches, subjects, and students',
       });
     } finally {
       setLoading(false);
@@ -380,12 +395,64 @@ export default function FeesPage() {
   const handleGenerateReport = async () => {
     setLoadingReport(true);
     try {
+      const searchText = reportStudentId.trim();
+      let resolvedStudentIdCode: string | undefined;
+
+      if (searchText) {
+        const normalized = searchText.toLowerCase();
+        const exactMatches = students.filter(
+          (student) =>
+            student.studentIdCode.toLowerCase() === normalized ||
+            student.fullName.toLowerCase() === normalized ||
+            (student.nic && student.nic.toLowerCase() === normalized)
+        );
+
+        if (exactMatches.length === 1) {
+          resolvedStudentIdCode = exactMatches[0].studentIdCode;
+        } else if (exactMatches.length > 1) {
+          addToast({
+            type: 'warning',
+            title: 'Multiple Students Found',
+            message: 'More than one student matches this value. Please enter the exact Student ID.',
+          });
+          setLoadingReport(false);
+          return;
+        } else {
+          const partialMatches = students.filter(
+            (student) =>
+              student.studentIdCode.toLowerCase().includes(normalized) ||
+              student.fullName.toLowerCase().includes(normalized) ||
+              (student.nic && student.nic.toLowerCase().includes(normalized))
+          );
+
+          if (partialMatches.length === 1) {
+            resolvedStudentIdCode = partialMatches[0].studentIdCode;
+          } else if (partialMatches.length > 1) {
+            addToast({
+              type: 'warning',
+              title: 'Multiple Students Found',
+              message: 'More than one student matches this value. Please refine by Student ID.',
+            });
+            setLoadingReport(false);
+            return;
+          } else {
+            addToast({
+              type: 'warning',
+              title: 'Student Not Found',
+              message: 'No student matches the entered ID, NIC, or name.',
+            });
+            setLoadingReport(false);
+            return;
+          }
+        }
+      }
+
       const request: FeeReportRequest = {
         month: reportMonth,
         year: reportYear,
         ...(selectedBatch && { batchId: parseInt(selectedBatch) }),
         ...(selectedSubject && { subjectId: parseInt(selectedSubject) }),
-        ...(reportStudentId.trim() && { studentIdCode: reportStudentId.trim() }),
+        ...(resolvedStudentIdCode && { studentIdCode: resolvedStudentIdCode }),
       };
 
       const response = await api.post<FeeReportDto[]>('/admin/fees/report', request);
@@ -972,10 +1039,10 @@ export default function FeesPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-3">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Filter by Student ID</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Filter by Student (ID, Name, NIC)</label>
                     <input
                       type="text"
-                      placeholder="Enter student ID..."
+                      placeholder="Enter student ID, name, or NIC..."
                       value={exemptionStudentIdFilter}
                       onChange={(e) => setExemptionStudentIdFilter(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
@@ -1162,12 +1229,12 @@ export default function FeesPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="block text-sm font-semibold text-gray-800">Student ID (Optional)</label>
+                    <label className="block text-sm font-semibold text-gray-800">Student (Optional)</label>
                     <input
                       type="text"
                       value={reportStudentId}
                       onChange={(e) => setReportStudentId(e.target.value)}
-                      placeholder="Enter student ID"
+                      placeholder="Enter student ID, name, or NIC"
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 bg-gray-50 hover:bg-white"
                     />
                   </div>

@@ -11,6 +11,7 @@ public record FeeExemptionDto(
         UUID studentId,
         String studentIdCode,
         String fullName,
+        String nic,
         FeeExemptionType exemptionType,
         Boolean appliesToAllSubjects,
         List<SubjectDto> subjects,

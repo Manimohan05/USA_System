@@ -127,12 +127,12 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center hover:bg-white/10 rounded-r-xl transition-colors duration-200"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center justify-center w-12 text-black bg-black/20 border-l border-black/40 rounded-r-xl hover:bg-black/30 transition-colors duration-200"
                   >
                     {showPassword ? (
-                      <EyeOff className="h-5 w-5 text-white/60 hover:text-white/80" />
+                      <EyeOff className="h-5 w-5 text-black" />
                     ) : (
-                      <Eye className="h-5 w-5 text-white/60 hover:text-white/80" />
+                      <Eye className="h-5 w-5 text-black" />
                     )}
                   </button>
                 </div>
@@ -176,7 +176,7 @@ export default function LoginPage() {
           {/* Footer Branding */}
           <div className="text-center">
             <p className="text-white/40 text-xs">
-              © 2026 USA Institute Management System
+              © 2026 powered by TronicGenAI
             </p>
             
           </div>
