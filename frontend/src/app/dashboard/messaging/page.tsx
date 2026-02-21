@@ -435,24 +435,24 @@ export default function MessagingPage() {
                 </div>
 
                 {/* Enhanced Statistics Card */}
-                <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 rounded-2xl p-6 border-2 border-blue-200/50 shadow-xl">
+                <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900 rounded-2xl p-6 border-2 border-blue-200/50 dark:border-slate-700 shadow-xl">
                   <div className="flex items-center space-x-3 mb-4">
                     <div className="p-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl">
                       <Target className="h-5 w-5 text-white" />
                     </div>
-                    <h4 className="text-lg font-bold text-gray-900">
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100">
                       {sendToAll ? '🌍 All Students' : '🎯 Targeted Students'}
                     </h4>
                   </div>
                   
                   <div className="space-y-4">
-                    <div className="bg-white/60 rounded-xl p-4 backdrop-blur-sm">
+                    <div className="bg-white/60 dark:bg-slate-700/60 rounded-xl p-4 backdrop-blur-sm">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-gray-700 font-medium">Total Students</span>
+                        <span className="text-gray-700 dark:text-gray-200 font-medium">Total Students</span>
                         <span className="text-2xl font-bold text-blue-600">{targetedCounts.studentCount}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-700 font-medium">Will Receive SMS</span>
+                        <span className="text-gray-700 dark:text-gray-200 font-medium">Will Receive SMS</span>
                         <span className="text-2xl font-bold text-green-600">{targetedCounts.parentContactCount}</span>
                       </div>
                     </div>
