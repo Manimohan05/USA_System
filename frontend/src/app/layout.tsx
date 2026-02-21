@@ -16,8 +16,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "USA Attendance System",
-  description: "Institute Attendance Management System",
+  title: "USA Student System",
+  description: "Universal Science Academy Student Management System",
 };
 
 export default function RootLayout({
@@ -41,6 +41,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/favicon.ico" />
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body
