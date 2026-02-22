@@ -357,14 +357,14 @@ export default function MessagingPage() {
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <div className={`flex items-center space-x-2 ${
-                          message.length <= 160 ? 'text-green-600' : 'text-amber-600'
+                          message.length <= 500 ? 'text-green-600' : 'text-amber-600'
                         }`}>
-                          {message.length <= 160 ? (
+                          {message.length <= 500 ? (
                             <CheckCircle className="h-4 w-4" />
                           ) : (
                             <AlertTriangle className="h-4 w-4" />
                           )}
-                          <span>{message.length}/160 (SMS optimal length)</span>
+                          <span>{message.length}/500 (SMS optimal length)</span>
                         </div>
                       </div>
                     </div>
@@ -560,4 +560,5 @@ export default function MessagingPage() {
       </DashboardLayout>
     </ProtectedRoute>
   );
+
 }
