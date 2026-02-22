@@ -347,24 +347,25 @@ export default function MessagingPage() {
                           value={message}
                           onChange={(e) => setMessage(e.target.value)}
                           rows={6}
+                          maxLength={500}
                           placeholder="✨ Craft your message to parents here..."
-                          className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-gradient-to-br from-white to-green-50/30 backdrop-blur-sm transition-all duration-300 hover:shadow-md resize-none"
+                          className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus-border-transparent bg-gradient-to-br from-white to-green-50/30 backdrop-blur-sm transition-all duration-300 hover:shadow-md resize-none"
                           required
                         />
                         <div className="absolute bottom-3 right-3 text-xs text-gray-400">
-                          {message.length} chars
+                          {message.length} / 500 chars
                         </div>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <div className={`flex items-center space-x-2 ${
-                          message.length <= 500 ? 'text-green-600' : 'text-amber-600'
+                          message.length <= 160 ? 'text-green-600' : 'text-amber-600'
                         }`}>
-                          {message.length <= 500 ? (
+                          {message.length <= 160 ? (
                             <CheckCircle className="h-4 w-4" />
                           ) : (
                             <AlertTriangle className="h-4 w-4" />
                           )}
-                          <span>{message.length}/500 (SMS optimal length)</span>
+                          <span>{message.length}/500 (SMS optimal length: 160)</span>
                         </div>
                       </div>
                     </div>
@@ -435,31 +436,30 @@ export default function MessagingPage() {
                 </div>
 
                 {/* Enhanced Statistics Card */}
-                <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900 rounded-2xl p-6 border-2 border-blue-200/50 dark:border-slate-700 shadow-xl">
+                <div className="bg-white rounded-2xl p-6 border border-blue-100 shadow-lg">
                   <div className="flex items-center space-x-3 mb-4">
-                    <div className="p-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl">
-                      <Target className="h-5 w-5 text-white" />
+                    <div className="p-2 bg-blue-100 rounded-xl">
+                      <Target className="h-5 w-5 text-blue-600" />
                     </div>
-                    <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                    <h4 className="text-lg font-bold text-blue-700">
                       {sendToAll ? '🌍 All Students' : '🎯 Targeted Students'}
                     </h4>
                   </div>
                   
                   <div className="space-y-4">
-                    <div className="bg-white/60 dark:bg-slate-700/60 rounded-xl p-4 backdrop-blur-sm">
+                    <div className="bg-blue-50 rounded-xl p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-gray-700 dark:text-gray-200 font-medium">Total Students</span>
-                        <span className="text-2xl font-bold text-blue-600">{targetedCounts.studentCount}</span>
+                        <span className="text-blue-700 font-medium">Total Students</span>
+                        <span className="text-2xl font-bold text-blue-700">{targetedCounts.studentCount}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-700 dark:text-gray-200 font-medium">Will Receive SMS</span>
-                        <span className="text-2xl font-bold text-green-600">{targetedCounts.parentContactCount}</span>
+                        <span className="text-green-700 font-medium">Will Receive SMS</span>
+                        <span className="text-2xl font-bold text-green-700">{targetedCounts.parentContactCount}</span>
                       </div>
                     </div>
-                    
                     {targetedCounts.studentCount > targetedCounts.parentContactCount && (
-                      <div className="bg-amber-100/80 border border-amber-300 rounded-xl p-3 backdrop-blur-sm">
-                        <div className="flex items-center space-x-2 text-amber-800">
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+                        <div className="flex items-center space-x-2 text-yellow-700">
                           <AlertTriangle className="h-4 w-4" />
                           <span className="text-sm font-medium">
                             {targetedCounts.studentCount - targetedCounts.parentContactCount} missing contacts
@@ -469,10 +469,10 @@ export default function MessagingPage() {
                     )}
                     
                     {!sendToAll && (selectedBatch || selectedSubject) && (
-                      <div className="bg-purple-100/80 border border-purple-300 rounded-xl p-3 backdrop-blur-sm">
-                        <div className="text-sm text-purple-800 font-medium">
+                      <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
+                        <div className="text-sm text-purple-700 font-medium">
                           📊 {selectedBatch && selectedSubject ? (
-                            `Batch ${batches.find(b => b.id.toString() === selectedBatch)?.batchYear} + ${subjects.find(s => s.id.toString() === selectedSubject)?.name}`
+                            `Batch ${batches.find(b => b.id.toString() === selectedBatch)?.batchYear} (All Subjects)`
                           ) : selectedBatch ? (
                             `Batch ${batches.find(b => b.id.toString() === selectedBatch)?.batchYear} (All Subjects)`
                           ) : selectedSubject ? (
@@ -560,5 +560,4 @@ export default function MessagingPage() {
       </DashboardLayout>
     </ProtectedRoute>
   );
-
 }
