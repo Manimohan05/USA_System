@@ -17,8 +17,9 @@ public class CorsConfig {
 
         // Allow specific origins - frontend URL
         configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:3000",
-                "http://127.0.0.1:3000"
+               "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "https://usaedu.tronicgenai.com"
         ));
 
         // Allow specific headers
@@ -54,3 +55,4 @@ public class CorsConfig {
         return source;
     }
 }
+
