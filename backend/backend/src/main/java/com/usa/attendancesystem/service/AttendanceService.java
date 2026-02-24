@@ -455,11 +455,6 @@ public class AttendanceService {
         Instant endOfDay = date.plusDays(1).atStartOfDay(zoneId).toInstant();
         List<AttendanceRecord> presentRecords = attendanceRepository.findSessionAttendanceRecords(batchId, subjectId, startOfDay, endOfDay);
 
-        // If no attendance records exist, return a special DTO/message
-        if (presentRecords.isEmpty()) {
-            return new AttendanceReportDto(date, List.of(), List.of(), "No sessions held on this day for this subject for this batch.");
-        }
-
         Set<UUID> presentStudentIds = presentRecords.stream()
             .map(ar -> ar.getStudent().getId())
             .collect(Collectors.toSet());
