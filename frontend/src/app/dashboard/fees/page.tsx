@@ -1103,7 +1103,11 @@ export default function FeesPage() {
 
                 {loadingExemptions ? (
                   <div className="flex items-center justify-center py-8">
-                    <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                    {/* Modern scroll rolling spinner */}
+                    <div className="flex flex-col items-center">
+                      <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                      <span className="text-sm text-indigo-500">Loading exemptions...</span>
+                    </div>
                   </div>
                 ) : feeExemptions.length === 0 ? (
                   <p className="text-gray-600">No fee exemptions available.</p>

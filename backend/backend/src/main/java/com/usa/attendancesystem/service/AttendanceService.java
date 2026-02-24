@@ -449,11 +449,11 @@ public class AttendanceService {
         // 1. Get all students who should be in the class
         List<Student> enrolledStudents = studentRepository.findActiveStudentsByBatchAndSubject(batchId, subjectId);
 
-        // 2. Get all attendance records for that day - use system timezone for consistency
+        // 2. Get all attendance records for that batch, subject, and day
         ZoneId zoneId = ZoneId.systemDefault();
         Instant startOfDay = date.atStartOfDay(zoneId).toInstant();
         Instant endOfDay = date.plusDays(1).atStartOfDay(zoneId).toInstant();
-        List<AttendanceRecord> presentRecords = attendanceRepository.findBySubjectAndDateRange(subjectId, startOfDay, endOfDay);
+        List<AttendanceRecord> presentRecords = attendanceRepository.findSessionAttendanceRecords(batchId, subjectId, startOfDay, endOfDay);
 
         Set<UUID> presentStudentIds = presentRecords.stream()
             .map(ar -> ar.getStudent().getId())
@@ -472,7 +472,7 @@ public class AttendanceService {
         // 4. Filter the enrolled list to find absent students and map to DTO
         List<StudentDto> absentStudentDtos = enrolledStudents.stream()
             .filter(student -> !presentStudentIds.contains(student.getId()))
-            .map(studentService::mapToStudentDto) // This now works correctly
+            .map(studentService::mapToStudentDto)
             .toList();
 
         return new AttendanceReportDto(date, presentStudentDtos, absentStudentDtos);
