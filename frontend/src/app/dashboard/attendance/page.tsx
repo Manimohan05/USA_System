@@ -127,11 +127,11 @@ function AttendancePageContent() {
   }, []);
 
   useEffect(() => {
-    // Fetch sessions when showAllSessions toggle changes
+    // Fetch today's sessions on mount or when loading changes
     if (!loading) {
       fetchTodaysSessions();
     }
-  }, [showAllSessions]);
+  }, [loading]);
 
   useEffect(() => {
     // Fetch session status when current session changes
