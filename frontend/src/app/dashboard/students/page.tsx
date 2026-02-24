@@ -13,6 +13,7 @@ import { formatPhoneNumber } from '@/lib/utils';
 import type { StudentDto, BatchDto, SubjectDto } from '@/types';
 
 export default function StudentsPage() {
+    const [studentIdSort, setStudentIdSort] = useState<'asc' | 'desc'>('asc');
   const { addToast } = useToast();
   const router = useRouter();
   const [students, setStudents] = useState<StudentDto[]>([]);
@@ -119,6 +120,15 @@ export default function StudentsPage() {
       || student.studentIdCode.toLowerCase().includes(term)
       || (student.nic && student.nic.toLowerCase().includes(term))
     );
+  });
+
+  // Sort filtered students by Student ID
+  const sortedStudents = [...filteredStudents].sort((a, b) => {
+    if (studentIdSort === 'asc') {
+      return a.studentIdCode.localeCompare(b.studentIdCode, undefined, { numeric: true });
+    } else {
+      return b.studentIdCode.localeCompare(a.studentIdCode, undefined, { numeric: true });
+    }
   });
 
   const getExportFileBaseName = () => {
@@ -417,8 +427,11 @@ export default function StudentsPage() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Student
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer select-none" onClick={() => setStudentIdSort(studentIdSort === 'asc' ? 'desc' : 'asc')}>
                         Student ID
+                        <span className="ml-1 align-middle">
+                          {studentIdSort === 'asc' ? '▲' : '▼'}
+                        </span>
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Batch
@@ -438,7 +451,7 @@ export default function StudentsPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredStudents.map((student) => (
+                    {sortedStudents.map((student) => (
                       <tr key={student.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">

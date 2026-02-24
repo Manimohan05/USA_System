@@ -97,6 +97,8 @@ const sanitizeForFileName = (value: string) =>
     .replace(/[^a-z0-9_-]/g, '') || 'unknown';
 
 export default function FeesPage() {
+      const [reportStudentIdSort, setReportStudentIdSort] = useState<'asc' | 'desc'>('asc');
+    const [exemptionStudentIdSort, setExemptionStudentIdSort] = useState<'asc' | 'desc'>('asc');
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<'marking' | 'report' | 'exemption'>('marking');
   const [loading, setLoading] = useState(false);
@@ -174,6 +176,15 @@ export default function FeesPage() {
     return true;
   });
 
+  // Sort filtered report data by Student ID
+  const sortedReportData = [...filteredReportData].sort((a, b) => {
+    if (reportStudentIdSort === 'asc') {
+      return a.studentIdCode.localeCompare(b.studentIdCode, undefined, { numeric: true });
+    } else {
+      return b.studentIdCode.localeCompare(a.studentIdCode, undefined, { numeric: true });
+    }
+  });
+
   const getExemptionTypeLabel = (type: FeeExemptionType) => {
     if (type === 'ALARM_EXEMPTION') return 'Alarm Exemption';
     if (type === 'HALF_PAYMENT') return 'Half Payment';
@@ -189,6 +200,15 @@ export default function FeesPage() {
       (exemption.nic && exemption.nic.toLowerCase().includes(idFilter));
     const matchesType = exemptionTypeFilter === 'ALL' || exemption.exemptionType === exemptionTypeFilter;
     return matchesStudent && matchesType;
+  });
+
+  // Sort filtered exemptions by Student ID
+  const sortedExemptions = [...filteredExemptions].sort((a, b) => {
+    if (exemptionStudentIdSort === 'asc') {
+      return a.studentIdCode.localeCompare(b.studentIdCode, undefined, { numeric: true });
+    } else {
+      return b.studentIdCode.localeCompare(a.studentIdCode, undefined, { numeric: true });
+    }
   });
 
   const getExemptionsFileBaseName = () => {
@@ -1094,7 +1114,10 @@ export default function FeesPage() {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-gray-200">
-                          <th className="text-left py-3 px-4 font-semibold text-gray-900">Student ID</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-900 cursor-pointer select-none" onClick={() => setExemptionStudentIdSort(exemptionStudentIdSort === 'asc' ? 'desc' : 'asc')}>
+                            Student ID
+                            <span className="ml-1 align-middle">{exemptionStudentIdSort === 'asc' ? '▲' : '▼'}</span>
+                          </th>
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Name</th>
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Type</th>
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Subjects</th>
@@ -1103,7 +1126,7 @@ export default function FeesPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredExemptions.map((exemption) => (
+                        {sortedExemptions.map((exemption) => (
                           <tr key={exemption.id} className="border-b border-gray-100 hover:bg-gray-50">
                             <td className="py-3 px-4 text-gray-700">{exemption.studentIdCode}</td>
                             <td className="py-3 px-4 text-gray-900">{exemption.fullName}</td>
@@ -1344,7 +1367,10 @@ export default function FeesPage() {
                       <thead>
                         <tr className="border-b border-gray-200">
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Student</th>
-                          <th className="text-left py-3 px-4 font-semibold text-gray-900">ID Code</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-900 cursor-pointer select-none" onClick={() => setReportStudentIdSort(reportStudentIdSort === 'asc' ? 'desc' : 'asc')}>
+                            ID Code
+                            <span className="ml-1 align-middle">{reportStudentIdSort === 'asc' ? '▲' : '▼'}</span>
+                          </th>
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Batch</th>
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Subject</th>
                           <th className="text-center py-3 px-4 font-semibold text-gray-900">Status</th>
@@ -1353,7 +1379,7 @@ export default function FeesPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredReportData.map((record, index) => (
+                        {sortedReportData.map((record, index) => (
                           <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
                             <td className="py-3 px-4">
                               <div className="font-medium text-gray-900">{record.studentName}</div>

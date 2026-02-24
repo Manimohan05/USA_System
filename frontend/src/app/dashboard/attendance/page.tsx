@@ -47,6 +47,7 @@ const getSessionRunningDuration = (createdAt: string) => {
 };
 
 function AttendancePageContent() {
+    const [studentIdSort, setStudentIdSort] = useState<'asc' | 'desc'>('asc');
   const { addToast } = useToast();
   const { addNotification } = useNotifications();
   const router = useRouter();
@@ -1989,6 +1990,10 @@ function AttendancePageContent() {
                           <thead className="bg-gray-50 sticky top-0">
                             <tr>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Date</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer select-none" onClick={() => setStudentIdSort(studentIdSort === 'asc' ? 'desc' : 'asc')}>
+                                Student ID
+                                <span className="ml-1 align-middle">{studentIdSort === 'asc' ? '▲' : '▼'}</span>
+                              </th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Student</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Subject</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
@@ -1996,8 +2001,13 @@ function AttendancePageContent() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200">
-                            {enhancedReport.attendanceRecords.map((record, index) => (
-                              <tr key={index} className={`hover:bg-gray-50 ${record.status === 'Present' ? 'bg-green-50' : 'bg-red-50'}`}>
+                            {[...enhancedReport.attendanceRecords]
+                              .sort((a, b) => studentIdSort === 'asc'
+                                ? a.studentIdCode.localeCompare(b.studentIdCode, undefined, { numeric: true })
+                                : b.studentIdCode.localeCompare(a.studentIdCode, undefined, { numeric: true })
+                              )
+                              .map((record, index) => (
+                                <tr key={index} className={`hover:bg-gray-50 ${record.status === 'Present' ? 'bg-green-50' : 'bg-red-50'}`}>
                                 <td className="px-4 py-3 text-sm text-gray-900">{formatDate(record.sessionDate)}</td>
                                 <td className="px-4 py-3">
                                   <div className="flex items-center space-x-3">
