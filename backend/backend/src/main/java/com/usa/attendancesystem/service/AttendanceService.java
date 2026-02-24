@@ -439,6 +439,13 @@ public class AttendanceService {
 
     @Transactional(readOnly = true)
     public AttendanceReportDto getAttendanceReport(LocalDate date, Integer batchId, Integer subjectId) {
+        // Check if a session exists for this batch, subject, and date
+        Optional<AttendanceSession> sessionOpt = sessionRepository.findByBatchAndSubjectAndDate(batchId, subjectId, date);
+        if (sessionOpt.isEmpty()) {
+            // No session held for this batch/subject/date: return empty report
+            return new AttendanceReportDto(date, List.of(), List.of());
+        }
+
         // 1. Get all students who should be in the class
         List<Student> enrolledStudents = studentRepository.findActiveStudentsByBatchAndSubject(batchId, subjectId);
 
@@ -449,24 +456,24 @@ public class AttendanceService {
         List<AttendanceRecord> presentRecords = attendanceRepository.findBySubjectAndDateRange(subjectId, startOfDay, endOfDay);
 
         Set<UUID> presentStudentIds = presentRecords.stream()
-                .map(ar -> ar.getStudent().getId())
-                .collect(Collectors.toSet());
+            .map(ar -> ar.getStudent().getId())
+            .collect(Collectors.toSet());
 
         // 3. Map present students to DTO, including check-in time
         List<PresentStudentDto> presentStudentDtos = presentRecords.stream()
-                .map(ar -> new PresentStudentDto(
-                ar.getStudent().getId(),
-                ar.getStudent().getStudentIdCode(),
-                ar.getStudent().getFullName(),
-                ar.getAttendanceTimestamp()
+            .map(ar -> new PresentStudentDto(
+            ar.getStudent().getId(),
+            ar.getStudent().getStudentIdCode(),
+            ar.getStudent().getFullName(),
+            ar.getAttendanceTimestamp()
         ))
-                .toList();
+            .toList();
 
         // 4. Filter the enrolled list to find absent students and map to DTO
         List<StudentDto> absentStudentDtos = enrolledStudents.stream()
-                .filter(student -> !presentStudentIds.contains(student.getId()))
-                .map(studentService::mapToStudentDto) // This now works correctly
-                .toList();
+            .filter(student -> !presentStudentIds.contains(student.getId()))
+            .map(studentService::mapToStudentDto) // This now works correctly
+            .toList();
 
         return new AttendanceReportDto(date, presentStudentDtos, absentStudentDtos);
     }
