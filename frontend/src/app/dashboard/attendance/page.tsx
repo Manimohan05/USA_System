@@ -1235,9 +1235,9 @@ function AttendancePageContent() {
                     <input
                       type="date"
                       value={sessionDate}
-                      onChange={(e) => setSessionDate(e.target.value)}
-                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white/70 backdrop-blur-sm hover:border-indigo-300 text-sm"
-                      required
+                      readOnly
+                      disabled
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
                     />
                   </div>
 
@@ -1271,15 +1271,9 @@ function AttendancePageContent() {
                       <Calendar className="h-6 w-6 text-white" />
                     </div>
                     <h2 className="text-xl font-bold text-white">
-                      {showAllSessions ? 'All Sessions' : "Today's Active Sessions"}
+                      Today's Active Sessions
                     </h2>
                   </div>
-                  <button
-                    onClick={() => setShowAllSessions(!showAllSessions)}
-                    className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-medium transition-all duration-200 text-sm"
-                  >
-                    {showAllSessions ? 'Show Today Only' : 'Show All Sessions'}
-                  </button>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
