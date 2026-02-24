@@ -53,7 +53,13 @@ public class AttendanceController {
             System.out.println("AttendanceController - Authentication: " + auth.getName());
             System.out.println("AttendanceController - Authorities: " + auth.getAuthorities());
 
-            AttendanceSessionDto session = sessionService.createSession(request, auth);
+            // Always use system date for session creation
+            AttendanceSessionCreateRequest fixedRequest = new AttendanceSessionCreateRequest(
+                request.batchId(),
+                request.subjectId(),
+                LocalDate.now()
+            );
+            AttendanceSessionDto session = sessionService.createSession(fixedRequest, auth);
             System.out.println("AttendanceController - Session created successfully: " + session);
             return ResponseEntity.ok(session);
         } catch (Exception e) {
