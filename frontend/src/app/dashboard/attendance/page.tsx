@@ -244,8 +244,8 @@ function AttendancePageContent() {
   const fetchTodaysSessions = async () => {
     try {
       setLoadingSessions(true);
-      const endpoint = showAllSessions ? '/admin/attendance/sessions/all' : '/admin/attendance/sessions';
-      const response = await api.get<AttendanceSessionDto[]>(endpoint);
+      // Always fetch today's sessions; showAllSessions toggle removed
+      const response = await api.get<AttendanceSessionDto[]>('/admin/attendance/sessions');
       console.log('Raw sessions from backend:', response.data);
       
       // Check for auto-expired sessions (sessions that were in previousSessions but not in current response)
