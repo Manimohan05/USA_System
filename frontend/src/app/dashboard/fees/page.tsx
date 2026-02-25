@@ -631,7 +631,9 @@ export default function FeesPage() {
         // List all subjects enrolled, with exemption info
         const studentObj = students.find(s => s.id === record.studentId);
         if (!studentObj) return '-';
-        return (studentObj.subjects || []).map(subject => {
+        // StudentSearchDto may not have subjects property, fallback to empty array
+        const studentSubjects = (studentObj as any).subjects || [];
+        return studentSubjects.map((subject: any) => {
           const exemption = feeExemptions.find(ex =>
             ex.studentId === record.studentId &&
             (ex.appliesToAllSubjects || (ex.subjects && ex.subjects.some(s => s.id === subject.id)))
