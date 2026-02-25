@@ -1472,18 +1472,25 @@ export default function FeesPage() {
                                   // Determine pill color and label
                                   let pillClass = 'bg-gray-100 text-gray-800';
                                   let pillLabel = subject.name;
+                                  // Check if this student has a bill number/isPaid for any subject (excluding free card)
+                                  const studentHasPaid = reportData.some(r =>
+                                    r.studentId === record.studentId && r.isPaid &&
+                                    !feeExemptions.some(ex => ex.studentId === record.studentId && ex.exemptionType === 'FREE_CARD' && (ex.appliesToAllSubjects || (ex.subjects && ex.subjects.some(s => s.id === subject.id))))
+                                  );
+
                                   if (exemption) {
                                     if (exemption.exemptionType === 'FREE_CARD') {
-                                      pillClass = 'bg-teal-100 text-teal-800';
+                                      // Free card: teal if unpaid, green if paid
+                                      pillClass = subjectPaid ? 'bg-green-100 text-green-800' : 'bg-teal-100 text-teal-800';
                                       pillLabel = `${subject.name} (Free)`;
                                     } else if (exemption.exemptionType === 'HALF_PAYMENT') {
-                                      pillClass = subjectPaid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                                      // If student has paid for any subject (not free card), show green
+                                      pillClass = studentHasPaid ? 'bg-green-100 text-green-800' : (subjectPaid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800');
                                       pillLabel = `${subject.name} (Half)`;
                                     }
                                   } else {
                                     // No exemption: full payment
-                                    pillClass = subjectPaid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-                                    // Only show subject name, no (Full Payment) label
+                                    pillClass = studentHasPaid ? 'bg-green-100 text-green-800' : (subjectPaid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800');
                                     pillLabel = subject.name;
                                   }
                                   return (
