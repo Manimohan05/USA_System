@@ -1,4 +1,4 @@
-# USA Attendance Management System
+# USA Attendance Management System.
 
 A comprehensive institute attendance management system built with Next.js (frontend) and Spring Boot (backend).
 
@@ -545,3 +545,4 @@ For support and questions:
 ---
 
 **Built with ❤️ for educational institutes**
+
