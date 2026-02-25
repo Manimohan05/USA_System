@@ -1,4 +1,3 @@
-import { CheckCircle, Search, Filter, CreditCard, BarChart3, Receipt, Users, Edit3, Save, X, Download, ScanLine } from 'lucide-react';
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -44,7 +43,6 @@ interface StudentSearchDto {
   studentIdCode: string;
   fullName: string;
   nic: string;
-  subjects?: { id: number; name: string }[];
 }
 
 interface FeeReportRequest {
@@ -307,10 +305,7 @@ export default function FeesPage() {
         setStudentIdCode('');
         requestAnimationFrame(() => billNumberInputRef.current?.blur());
         setBillNumber('');
-        requestAnimationFrame(() => {
-          const input = document.querySelector('input[name="studentIdCode"]') as HTMLInputElement | null;
-          input?.focus();
-        });
+        requestAnimationFrame(() => document.querySelector('input[name="studentIdCode"]')?.focus());
         return;
       }
     }
@@ -753,7 +748,7 @@ export default function FeesPage() {
     const sheetData = [
       [`Paid: ${paid}`, `Unpaid: ${unpaid}`, `Paid(half): ${paidHalf}`, `Unpaid(half): ${unpaidHalf}`, `Free Card: ${freeCard}`],
       header,
-      ...excelData.map(row => header.map(h => (row as Record<string, string>)[h]))
+      ...excelData.map(row => header.map(h => row[h]))
     ];
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
     const wb = XLSX.utils.book_new();
@@ -1873,7 +1868,6 @@ export default function FeesPage() {
                     </div>
                     <h3 className="text-2xl font-bold text-gray-900 mb-2">No Data Available</h3>
                     <p className="text-gray-600 mb-6">Click "Generate Report" to view fee payment data</p>
-                    <p className="text-gray-600 mb-6">Click &quot;Generate Report&quot; to view fee payment data</p>
                   </div>
                 </div>
               )}
