@@ -1622,7 +1622,9 @@ export default function FeesPage() {
                                 {subjects.map((subject) => {
                                   // Only show subjects the student is enrolled in
                                   const studentObj = students.find(s => s.id === record.studentId);
-                                  if (!studentObj || !(studentObj.subjects || []).some(s => s.id === subject.id)) return null;
+                                  if (!studentObj) return null;
+                                  const studentSubjects = (studentObj as any).subjects || [];
+                                  if (!studentSubjects.some((s: any) => s.id === subject.id)) return null;
                                   // If the report is filtered by subject, only show that subject
                                   if (selectedSubject && subject.id.toString() !== selectedSubject) return null;
 
