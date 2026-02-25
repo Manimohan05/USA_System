@@ -43,6 +43,7 @@ interface StudentSearchDto {
   studentIdCode: string;
   fullName: string;
   nic: string;
+  subjects?: { id: number; name: string }[];
 }
 
 interface FeeReportRequest {
