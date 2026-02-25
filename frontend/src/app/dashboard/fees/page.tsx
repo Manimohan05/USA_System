@@ -1482,7 +1482,9 @@ export default function FeesPage() {
                           sortedReportData.forEach(record => {
                             // Only count if student is enrolled in subject
                             const studentObj = students.find(s => s.id === record.studentId);
-                            if (!studentObj || !(studentObj.subjects || []).some(s => s.id === subject.id)) return;
+                            if (!studentObj) return;
+                            const studentSubjects = (studentObj as any).subjects || [];
+                            if (!studentSubjects.some((s: any) => s.id === subject.id)) return;
                             // For 'All Subjects', only count records for this subject
                             if (!selectedSubject && record.subjectName !== subject.name) return;
                             // Apply subject filter
