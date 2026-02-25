@@ -13,7 +13,9 @@ import { formatPhoneNumber } from '@/lib/utils';
 import type { StudentDto, BatchDto, SubjectDto } from '@/types';
 
 export default function StudentsPage() {
+    const [sortBy, setSortBy] = useState<'studentId' | 'admissionDate'>('studentId');
     const [studentIdSort, setStudentIdSort] = useState<'asc' | 'desc'>('asc');
+    const [admissionDateSort, setAdmissionDateSort] = useState<'asc' | 'desc'>('asc');
   const { addToast } = useToast();
   const router = useRouter();
   const [students, setStudents] = useState<StudentDto[]>([]);
@@ -123,11 +125,20 @@ export default function StudentsPage() {
   });
 
   // Sort filtered students by Student ID
+  // Sort by selected column
   const sortedStudents = [...filteredStudents].sort((a, b) => {
-    if (studentIdSort === 'asc') {
-      return a.studentIdCode.localeCompare(b.studentIdCode, undefined, { numeric: true });
+    if (sortBy === 'admissionDate') {
+      if (admissionDateSort === 'asc') {
+        return (a.admissionDate || '').localeCompare(b.admissionDate || '');
+      } else {
+        return (b.admissionDate || '').localeCompare(a.admissionDate || '');
+      }
     } else {
-      return b.studentIdCode.localeCompare(a.studentIdCode, undefined, { numeric: true });
+      if (studentIdSort === 'asc') {
+        return a.studentIdCode.localeCompare(b.studentIdCode, undefined, { numeric: true });
+      } else {
+        return b.studentIdCode.localeCompare(a.studentIdCode, undefined, { numeric: true });
+      }
     }
   });
 
@@ -427,11 +438,25 @@ export default function StudentsPage() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Student
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer select-none" onClick={() => setStudentIdSort(studentIdSort === 'asc' ? 'desc' : 'asc')}>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer select-none" onClick={() => {
+                        if (sortBy === 'studentId') {
+                          setStudentIdSort(studentIdSort === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy('studentId');
+                        }
+                      }}>
                         Student ID
-                        <span className="ml-1 align-middle">
-                          {studentIdSort === 'asc' ? '▲' : '▼'}
-                        </span>
+                        <span className={`ml-1 align-middle ${sortBy === 'studentId' ? 'text-blue-700 font-bold' : 'text-gray-400'}`}>{studentIdSort === 'asc' ? '▲' : '▼'}</span>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer select-none" onClick={() => {
+                        if (sortBy === 'admissionDate') {
+                          setAdmissionDateSort(admissionDateSort === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy('admissionDate');
+                        }
+                      }}>
+                        Admission Date
+                        <span className={`ml-1 align-middle ${sortBy === 'admissionDate' ? 'text-blue-700 font-bold' : 'text-gray-400'}`}>{admissionDateSort === 'asc' ? '▲' : '▼'}</span>
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Batch
@@ -476,6 +501,9 @@ export default function StudentsPage() {
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             {student.studentIdCode}
                           </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {student.admissionDate ? new Date(student.admissionDate).toLocaleDateString() : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {student.batch.displayName}
@@ -655,10 +683,16 @@ export default function StudentsPage() {
               </div>
 
               <div className="space-y-5 mb-6">
-                {/* Student ID */}
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4">
-                  <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Student ID</p>
-                  <p className="text-lg font-bold text-gray-900 mt-1">{infoPopover.student.studentIdCode}</p>
+                {/* Student ID and Admission Date */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:gap-8">
+                  <div>
+                    <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Student ID</p>
+                    <p className="text-lg font-bold text-gray-900 mt-1">{infoPopover.student.studentIdCode}</p>
+                  </div>
+                  <div className="mt-4 sm:mt-0">
+                    <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Admission Date</p>
+                    <p className="text-lg font-bold text-gray-900 mt-1">{infoPopover.student.admissionDate ? new Date(infoPopover.student.admissionDate).toLocaleDateString() : '-'}</p>
+                  </div>
                 </div>
 
                 {/* Address */}
@@ -686,15 +720,7 @@ export default function StudentsPage() {
                 </div>
 
                 {/* Admission Date */}
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Admission Date</p>
-                  <p className="text-sm text-gray-900 mt-2">
-                    {infoPopover.student.admissionDate 
-                      ? new Date(infoPopover.student.admissionDate).toLocaleDateString() 
-                      : '-'
-                    }
-                  </p>
-                </div>
+                {/* Removed duplicate Admission Date section (now shown next to Student ID) */}
               </div>
 
               <button

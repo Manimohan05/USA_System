@@ -97,7 +97,9 @@ const sanitizeForFileName = (value: string) =>
     .replace(/[^a-z0-9_-]/g, '') || 'unknown';
 
 export default function FeesPage() {
+      const [reportSortBy, setReportSortBy] = useState<'studentId' | 'paidDate'>('studentId');
       const [reportStudentIdSort, setReportStudentIdSort] = useState<'asc' | 'desc'>('asc');
+      const [reportPaidDateSort, setReportPaidDateSort] = useState<'asc' | 'desc'>('asc');
     const [exemptionStudentIdSort, setExemptionStudentIdSort] = useState<'asc' | 'desc'>('asc');
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<'marking' | 'report' | 'exemption'>('marking');
@@ -177,11 +179,22 @@ export default function FeesPage() {
   });
 
   // Sort filtered report data by Student ID
+  // Sort by selected column
   const sortedReportData = [...filteredReportData].sort((a, b) => {
-    if (reportStudentIdSort === 'asc') {
-      return a.studentIdCode.localeCompare(b.studentIdCode, undefined, { numeric: true });
+    if (reportSortBy === 'paidDate') {
+      const aDate = a.paidAt || '';
+      const bDate = b.paidAt || '';
+      if (reportPaidDateSort === 'asc') {
+        return aDate.localeCompare(bDate);
+      } else {
+        return bDate.localeCompare(aDate);
+      }
     } else {
-      return b.studentIdCode.localeCompare(a.studentIdCode, undefined, { numeric: true });
+      if (reportStudentIdSort === 'asc') {
+        return a.studentIdCode.localeCompare(b.studentIdCode, undefined, { numeric: true });
+      } else {
+        return b.studentIdCode.localeCompare(a.studentIdCode, undefined, { numeric: true });
+      }
     }
   });
 
@@ -1371,15 +1384,30 @@ export default function FeesPage() {
                       <thead>
                         <tr className="border-b border-gray-200">
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Student</th>
-                          <th className="text-left py-3 px-4 font-semibold text-gray-900 cursor-pointer select-none" onClick={() => setReportStudentIdSort(reportStudentIdSort === 'asc' ? 'desc' : 'asc')}>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-900 cursor-pointer select-none" onClick={() => {
+                            if (reportSortBy === 'studentId') {
+                              setReportStudentIdSort(reportStudentIdSort === 'asc' ? 'desc' : 'asc');
+                            } else {
+                              setReportSortBy('studentId');
+                            }
+                          }}>
                             ID Code
-                            <span className="ml-1 align-middle">{reportStudentIdSort === 'asc' ? '▲' : '▼'}</span>
+                            <span className={`ml-1 align-middle ${reportSortBy === 'studentId' ? 'text-blue-700 font-bold' : 'text-gray-400'}`}>{reportStudentIdSort === 'asc' ? '▲' : '▼'}</span>
                           </th>
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Batch</th>
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Subject</th>
                           <th className="text-center py-3 px-4 font-semibold text-gray-900">Status</th>
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Bill No.</th>
-                          <th className="text-left py-3 px-4 font-semibold text-gray-900">Paid Date</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-900 cursor-pointer select-none" onClick={() => {
+                            if (reportSortBy === 'paidDate') {
+                              setReportPaidDateSort(reportPaidDateSort === 'asc' ? 'desc' : 'asc');
+                            } else {
+                              setReportSortBy('paidDate');
+                            }
+                          }}>
+                            Paid Date
+                            <span className={`ml-1 align-middle ${reportSortBy === 'paidDate' ? 'text-blue-700 font-bold' : 'text-gray-400'}`}>{reportPaidDateSort === 'asc' ? '▲' : '▼'}</span>
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1390,154 +1418,234 @@ export default function FeesPage() {
                             </td>
                             <td className="py-3 px-4 text-gray-600">{record.studentIdCode}</td>
                             <td className="py-3 px-4 text-gray-600">{record.batchName}</td>
-                            <td className="py-3 px-4 text-gray-600">{record.subjectName}</td>
+                            <td className="py-3 px-4">
+                              <div className="flex flex-wrap gap-1">
+                                {subjects.map((subject) => {
+                                  // Find if this subject is enrolled for this student
+                                  // and if there is an exemption for this subject
+                                  // If the report is filtered by subject, only show that subject
+                                  if (selectedSubject && subject.id.toString() !== selectedSubject) return null;
+                                  // Find if this student has an exemption for this subject
+                                  const exemption = feeExemptions.find(ex =>
+                                    ex.studentId === record.studentId &&
+                                    (ex.appliesToAllSubjects || (ex.subjects && ex.subjects.some(s => s.id === subject.id)))
+                                  );
+                                  let pillClass = 'bg-gray-100 text-gray-800';
+                                  if (exemption) {
+                                    if (exemption.exemptionType === 'FREE_CARD') pillClass = 'bg-teal-100 text-teal-800';
+                                    else if (exemption.exemptionType === 'HALF_PAYMENT') pillClass = 'bg-indigo-100 text-indigo-800';
+                                  }
+                                  // If the student is not enrolled in this subject, skip
+                                  const studentObj = students.find(s => s.id === record.studentId);
+                                  if (!studentObj || !(studentObj.subjects || []).some(s => s.id === subject.id)) return null;
+                                  return (
+                                    <span key={subject.id} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${pillClass}`}>
+                                      {subject.name}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </td>
                             <td className="py-3 px-4 text-center">
-                              {getReportStatus(record) === 'Paid' ? (
-                                <span className="fee-status-paid inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Paid
-                                </span>
-                              ) : getReportStatus(record) === 'Free Card' ? (
-                                <span className="fee-status-free inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Free Card
-                                </span>
-                              ) : getReportStatus(record) === 'Half Payment' ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Half Payment
-                                </span>
-                              ) : (
-                                <span className="fee-status-unpaid inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                  <XCircle className="h-3 w-3 mr-1" />
-                                  Unpaid
-                                </span>
-                              )}
+                              <div className="flex flex-wrap gap-1 justify-center">
+                                {subjects.map((subject) => {
+                                  // Only show subjects the student is enrolled in
+                                  const studentObj = students.find(s => s.id === record.studentId);
+                                  if (!studentObj || !(studentObj.subjects || []).some(s => s.id === subject.id)) return null;
+                                  // If the report is filtered by subject, only show that subject
+                                  if (selectedSubject && subject.id.toString() !== selectedSubject) return null;
+
+                                  // Find exemption for this subject
+                                  const exemption = feeExemptions.find(ex =>
+                                    ex.studentId === record.studentId &&
+                                    (ex.appliesToAllSubjects || (ex.subjects && ex.subjects.some(s => s.id === subject.id)))
+                                  );
+
+                                  // Find payment record for this subject
+                                  const subjectPaid = reportData.find(r =>
+                                    r.studentId === record.studentId &&
+                                    r.subjectName === subject.name &&
+                                    r.month === record.month &&
+                                    r.year === record.year
+                                  )?.isPaid;
+
+                                  // Determine pill color and label
+                                  let pillClass = 'bg-gray-100 text-gray-800';
+                                  let pillLabel = subject.name;
+                                  if (exemption) {
+                                    if (exemption.exemptionType === 'FREE_CARD') {
+                                      pillClass = 'bg-teal-100 text-teal-800';
+                                      pillLabel = `${subject.name} (Free)`;
+                                    } else if (exemption.exemptionType === 'HALF_PAYMENT') {
+                                      pillClass = subjectPaid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                                      pillLabel = `${subject.name} (Half)`;
+                                    }
+                                  } else {
+                                    // No exemption: full payment
+                                    pillClass = subjectPaid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                                    // Only show subject name, no (Full Payment) label
+                                    pillLabel = subject.name;
+                                  }
+                                  return (
+                                    <span key={subject.id} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${pillClass}`}>
+                                      {pillLabel}
+                                    </span>
+                                  );
+                                })}
+                              </div>
                             </td>
                             <td className="py-3 px-4 text-gray-600">
-                              {editingStudentId === record.studentId ? (
-                                <div className="flex items-center space-x-2">
-                                  <input
-                                    type="text"
-                                    value={editingBillNumber}
-                                    onChange={(e) => setEditingBillNumber(e.target.value)}
-                                    className="px-2 py-1 border rounded w-32 text-sm"
-                                  />
-                                  <button
-                                    onClick={async () => {
-                                      if (!editingBillNumber.trim()) {
-                                        addToast({ type: 'warning', title: 'Empty Bill', message: 'Please enter a bill number' });
-                                        return;
-                                      }
-                                      try {
-                                        setSavingEdit(true);
-                                        await api.put('/admin/fees/update-bill', {
-                                          studentIdCode: record.studentIdCode,
-                                          month: reportMonth,
-                                          year: reportYear,
-                                          billNumber: editingBillNumber.trim(),
-                                        });
-                                        setReportData(prev => prev.map(r => r.studentId === record.studentId ? { ...r, billNumber: editingBillNumber.trim() } : r));
-                                        addToast({ type: 'success', title: 'Updated', message: 'Bill number updated' });
-                                        setEditingStudentId(null);
-                                        setEditingBillNumber('');
-                                      } catch (error: any) {
-                                        addToast({ type: 'error', title: 'Update Failed', message: error.response?.data?.message || 'Failed to update bill number' });
-                                      } finally {
-                                        setSavingEdit(false);
-                                      }
-                                    }}
-                                    disabled={savingEdit}
-                                    className="p-1 bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50"
-                                  >
-                                    {savingEdit ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Save className="h-3 w-3" />}
-                                  </button>
-                                  <button
-                                    onClick={() => { setEditingStudentId(null); setEditingBillNumber(''); }}
-                                    className="p-1 bg-gray-200 rounded hover:bg-gray-300"
-                                  >
-                                    <X className="h-3 w-3 text-gray-600" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center space-x-2">
-                                  <span>{record.billNumber || '-'}</span>
-                                  {record.isPaid && (
-                                    <button
-                                      onClick={() => { setEditingStudentId(record.studentId); setEditingBillNumber(record.billNumber || ''); }}
-                                      className="p-1 hover:bg-gray-100 rounded"
-                                      title="Edit bill number"
-                                    >
-                                      <Edit3 className="h-3 w-3 text-gray-400 hover:text-gray-600" />
-                                    </button>
-                                  )}
-                                </div>
-                              )}
+                              {(() => {
+                                const freeAll = feeExemptions.find(ex =>
+                                  ex.studentId === record.studentId &&
+                                  ex.exemptionType === 'FREE_CARD' &&
+                                  ex.appliesToAllSubjects
+                                );
+                                if (freeAll) {
+                                  return <span className="italic text-gray-400">Free Card for all subjects</span>;
+                                }
+                                if (editingStudentId === record.studentId) {
+                                  return (
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="text"
+                                        value={editingBillNumber}
+                                        onChange={(e) => setEditingBillNumber(e.target.value)}
+                                        className="px-2 py-1 border rounded w-32 text-sm"
+                                      />
+                                      <button
+                                        onClick={async () => {
+                                          if (!editingBillNumber.trim()) {
+                                            addToast({ type: 'warning', title: 'Empty Bill', message: 'Please enter a bill number' });
+                                            return;
+                                          }
+                                          try {
+                                            setSavingEdit(true);
+                                            await api.put('/admin/fees/update-bill', {
+                                              studentIdCode: record.studentIdCode,
+                                              month: reportMonth,
+                                              year: reportYear,
+                                              billNumber: editingBillNumber.trim(),
+                                            });
+                                            setReportData(prev => prev.map(r => r.studentId === record.studentId ? { ...r, billNumber: editingBillNumber.trim() } : r));
+                                            addToast({ type: 'success', title: 'Updated', message: 'Bill number updated' });
+                                            setEditingStudentId(null);
+                                            setEditingBillNumber('');
+                                          } catch (error: any) {
+                                            addToast({ type: 'error', title: 'Update Failed', message: error.response?.data?.message || 'Failed to update bill number' });
+                                          } finally {
+                                            setSavingEdit(false);
+                                          }
+                                        }}
+                                        disabled={savingEdit}
+                                        className="p-1 bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50"
+                                      >
+                                        {savingEdit ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Save className="h-3 w-3" />}
+                                      </button>
+                                      <button
+                                        onClick={() => { setEditingStudentId(null); setEditingBillNumber(''); }}
+                                        className="p-1 bg-gray-200 rounded hover:bg-gray-300"
+                                      >
+                                        <X className="h-3 w-3 text-gray-600" />
+                                      </button>
+                                    </div>
+                                  );
+                                } else {
+                                  return (
+                                    <div className="flex items-center space-x-2">
+                                      <span>{record.billNumber || '-'}</span>
+                                      {record.isPaid && (
+                                        <button
+                                          onClick={() => { setEditingStudentId(record.studentId); setEditingBillNumber(record.billNumber || ''); }}
+                                          className="p-1 hover:bg-gray-100 rounded"
+                                          title="Edit bill number"
+                                        >
+                                          <Edit3 className="h-3 w-3 text-gray-400 hover:text-gray-600" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                              })()}
                             </td>
                             <td className="py-3 px-4 text-gray-600">
-                              {editingDateStudentId === record.studentId ? (
-                                <div className="flex items-center space-x-2">
-                                  <input
-                                    type="date"
-                                    value={editingPaidDate}
-                                    onChange={(e) => setEditingPaidDate(e.target.value)}
-                                    className="px-2 py-1 border rounded w-32 text-sm"
-                                  />
-                                  <button
-                                    onClick={async () => {
-                                      if (!editingPaidDate.trim()) {
-                                        addToast({ type: 'warning', title: 'Empty Date', message: 'Please enter a date' });
-                                        return;
-                                      }
-                                      try {
-                                        setSavingEdit(true);
-                                        const date = new Date(editingPaidDate);
-                                        await api.put('/admin/fees/update-paid-date', {
-                                          studentIdCode: record.studentIdCode,
-                                          month: reportMonth,
-                                          year: reportYear,
-                                          paidAt: date.toISOString(),
-                                        });
-                                        setReportData(prev => prev.map(r => r.studentId === record.studentId ? { ...r, paidAt: date.toISOString() } : r));
-                                        addToast({ type: 'success', title: 'Updated', message: 'Paid date updated' });
-                                        setEditingDateStudentId(null);
-                                        setEditingPaidDate('');
-                                      } catch (error: any) {
-                                        addToast({ type: 'error', title: 'Update Failed', message: error.response?.data?.message || 'Failed to update paid date' });
-                                      } finally {
-                                        setSavingEdit(false);
-                                      }
-                                    }}
-                                    disabled={savingEdit}
-                                    className="p-1 bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50"
-                                  >
-                                    {savingEdit ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Save className="h-3 w-3" />}
-                                  </button>
-                                  <button
-                                    onClick={() => { setEditingDateStudentId(null); setEditingPaidDate(''); }}
-                                    className="p-1 bg-gray-200 rounded hover:bg-gray-300"
-                                  >
-                                    <X className="h-3 w-3 text-gray-600" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center space-x-2">
-                                  <span>{record.paidAt ? new Date(record.paidAt).toLocaleDateString() : '-'}</span>
-                                  {record.isPaid && (
-                                    <button
-                                      onClick={() => {
-                                        const paidDate = record.paidAt ? new Date(record.paidAt).toISOString().split('T')[0] : '';
-                                        setEditingDateStudentId(record.studentId);
-                                        setEditingPaidDate(paidDate);
-                                      }}
-                                      className="p-1 hover:bg-gray-100 rounded"
-                                      title="Edit paid date"
-                                    >
-                                      <Edit3 className="h-3 w-3 text-gray-400 hover:text-gray-600" />
-                                    </button>
-                                  )}
-                                </div>
-                              )}
+                              {(() => {
+                                const freeAll = feeExemptions.find(ex =>
+                                  ex.studentId === record.studentId &&
+                                  ex.exemptionType === 'FREE_CARD' &&
+                                  ex.appliesToAllSubjects
+                                );
+                                if (freeAll) {
+                                  return <span className="italic text-gray-400">Free Card for all subjects</span>;
+                                }
+                                if (editingDateStudentId === record.studentId) {
+                                  return (
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="date"
+                                        value={editingPaidDate}
+                                        onChange={(e) => setEditingPaidDate(e.target.value)}
+                                        className="px-2 py-1 border rounded w-32 text-sm"
+                                      />
+                                      <button
+                                        onClick={async () => {
+                                          if (!editingPaidDate.trim()) {
+                                            addToast({ type: 'warning', title: 'Empty Date', message: 'Please enter a date' });
+                                            return;
+                                          }
+                                          try {
+                                            setSavingEdit(true);
+                                            const date = new Date(editingPaidDate);
+                                            await api.put('/admin/fees/update-paid-date', {
+                                              studentIdCode: record.studentIdCode,
+                                              month: reportMonth,
+                                              year: reportYear,
+                                              paidAt: date.toISOString(),
+                                            });
+                                            setReportData(prev => prev.map(r => r.studentId === record.studentId ? { ...r, paidAt: date.toISOString() } : r));
+                                            addToast({ type: 'success', title: 'Updated', message: 'Paid date updated' });
+                                            setEditingDateStudentId(null);
+                                            setEditingPaidDate('');
+                                          } catch (error: any) {
+                                            addToast({ type: 'error', title: 'Update Failed', message: error.response?.data?.message || 'Failed to update paid date' });
+                                          } finally {
+                                            setSavingEdit(false);
+                                          }
+                                        }}
+                                        disabled={savingEdit}
+                                        className="p-1 bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50"
+                                      >
+                                        {savingEdit ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Save className="h-3 w-3" />}
+                                      </button>
+                                      <button
+                                        onClick={() => { setEditingDateStudentId(null); setEditingPaidDate(''); }}
+                                        className="p-1 bg-gray-200 rounded hover:bg-gray-300"
+                                      >
+                                        <X className="h-3 w-3 text-gray-600" />
+                                      </button>
+                                    </div>
+                                  );
+                                } else {
+                                  return (
+                                    <div className="flex items-center space-x-2">
+                                      <span>{record.paidAt ? new Date(record.paidAt).toLocaleDateString() : '-'}</span>
+                                      {record.isPaid && (
+                                        <button
+                                          onClick={() => {
+                                            const paidDate = record.paidAt ? new Date(record.paidAt).toISOString().split('T')[0] : '';
+                                            setEditingDateStudentId(record.studentId);
+                                            setEditingPaidDate(paidDate);
+                                          }}
+                                          className="p-1 hover:bg-gray-100 rounded"
+                                          title="Edit paid date"
+                                        >
+                                          <Edit3 className="h-3 w-3 text-gray-400 hover:text-gray-600" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                              })()}
                             </td>
                           </tr>
                         ))}
