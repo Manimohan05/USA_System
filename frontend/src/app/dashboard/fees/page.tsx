@@ -306,7 +306,10 @@ export default function FeesPage() {
         setStudentIdCode('');
         requestAnimationFrame(() => billNumberInputRef.current?.blur());
         setBillNumber('');
-        requestAnimationFrame(() => document.querySelector('input[name="studentIdCode"]')?.focus());
+        requestAnimationFrame(() => {
+          const input = document.querySelector('input[name="studentIdCode"]') as HTMLInputElement | null;
+          input?.focus();
+        });
         return;
       }
     }
