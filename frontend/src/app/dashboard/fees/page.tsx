@@ -752,7 +752,7 @@ export default function FeesPage() {
     const sheetData = [
       [`Paid: ${paid}`, `Unpaid: ${unpaid}`, `Paid(half): ${paidHalf}`, `Unpaid(half): ${unpaidHalf}`, `Free Card: ${freeCard}`],
       header,
-      ...excelData.map(row => header.map(h => row[h]))
+      ...excelData.map(row => header.map(h => (row as Record<string, any>)[h]))
     ];
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
     const wb = XLSX.utils.book_new();
