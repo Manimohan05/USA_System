@@ -1606,7 +1606,9 @@ export default function FeesPage() {
                                   }
                                   // If the student is not enrolled in this subject, skip
                                   const studentObj = students.find(s => s.id === record.studentId);
-                                  if (!studentObj || !(studentObj.subjects || []).some(s => s.id === subject.id)) return null;
+                                  if (!studentObj) return null;
+                                  const studentSubjects = (studentObj as any).subjects || [];
+                                  if (!studentSubjects.some((s: any) => s.id === subject.id)) return null;
                                   return (
                                     <span key={subject.id} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${pillClass}`}>
                                       {subject.name}
