@@ -1,3 +1,12 @@
+/* Subject pill colors: identical for light and dark mode */
+html.dark-mode .subject-pill-blue {
+  background-color: #bfdbfe !important; /* bg-blue-100 */
+  color: #1e40af !important; /* text-blue-800 */
+}
+html.dark-mode .subject-pill-gray {
+  background-color: #f3f4f6 !important; /* bg-gray-100 */
+  color: #374151 !important; /* text-gray-800 */
+}
 @import "tailwindcss";
 
 :root {
@@ -190,45 +199,29 @@ html.dark-mode .shadow-lg {
 }
 
 /* Preserve fee report status colors in dark mode */
-html.dark-mode .fee-status-paid {
-  background-color: #14532d !important;
-  color: #86efac !important;
-}
 
-html.dark-mode .fee-status-paid .text-green-600,
-html.dark-mode .fee-status-paid .text-green-800 {
-  color: #86efac !important;
+/* Fee report and exemption pill colors: identical for light and dark mode */
+html.dark-mode .fee-status-paid,
+html.dark-mode .fee-status-paid-half {
+  background-color: #d1fae5 !important; /* bg-green-100 */
+  color: #065f46 !important; /* text-green-800 */
 }
-
-html.dark-mode .fee-status-unpaid {
-  background-color: #7f1d1d !important;
-  color: #fca5a5 !important;
+html.dark-mode .fee-status-unpaid,
+html.dark-mode .fee-status-unpaid-half {
+  background-color: #fee2e2 !important; /* bg-red-100 */
+  color: #7f1d1d !important; /* text-red-800 */
 }
-
-html.dark-mode .fee-status-unpaid .text-red-600,
-html.dark-mode .fee-status-unpaid .text-red-800 {
-  color: #fca5a5 !important;
-}
-
 html.dark-mode .fee-status-free {
-  background-color: #134e4a !important;
-  color: #99f6e4 !important;
+  background-color: #ccfbf1 !important; /* bg-teal-100 */
+  color: #134e4a !important; /* text-teal-800 */
 }
-
-html.dark-mode .fee-status-free .text-teal-600,
-html.dark-mode .fee-status-free .text-teal-800 {
-  color: #99f6e4 !important;
-}
-
-/* Preserve exemption type badge colors in dark mode */
 html.dark-mode .fee-exemption-alarm {
-  background-color: #78350f !important;
-  color: #fde68a !important;
+  background-color: #fbbf24 !important; /* bg-yellow-400 */
+  color: #78350f !important; /* text-yellow-900 */
 }
-
 html.dark-mode .fee-exemption-free {
-  background-color: #134e4a !important;
-  color: #99f6e4 !important;
+  background-color: #ccfbf1 !important; /* bg-teal-100 */
+  color: #134e4a !important; /* text-teal-800 */
 }
 
 /* Active session cards/buttons in dark mode */

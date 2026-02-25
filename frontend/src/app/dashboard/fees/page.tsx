@@ -68,7 +68,7 @@ interface FeeReportDto {
   exemptionApplies?: boolean;
 }
 
-type FeeReportStatusFilter = 'ALL' | 'PAID' | 'UNPAID' | 'FREE_CARD' | 'HALF_PAYMENT';
+type FeeReportStatusFilter = 'ALL' | 'PAID' | 'UNPAID' | 'PAID_HALF' | 'UNPAID_HALF' | 'FREE_CARD';
 
 interface Batch {
   id: number;
@@ -163,9 +163,9 @@ export default function FeesPage() {
   const [students, setStudents] = useState<StudentSearchDto[]>([]);
 
   const getReportStatus = (record: FeeReportDto) => {
-    if (record.isPaid) return 'Paid';
-    if (record.exemptionApplies && record.exemptionType === 'FREE_CARD') return 'Free Card';
-    if (record.exemptionApplies && record.exemptionType === 'HALF_PAYMENT') return 'Half Payment';
+    if (record.exemptionType === 'FREE_CARD') return 'Free Card';
+    if (record.exemptionType === 'HALF_PAYMENT') return record.isPaid ? 'Paid(half)' : 'Unpaid(half)';
+    if (record.exemptionType == null) return record.isPaid ? 'Paid' : 'Unpaid';
     return 'Unpaid';
   };
 
@@ -173,8 +173,9 @@ export default function FeesPage() {
     if (reportStatusFilter === 'ALL') return true;
     if (reportStatusFilter === 'PAID') return getReportStatus(record) === 'Paid';
     if (reportStatusFilter === 'UNPAID') return getReportStatus(record) === 'Unpaid';
+    if (reportStatusFilter === 'PAID_HALF') return getReportStatus(record) === 'Paid(half)';
+    if (reportStatusFilter === 'UNPAID_HALF') return getReportStatus(record) === 'Unpaid(half)';
     if (reportStatusFilter === 'FREE_CARD') return getReportStatus(record) === 'Free Card';
-    if (reportStatusFilter === 'HALF_PAYMENT') return getReportStatus(record) === 'Half Payment';
     return true;
   });
 
@@ -287,6 +288,28 @@ export default function FeesPage() {
     } finally {
       setLoadingExemptionSubjects(false);
     }
+  };
+
+
+  // Manual marking: move cursor to bill number after ID entry
+  const handleManualIdEnter = async () => {
+    const id = studentIdCode.trim();
+    if (!id) return;
+    // Check if student has free card for all subjects
+    const student = students.find(s => s.studentIdCode === id);
+    if (student) {
+      const freeAll = feeExemptions.find(ex => ex.studentId === student.id && ex.exemptionType === 'FREE_CARD' && ex.appliesToAllSubjects);
+      if (freeAll) {
+        setBillNumber('');
+        addToast({ type: 'info', title: 'Free Card', message: 'This student has Free Card for all subjects. No bill number required.' });
+        setStudentIdCode('');
+        requestAnimationFrame(() => billNumberInputRef.current?.blur());
+        setBillNumber('');
+        requestAnimationFrame(() => document.querySelector('input[name="studentIdCode"]')?.focus());
+        return;
+      }
+    }
+    requestAnimationFrame(() => billNumberInputRef.current?.focus());
   };
 
   const handleBarcodeScan = (rawValue: string) => {
@@ -604,13 +627,55 @@ export default function FeesPage() {
       'Student Name': record.studentName,
       'Student ID': record.studentIdCode,
       'Batch': record.batchName,
-      'Subject': record.subjectName,
+      'Subject(s)': (() => {
+        // List all subjects enrolled, with exemption info
+        const studentObj = students.find(s => s.id === record.studentId);
+        if (!studentObj) return '-';
+        return (studentObj.subjects || []).map(subject => {
+          const exemption = feeExemptions.find(ex =>
+            ex.studentId === record.studentId &&
+            (ex.appliesToAllSubjects || (ex.subjects && ex.subjects.some(s => s.id === subject.id)))
+          );
+          if (exemption) {
+            if (exemption.exemptionType === 'FREE_CARD') return `${subject.name} (Free)`;
+            if (exemption.exemptionType === 'HALF_PAYMENT') return `${subject.name} (Half)`;
+          }
+          return subject.name;
+        }).join('; ');
+      })(),
       'Status': getReportStatus(record),
       'Bill Number': record.billNumber || '-',
       'Paid Date': record.paidAt ? new Date(record.paidAt).toLocaleDateString() : '-',
+      'Exemption': (() => {
+        const exemption = feeExemptions.find(ex => ex.studentId === record.studentId);
+        if (!exemption) return '-';
+        return `${exemption.exemptionType}${exemption.appliesToAllSubjects ? ' (All Subjects)' : ''}`;
+      })(),
     }));
 
+    // Calculate summary counts
+    let paid = 0, unpaid = 0, paidHalf = 0, unpaidHalf = 0, freeCard = 0;
+    filteredReportData.forEach(record => {
+      const exemption = feeExemptions.find(ex => ex.studentId === record.studentId && (ex.appliesToAllSubjects || (ex.subjects && ex.subjects.some(s => s.name === record.subjectName))));
+      if (exemption && exemption.exemptionType === 'FREE_CARD') {
+        freeCard++;
+      } else if (exemption && exemption.exemptionType === 'HALF_PAYMENT') {
+        if (record.isPaid) paidHalf++;
+        else unpaidHalf++;
+      } else {
+        if (record.isPaid) paid++;
+        else unpaid++;
+      }
+    });
+    const summaryRow = [
+      `Paid: ${paid}`,
+      `Unpaid: ${unpaid}`,
+      `Paid(half): ${paidHalf}`,
+      `Unpaid(half): ${unpaidHalf}`,
+      `Free Card: ${freeCard}`
+    ].join(',');
     const csv = [
+      summaryRow,
       Object.keys(csvData[0]).join(','),
       ...csvData.map(row => Object.values(row).map(val => `"${val}"`).join(','))
     ].join('\n');
@@ -639,21 +704,59 @@ export default function FeesPage() {
       'Student Name': record.studentName,
       'Student ID': record.studentIdCode,
       'Batch': record.batchName,
-      'Subject': record.subjectName,
+      'Subject(s)': (() => {
+        const studentObj = students.find(s => s.id === record.studentId);
+        if (!studentObj) return '-';
+        return (studentObj.subjects || []).map(subject => {
+          const exemption = feeExemptions.find(ex =>
+            ex.studentId === record.studentId &&
+            (ex.appliesToAllSubjects || (ex.subjects && ex.subjects.some(s => s.id === subject.id)))
+          );
+          if (exemption) {
+            if (exemption.exemptionType === 'FREE_CARD') return `${subject.name} (Free)`;
+            if (exemption.exemptionType === 'HALF_PAYMENT') return `${subject.name} (Half)`;
+          }
+          return subject.name;
+        }).join('; ');
+      })(),
       'Status': getReportStatus(record),
       'Bill Number': record.billNumber || '-',
       'Paid Date': record.paidAt ? new Date(record.paidAt).toLocaleDateString() : '-',
+      'Exemption': (() => {
+        const exemption = feeExemptions.find(ex => ex.studentId === record.studentId);
+        if (!exemption) return '-';
+        return `${exemption.exemptionType}${exemption.appliesToAllSubjects ? ' (All Subjects)' : ''}`;
+      })(),
     }));
 
-    const ws = XLSX.utils.json_to_sheet(excelData);
+    // Calculate summary counts
+    let paid = 0, unpaid = 0, paidHalf = 0, unpaidHalf = 0, freeCard = 0;
+    filteredReportData.forEach(record => {
+      const exemption = feeExemptions.find(ex => ex.studentId === record.studentId && (ex.appliesToAllSubjects || (ex.subjects && ex.subjects.some(s => s.name === record.subjectName))));
+      if (exemption && exemption.exemptionType === 'FREE_CARD') {
+        freeCard++;
+      } else if (exemption && exemption.exemptionType === 'HALF_PAYMENT') {
+        if (record.isPaid) paidHalf++;
+        else unpaidHalf++;
+      } else {
+        if (record.isPaid) paid++;
+        else unpaid++;
+      }
+    });
+    // Prepare sheet data: summary row, header row, then student rows
+    const header = Object.keys(excelData[0]);
+    const sheetData = [
+      [`Paid: ${paid}`, `Unpaid: ${unpaid}`, `Paid(half): ${paidHalf}`, `Unpaid(half): ${unpaidHalf}`, `Free Card: ${freeCard}`],
+      header,
+      ...excelData.map(row => header.map(h => row[h]))
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
     const wb = XLSX.utils.book_new();
     const baseFilename = getFeeReportFileBaseName();
     XLSX.utils.book_append_sheet(wb, ws, 'Fee Report');
-
     // Set column widths
     const colWidths = [30, 15, 12, 15, 12, 15, 15];
     ws['!cols'] = colWidths.map(width => ({ wch: width }));
-
     XLSX.writeFile(wb, `${baseFilename}.xlsx`);
     addToast({ type: 'success', title: 'Exported', message: 'Report exported as Excel' });
   };
@@ -871,8 +974,15 @@ export default function FeesPage() {
                     </label>
                     <input
                       type="text"
+                      name="studentIdCode"
                       value={studentIdCode}
                       onChange={(e) => setStudentIdCode(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleManualIdEnter();
+                        }
+                      }}
                       placeholder="Enter student ID (e.g., 5001, 8250)"
                       required
                       className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
@@ -892,12 +1002,41 @@ export default function FeesPage() {
                         required
                         ref={billNumberInputRef}
                         className="w-full px-4 py-2.5 pr-10 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all duration-200 bg-gray-50 hover:bg-white"
+                        disabled={(() => {
+                          const id = studentIdCode.trim();
+                          if (!id) return false;
+                          const student = students.find(s => s.studentIdCode === id);
+                          if (student) {
+                            const freeAll = feeExemptions.find(ex => ex.studentId === student.id && ex.exemptionType === 'FREE_CARD' && ex.appliesToAllSubjects);
+                            if (freeAll) return true;
+                          }
+                          return false;
+                        })()}
                       />
                     </div>
                   </div>
                 </div>
 
                 <div className="flex justify-end pt-1">
+                  {(() => {
+                    const id = studentIdCode.trim();
+                    if (!id) return null;
+                    const student = students.find(s => s.studentIdCode === id);
+                    if (student) {
+                      const freeAll = feeExemptions.find(ex => ex.studentId === student.id && ex.exemptionType === 'FREE_CARD' && ex.appliesToAllSubjects);
+                      if (freeAll) {
+                        return (
+                          <div className="w-full mb-2">
+                            <div className="bg-teal-100 border border-teal-300 rounded-lg px-4 py-3 text-teal-800 font-semibold text-sm flex items-center">
+                              <span className="mr-2">Free Card</span>
+                              <span>This student has Free Card for all subjects. No bill number required.</span>
+                            </div>
+                          </div>
+                        );
+                      }
+                    }
+                    return null;
+                  })()}
                   <button
                     type="submit"
                     disabled={submitting || !studentIdCode.trim() || !billNumber.trim()}
@@ -1288,9 +1427,10 @@ export default function FeesPage() {
                     >
                       <option value="ALL">All Statuses</option>
                       <option value="PAID">Paid (Full Payment)</option>
+                      <option value="UNPAID">Unpaid (Full Payment)</option>
+                      <option value="PAID_HALF">Paid(half)</option>
+                      <option value="UNPAID_HALF">Unpaid(half)</option>
                       <option value="FREE_CARD">Free Card</option>
-                      <option value="HALF_PAYMENT">Half Payment</option>
-                      <option value="UNPAID">Unpaid</option>
                     </select>
                   </div>
 
@@ -1332,31 +1472,54 @@ export default function FeesPage() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center space-x-4 text-sm">
-                        <div className="fee-status-paid flex items-center space-x-2 px-3 py-1 bg-green-100 rounded-lg">
-                          <CheckCircle2 className="h-4 w-4 text-green-600" />
-                          <span className="text-green-800">
-                            Paid: {filteredReportData.filter(r => getReportStatus(r) === 'Paid').length}
-                          </span>
-                        </div>
-                        <div className="fee-status-unpaid flex items-center space-x-2 px-3 py-1 bg-red-100 rounded-lg">
-                          <XCircle className="h-4 w-4 text-red-600" />
-                          <span className="text-red-800">
-                            Unpaid: {filteredReportData.filter(r => getReportStatus(r) === 'Unpaid').length}
-                          </span>
-                        </div>
-                        <div className="fee-status-free flex items-center space-x-2 px-3 py-1 bg-teal-100 rounded-lg">
-                          <CheckCircle2 className="h-4 w-4 text-teal-600" />
-                          <span className="text-teal-800">
-                            Free Card: {filteredReportData.filter(r => getReportStatus(r) === 'Free Card').length}
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-2 px-3 py-1 bg-indigo-100 rounded-lg">
-                          <CheckCircle2 className="h-4 w-4 text-indigo-600" />
-                          <span className="text-indigo-800">
-                            Half Payment: {filteredReportData.filter(r => getReportStatus(r) === 'Half Payment').length}
-                          </span>
-                        </div>
+                      <div className="w-full mb-4">
+                        {subjects.map(subject => {
+                          let paid = 0, unpaid = 0, paidHalf = 0, unpaidHalf = 0, freeCard = 0;
+                          sortedReportData.forEach(record => {
+                            // Only count if student is enrolled in subject
+                            const studentObj = students.find(s => s.id === record.studentId);
+                            if (!studentObj || !(studentObj.subjects || []).some(s => s.id === subject.id)) return;
+                            // For 'All Subjects', only count records for this subject
+                            if (!selectedSubject && record.subjectName !== subject.name) return;
+                            // Apply subject filter
+                            if (selectedSubject && subject.id.toString() !== selectedSubject) return;
+                            // Apply batch filter
+                            if (selectedBatch && record.batchName !== (batches.find(b => b.id.toString() === selectedBatch)?.displayName)) return;
+                            // Apply student filter
+                            if (reportStudentId && !record.studentIdCode.toLowerCase().includes(reportStudentId.toLowerCase()) && !record.studentName.toLowerCase().includes(reportStudentId.toLowerCase())) return;
+                            // Apply status filter
+                            if (reportStatusFilter !== 'ALL' && getReportStatus(record) !== reportStatusFilter.replace('_', ' ')) return;
+                            // Find exemption for this subject
+                            const exemption = feeExemptions.find(ex =>
+                              ex.studentId === record.studentId &&
+                              (ex.appliesToAllSubjects || (ex.subjects && ex.subjects.some(s => s.id === subject.id)))
+                            );
+                            // Find payment record for this subject
+                            const subjectPaid = record.isPaid;
+                            // Free Card
+                            if (exemption && exemption.exemptionType === 'FREE_CARD') {
+                              freeCard++;
+                            } else if (exemption && exemption.exemptionType === 'HALF_PAYMENT') {
+                              if (subjectPaid) paidHalf++;
+                              else unpaidHalf++;
+                            } else {
+                              if (subjectPaid) paid++;
+                              else unpaid++;
+                            }
+                          });
+                          // Only show subject if at least one count is nonzero
+                          if (paid + unpaid + paidHalf + unpaidHalf + freeCard === 0) return null;
+                          return (
+                            <div key={subject.id} className="flex items-center gap-2 py-2">
+                              <span className="font-semibold text-gray-900 min-w-[100px]">{subject.name}</span>
+                              <span className="fee-status-paid flex items-center space-x-1 px-2 py-1 bg-green-100 rounded-lg text-green-800">Paid: {paid}</span>
+                              <span className="fee-status-unpaid flex items-center space-x-1 px-2 py-1 bg-red-100 rounded-lg text-red-800">Unpaid: {unpaid}</span>
+                              <span className="fee-status-paid-half flex items-center space-x-1 px-2 py-1 bg-green-100 rounded-lg text-green-800">Paid(half): {paidHalf}</span>
+                              <span className="fee-status-unpaid-half flex items-center space-x-1 px-2 py-1 bg-red-100 rounded-lg text-red-800">Unpaid(half): {unpaidHalf}</span>
+                              <span className="fee-status-free flex items-center space-x-1 px-2 py-1 bg-teal-100 rounded-lg text-teal-800">Free Card: {freeCard}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                       <div className="flex items-center space-x-2 ml-2">
                         <button
@@ -1633,21 +1796,56 @@ export default function FeesPage() {
                                     </div>
                                   );
                                 } else {
+                                  // Remove icon logic
+                                  const canRemove = (() => {
+                                    if (!record.paidAt) return false;
+                                    const paidAt = new Date(record.paidAt);
+                                    const now = new Date();
+                                    return (now.getTime() - paidAt.getTime()) < 10 * 60 * 1000;
+                                  })();
                                   return (
                                     <div className="flex items-center space-x-2">
                                       <span>{record.paidAt ? new Date(record.paidAt).toLocaleDateString() : '-'}</span>
                                       {record.isPaid && (
-                                        <button
-                                          onClick={() => {
-                                            const paidDate = record.paidAt ? new Date(record.paidAt).toISOString().split('T')[0] : '';
-                                            setEditingDateStudentId(record.studentId);
-                                            setEditingPaidDate(paidDate);
-                                          }}
-                                          className="p-1 hover:bg-gray-100 rounded"
-                                          title="Edit paid date"
-                                        >
-                                          <Edit3 className="h-3 w-3 text-gray-400 hover:text-gray-600" />
-                                        </button>
+                                        <>
+                                          <button
+                                            onClick={() => {
+                                              const paidDate = record.paidAt ? new Date(record.paidAt).toISOString().split('T')[0] : '';
+                                              setEditingDateStudentId(record.studentId);
+                                              setEditingPaidDate(paidDate);
+                                            }}
+                                            className="p-1 hover:bg-gray-100 rounded"
+                                            title="Edit paid date"
+                                          >
+                                            <Edit3 className="h-3 w-3 text-gray-400 hover:text-gray-600" />
+                                          </button>
+                                          {canRemove && (
+                                            <button
+                                              onClick={async () => {
+                                                try {
+                                                  setSavingEdit(true);
+                                                  await api.delete('/admin/fees/remove-payment', {
+                                                    data: {
+                                                      studentIdCode: record.studentIdCode,
+                                                      month: reportMonth,
+                                                      year: reportYear,
+                                                    }
+                                                  });
+                                                  setReportData(prev => prev.filter(r => r.studentId !== record.studentId));
+                                                  addToast({ type: 'success', title: 'Removed', message: 'Fee payment removed' });
+                                                } catch (error: any) {
+                                                  addToast({ type: 'error', title: 'Remove Failed', message: error.response?.data?.message || 'Failed to remove fee payment' });
+                                                } finally {
+                                                  setSavingEdit(false);
+                                                }
+                                              }}
+                                              className="p-1 hover:bg-red-100 rounded"
+                                              title="Remove fee payment"
+                                            >
+                                              <X className="h-3 w-3 text-red-600" />
+                                            </button>
+                                          )}
+                                        </>
                                       )}
                                     </div>
                                   );

@@ -39,6 +39,22 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class FeeService {
+        @Transactional
+        public void removeFeePayment(FeePaymentRequest request) {
+                Student student = studentRepository.findByStudentIdCode(request.studentIdCode())
+                        .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + request.studentIdCode()));
+                FeePayment payment = feePaymentRepository.findByStudentAndMonthAndYear(
+                        student.getId(), request.month(), request.year())
+                        .orElseThrow(() -> new ResourceNotFoundException("Fee payment not found for student for given month/year"));
+                // Only allow removal if within 10 minutes of marking
+                java.time.Instant now = java.time.Instant.now();
+                java.time.Duration duration = java.time.Duration.between(payment.getPaidAt(), now);
+                if (duration.toMinutes() > 10) {
+                        throw new IllegalStateException("Fee payment can only be removed within 10 minutes of marking.");
+                }
+                feePaymentRepository.delete(payment);
+                log.info("Removed fee payment for student {} for {}/{}", request.studentIdCode(), request.month(), request.year());
+        }
 
     private final FeePaymentRepository feePaymentRepository;
         private final FeeExemptionRepository feeExemptionRepository;

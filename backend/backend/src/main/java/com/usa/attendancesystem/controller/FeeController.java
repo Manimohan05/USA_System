@@ -33,6 +33,11 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class FeeController {
+    @DeleteMapping("/remove-payment")
+    public ResponseEntity<String> removeFeePayment(@RequestBody FeePaymentRequest request) {
+        feeService.removeFeePayment(request);
+        return ResponseEntity.ok("Fee payment removed successfully");
+    }
 
     private final FeeService feeService;
 
