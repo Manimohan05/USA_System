@@ -139,10 +139,9 @@ public class AttendanceService {
                     endOfSessionDay
             );
 
-                Optional<FeeExemption> feeExemption = feeExemptionRepository.findByStudentId(student.getId());
-                boolean isAlarmExemption = feeExemption
-                    .map(exemption -> exemption.getExemptionType() == FeeExemptionType.ALARM_EXEMPTION)
-                    .orElse(false);
+                List<FeeExemption> feeExemptions = feeExemptionRepository.findByStudentId(student.getId());
+                boolean isAlarmExemption = feeExemptions.stream()
+                    .anyMatch(exemption -> exemption.getExemptionType() == FeeExemptionType.ALARM_EXEMPTION);
                 boolean isFreeCard = feeExemption
                     .map(exemption -> exemption.getExemptionType() == FeeExemptionType.FREE_CARD
                         && exemption.isAppliesToAllSubjects())
@@ -400,9 +399,9 @@ public class AttendanceService {
                             endOfSessionDay
                     );
 
-                        Optional<FeeExemption> feeExemption = feeExemptionRepository.findByStudentId(record.getStudent().getId());
-                        boolean isFreeCard = feeExemption
-                            .map(exemption -> exemption.getExemptionType() == FeeExemptionType.FREE_CARD
+                        List<FeeExemption> feeExemptions = feeExemptionRepository.findByStudentId(record.getStudent().getId());
+                        boolean isFreeCard = feeExemptions.stream()
+                            .anyMatch(exemption -> exemption.getExemptionType() == FeeExemptionType.FREE_CARD
                                 && exemption.isAppliesToAllSubjects())
                             .orElse(false);
 
