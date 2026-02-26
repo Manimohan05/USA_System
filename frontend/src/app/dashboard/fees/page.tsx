@@ -1742,11 +1742,15 @@ export default function FeesPage() {
                                   // If the report is filtered by subject, only show that subject
                                   if (selectedSubject && subject.id.toString() !== selectedSubject) return null;
 
-                                  // Find exemption for this subject
-                                  const exemption = feeExemptions.find(ex =>
+                                  // Find all exemptions for this subject
+                                  const subjectExemptions = feeExemptions.filter(ex =>
                                     ex.studentId === record.studentId &&
                                     (ex.appliesToAllSubjects || (ex.subjects && ex.subjects.some(s => s.id === subject.id)))
                                   );
+
+                                  // Prefer Free Card, then Half Payment, then ignore Alarm Exemption for display
+                                  let displayExemption = subjectExemptions.find(ex => ex.exemptionType === 'FREE_CARD')
+                                    || subjectExemptions.find(ex => ex.exemptionType === 'HALF_PAYMENT');
 
                                   // Find payment record for this subject
                                   const subjectPaid = reportData.find(r =>
@@ -1765,22 +1769,18 @@ export default function FeesPage() {
                                     !feeExemptions.some(ex => ex.studentId === record.studentId && ex.exemptionType === 'FREE_CARD' && (ex.appliesToAllSubjects || (ex.subjects && ex.subjects.some(s => s.id === subject.id))))
                                   );
 
-                                  if (exemption) {
-                                    if (exemption.exemptionType === 'FREE_CARD') {
+                                  if (displayExemption) {
+                                    if (displayExemption.exemptionType === 'FREE_CARD') {
                                       // Free card: teal if unpaid, green if paid
                                       pillClass = subjectPaid ? 'bg-green-100 text-green-800' : 'bg-teal-100 text-teal-800';
                                       pillLabel = `${subject.name} (Free)`;
-                                    } else if (exemption.exemptionType === 'HALF_PAYMENT') {
+                                    } else if (displayExemption.exemptionType === 'HALF_PAYMENT') {
                                       // If student has paid for any subject (not free card), show green
                                       pillClass = studentHasPaid ? 'bg-green-100 text-green-800' : (subjectPaid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800');
                                       pillLabel = `${subject.name} (Half)`;
-                                    } else {
-                                      // Alarm Exemption or any other: treat as no exemption for color/status
-                                      pillClass = studentHasPaid ? 'bg-green-100 text-green-800' : (subjectPaid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800');
-                                      pillLabel = subject.name;
                                     }
                                   } else {
-                                    // No exemption: full payment
+                                    // No exemption or only Alarm Exemption: treat as full payment
                                     pillClass = studentHasPaid ? 'bg-green-100 text-green-800' : (subjectPaid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800');
                                     pillLabel = subject.name;
                                   }
