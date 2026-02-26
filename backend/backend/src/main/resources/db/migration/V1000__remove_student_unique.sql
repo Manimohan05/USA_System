@@ -1,0 +1,2 @@
+ALTER TABLE fee_exemptions
+DROP CONSTRAINT IF EXISTS ukbb5a5k5to62hiv07p5f35uerx;
