@@ -555,6 +555,73 @@ export default function FeesPage() {
       return;
     }
 
+    // UI-side mutual exclusion and eligibility enforcement
+    const studentExemptions = feeExemptions.filter(ex => ex.studentIdCode === exemptionStudentIdCode.trim());
+    // 1. Alarm Exemption: cannot assign if Free Card for all subjects exists
+    if (selectedExemptionType === 'ALARM_EXEMPTION') {
+      const hasFreeCardAll = studentExemptions.some(ex => ex.exemptionType === 'FREE_CARD' && ex.appliesToAllSubjects);
+      if (hasFreeCardAll) {
+        addToast({
+          type: 'error',
+          title: 'Invalid Assignment',
+          message: 'Cannot assign Alarm Exemption: Student already has Free Card for all subjects.',
+        });
+        return;
+      }
+      const hasAlarm = studentExemptions.some(ex => ex.exemptionType === 'ALARM_EXEMPTION');
+      if (hasAlarm) {
+        addToast({
+          type: 'error',
+          title: 'Invalid Assignment',
+          message: 'Student already has Alarm Exemption.',
+        });
+        return;
+      }
+    }
+    // 2. Free Card and Half Payment: mutual exclusion per subject
+    if (selectedExemptionType === 'FREE_CARD' || selectedExemptionType === 'HALF_PAYMENT') {
+      if (selectedExemptionType === 'FREE_CARD') {
+        const hasAlarm = studentExemptions.some(ex => ex.exemptionType === 'ALARM_EXEMPTION');
+        if (hasAlarm) {
+          addToast({
+            type: 'error',
+            title: 'Invalid Assignment',
+            message: 'Cannot assign Free Card: Student already has Alarm Exemption.',
+          });
+          return;
+        }
+      }
+      // Check for mutual exclusion per subject
+      const conflictingType = selectedExemptionType === 'FREE_CARD' ? 'HALF_PAYMENT' : 'FREE_CARD';
+      let conflict = false;
+      if (!exemptionAppliesToAll) {
+        for (const subjectId of selectedExemptionSubjectIds) {
+          if (studentExemptions.some(ex =>
+            ex.subjects && ex.subjects.some(s => s.id === subjectId) &&
+            (ex.exemptionType === conflictingType || ex.exemptionType === selectedExemptionType)
+          )) {
+            conflict = true;
+            break;
+          }
+        }
+      } else {
+        // Applies to all: check if any subject already has conflicting exemption
+        if (studentExemptions.some(ex =>
+          (ex.exemptionType === conflictingType || ex.exemptionType === selectedExemptionType) && ex.appliesToAllSubjects
+        )) {
+          conflict = true;
+        }
+      }
+      if (conflict) {
+        addToast({
+          type: 'error',
+          title: 'Invalid Assignment',
+          message: 'Cannot assign this exemption: Conflicts with existing exemption for one or more subjects.',
+        });
+        return;
+      }
+    }
+
     setAddingExemptionType(selectedExemptionType);
     try {
       const request: FeeExemptionRequest = {
@@ -1286,41 +1353,87 @@ export default function FeesPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {sortedExemptions.map((exemption) => (
-                          <tr key={exemption.id} className="border-b border-gray-100 hover:bg-gray-50">
-                            <td className="py-3 px-4 text-gray-700">{exemption.studentIdCode}</td>
-                            <td className="py-3 px-4 text-gray-900">{exemption.fullName}</td>
+                        {/* Group exemptions by studentIdCode */}
+                        {Object.values(
+                          sortedExemptions.reduce((acc, exemption) => {
+                            if (!acc[exemption.studentIdCode]) {
+                              acc[exemption.studentIdCode] = {
+                                studentIdCode: exemption.studentIdCode,
+                                fullName: exemption.fullName,
+                                exemptions: [],
+                                createdAt: exemption.createdAt,
+                                ids: [],
+                              };
+                            }
+                            acc[exemption.studentIdCode].exemptions.push(exemption);
+                            acc[exemption.studentIdCode].ids.push(exemption.id);
+                            // Use the earliest createdAt for display
+                            if (new Date(exemption.createdAt) < new Date(acc[exemption.studentIdCode].createdAt)) {
+                              acc[exemption.studentIdCode].createdAt = exemption.createdAt;
+                            }
+                            return acc;
+                          }, {} as Record<string, { studentIdCode: string; fullName: string; exemptions: FeeExemptionDto[]; createdAt: string; ids: string[] }>))
+                        .map((row) => (
+                          <tr key={row.studentIdCode} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="py-3 px-4 text-gray-700">{row.studentIdCode}</td>
+                            <td className="py-3 px-4 text-gray-900">{row.fullName}</td>
                             <td className="py-3 px-4">
-                              {exemption.exemptionType === 'ALARM_EXEMPTION' ? (
-                                <span className="fee-exemption-alarm inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                                  Alarm Exemption
+                              {row.exemptions.map((ex, idx) => (
+                                <span key={ex.id} className={
+                                  ex.exemptionType === 'ALARM_EXEMPTION'
+                                    ? 'fee-exemption-alarm inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 mr-1 mb-1'
+                                    : ex.exemptionType === 'HALF_PAYMENT'
+                                      ? 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 mr-1 mb-1'
+                                      : 'fee-exemption-free inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800 mr-1 mb-1'
+                                }>
+                                  {ex.exemptionType === 'ALARM_EXEMPTION' ? 'Alarm Exemption' : ex.exemptionType === 'HALF_PAYMENT' ? 'Half Payment' : 'Free Card'}
                                 </span>
-                              ) : exemption.exemptionType === 'HALF_PAYMENT' ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                                  Half Payment
-                                </span>
-                              ) : (
-                                <span className="fee-exemption-free inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
-                                  Free Card
-                                </span>
-                              )}
+                              ))}
                             </td>
                             <td className="py-3 px-4 text-gray-700">
-                              {exemption.exemptionType === 'ALARM_EXEMPTION'
-                                ? 'N/A'
-                                : exemption.appliesToAllSubjects
-                                  ? 'All Subjects'
-                                  : (exemption.subjects?.map(subject => subject.name).join(', ') || '-')}
+                              {row.exemptions.map((ex) => (
+                                ex.exemptionType === 'ALARM_EXEMPTION' ? null : (
+                                  <div key={ex.id} className="mb-1">
+                                    {ex.appliesToAllSubjects
+                                      ? (
+                                          <span className={
+                                            ex.exemptionType === 'HALF_PAYMENT'
+                                              ? 'inline-block rounded px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800 mr-1 mb-1'
+                                              : 'inline-block rounded px-2 py-0.5 text-xs font-medium bg-teal-100 text-teal-800 mr-1 mb-1'
+                                          }>
+                                            All Subjects
+                                          </span>
+                                        )
+                                      : (
+                                          ex.subjects?.length
+                                            ? ex.subjects.map(subject => (
+                                                <span
+                                                  key={subject.id}
+                                                  className={
+                                                    ex.exemptionType === 'HALF_PAYMENT'
+                                                      ? 'inline-block rounded px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800 mr-1 mb-1'
+                                                      : 'inline-block rounded px-2 py-0.5 text-xs font-medium bg-teal-100 text-teal-800 mr-1 mb-1'
+                                                  }
+                                                >
+                                                  {subject.name}
+                                                </span>
+                                              ))
+                                            : <span className="text-gray-400">-</span>
+                                        )
+                                    }
+                                  </div>
+                                )
+                              ))}
                             </td>
-                            <td className="py-3 px-4 text-gray-600">{new Date(exemption.createdAt).toLocaleDateString()}</td>
+                            <td className="py-3 px-4 text-gray-600">{new Date(row.createdAt).toLocaleDateString()}</td>
                             <td className="py-3 px-4 text-right">
+                              {/* Remove all exemptions for this student */}
                               <button
                                 type="button"
-                                onClick={() => handleRemoveExemption(exemption.id)}
-                                disabled={removingExemptionId === exemption.id}
+                                onClick={() => row.ids.forEach(id => handleRemoveExemption(id))}
                                 className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                               >
-                                {removingExemptionId === exemption.id ? 'Removing...' : 'Remove'}
+                                Remove All
                               </button>
                             </td>
                           </tr>
@@ -1603,6 +1716,7 @@ export default function FeesPage() {
                                   if (exemption) {
                                     if (exemption.exemptionType === 'FREE_CARD') pillClass = 'bg-teal-100 text-teal-800';
                                     else if (exemption.exemptionType === 'HALF_PAYMENT') pillClass = 'bg-indigo-100 text-indigo-800';
+                                    // Alarm Exemption: treat as normal, do not affect fee status color
                                   }
                                   // If the student is not enrolled in this subject, skip
                                   const studentObj = students.find(s => s.id === record.studentId);
@@ -1660,6 +1774,10 @@ export default function FeesPage() {
                                       // If student has paid for any subject (not free card), show green
                                       pillClass = studentHasPaid ? 'bg-green-100 text-green-800' : (subjectPaid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800');
                                       pillLabel = `${subject.name} (Half)`;
+                                    } else {
+                                      // Alarm Exemption or any other: treat as no exemption for color/status
+                                      pillClass = studentHasPaid ? 'bg-green-100 text-green-800' : (subjectPaid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800');
+                                      pillLabel = subject.name;
                                     }
                                   } else {
                                     // No exemption: full payment

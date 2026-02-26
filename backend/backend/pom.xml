@@ -141,9 +141,9 @@
                 <artifactId>flyway-maven-plugin</artifactId>
                 <version>11.7.2</version>
                 <configuration>
-                    <url>jdbc:postgresql://localhost:5432/institute_db</url>
+                    <url>jdbc:postgresql://localhost:5432/USA</url>
                     <user>postgres</user>
-                    <password>dinum14</password>
+                    <password>1910</password>
                 </configuration>
             </plugin>
         </plugins>

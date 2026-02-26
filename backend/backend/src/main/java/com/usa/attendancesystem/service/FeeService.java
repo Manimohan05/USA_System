@@ -66,46 +66,85 @@ public class FeeService {
         public FeeExemptionDto addFeeExemption(FeeExemptionRequest request) {
                 Student student = studentRepository.findByStudentIdCodeWithSubjects(request.studentIdCode().trim())
                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                "Student not found with ID: " + request.studentIdCode()));
+                                                "Student not found with ID: " + request.studentIdCode()));
 
                 if (!student.isActive()) {
                         throw new IllegalStateException("Student account is not active");
                 }
 
-                Optional<FeeExemption> existingExemption = feeExemptionRepository.findByStudentId(student.getId());
-
-                if (existingExemption.isPresent()) {
-                        throw new DuplicateResourceException("Student already has a fee exemption. Remove it first to change type.");
-                }
+                // Fetch all existing exemptions for this student
+                List<FeeExemption> existingExemptions = feeExemptionRepository.findAllWithStudents().stream()
+                        .filter(e -> e.getStudent().getId().equals(student.getId()))
+                        .toList();
 
                 boolean appliesToAllSubjects = Boolean.TRUE.equals(request.appliesToAllSubjects());
                 List<Integer> subjectIds = request.subjectIds() == null ? List.of() : request.subjectIds();
                 Set<Subject> selectedSubjects = new HashSet<>();
 
+                // 1. Alarm Exemption is student-wide (unless Free Card for all subjects)
                 if (request.exemptionType() == FeeExemptionType.ALARM_EXEMPTION) {
+                        // Check if student already has Free Card for all subjects
+                        boolean hasFreeCardAllSubjects = false;
+                        if (student.getSubjects() != null && !student.getSubjects().isEmpty()) {
+                                hasFreeCardAllSubjects = student.getSubjects().stream().allMatch(subj ->
+                                                existingExemptions.stream().anyMatch(e ->
+                                                                e.getExemptionType() == FeeExemptionType.FREE_CARD &&
+                                                                (e.isAppliesToAllSubjects() || (e.getSubjects() != null && e.getSubjects().stream().anyMatch(s -> s.getId().equals(subj.getId()))))
+                                                )
+                                );
+                        }
+                        if (hasFreeCardAllSubjects) {
+                                throw new IllegalArgumentException("Cannot assign Alarm Exemption: Student already has Free Card for all subjects.");
+                        }
+                        boolean hasAlarm = existingExemptions.stream().anyMatch(e -> e.getExemptionType() == FeeExemptionType.ALARM_EXEMPTION);
+                        if (hasAlarm) {
+                                throw new IllegalArgumentException("Student already has Alarm Exemption.");
+                        }
                         appliesToAllSubjects = true;
-                } else {
+                        subjectIds = List.of();
+                }
+
+                // 2. Free Card and Half Payment are subject-specific and mutually exclusive per subject
+                if (request.exemptionType() == FeeExemptionType.FREE_CARD || request.exemptionType() == FeeExemptionType.HALF_PAYMENT) {
                         if (appliesToAllSubjects) {
                                 subjectIds = List.of();
                         } else {
                                 if (subjectIds.isEmpty()) {
                                         throw new IllegalArgumentException("Select at least one enrolled subject for this exemption.");
                                 }
-
                                 Map<Integer, Subject> subjectMap = student.getSubjects().stream()
                                                 .collect(Collectors.toMap(Subject::getId, subject -> subject));
-
                                 List<Integer> invalidSubjectIds = subjectIds.stream()
                                                 .filter(subjectId -> !subjectMap.containsKey(subjectId))
                                                 .toList();
-
                                 if (!invalidSubjectIds.isEmpty()) {
                                         throw new IllegalArgumentException("Selected subjects are not enrolled by this student.");
                                 }
-
                                 selectedSubjects = subjectIds.stream()
                                                 .map(subjectMap::get)
                                                 .collect(Collectors.toSet());
+
+                                // Check for mutual exclusion per subject
+                                for (Integer subjectId : subjectIds) {
+                                        for (FeeExemption e : existingExemptions) {
+                                                if (e.getSubjects() != null && e.getSubjects().stream().anyMatch(s -> s.getId().equals(subjectId))) {
+                                                        if ((request.exemptionType() == FeeExemptionType.FREE_CARD && e.getExemptionType() == FeeExemptionType.HALF_PAYMENT) ||
+                                                                (request.exemptionType() == FeeExemptionType.HALF_PAYMENT && e.getExemptionType() == FeeExemptionType.FREE_CARD)) {
+                                                                throw new IllegalArgumentException("Cannot assign " + request.exemptionType() + ": Conflicts with existing exemption for this subject.");
+                                                        }
+                                                        if (e.getExemptionType() == request.exemptionType()) {
+                                                                throw new IllegalArgumentException("Student already has this exemption for the subject.");
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                        // Cannot assign Free Card if student has Alarm Exemption
+                        if (request.exemptionType() == FeeExemptionType.FREE_CARD) {
+                                boolean hasAlarm = existingExemptions.stream().anyMatch(e -> e.getExemptionType() == FeeExemptionType.ALARM_EXEMPTION);
+                                if (hasAlarm) {
+                                        throw new IllegalArgumentException("Cannot assign Free Card: Student already has Alarm Exemption.");
+                                }
                         }
                 }
 
@@ -216,12 +255,10 @@ public class FeeService {
                 .map(Student::getId)
                 .toList();
 
-        Map<UUID, FeeExemption> exemptionMap = studentIds.isEmpty()
+        Map<UUID, List<FeeExemption>> exemptionMap = studentIds.isEmpty()
                 ? Map.of()
                 : feeExemptionRepository.findByStudentIdIn(studentIds).stream()
-                        .collect(Collectors.toMap(
-                                exemption -> exemption.getStudent().getId(),
-                                exemption -> exemption));
+                        .collect(Collectors.groupingBy(exemption -> exemption.getStudent().getId()));
 
         // Get all fee payments for the month/year with the same filters
         List<FeePayment> feePayments = feePaymentRepository.findFeePaymentsByFilters(
@@ -238,71 +275,85 @@ public class FeeService {
 
         // If filtering by subject, we need to show records per student-subject combination
         if (request.subjectId() != null) {
-            Subject subject = subjectRepository.findById(request.subjectId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Subject not found"));
+                        Subject subject = subjectRepository.findById(request.subjectId())
+                                        .orElseThrow(() -> new ResourceNotFoundException("Subject not found"));
 
                         for (Student student : students) {
-                // Only include students enrolled in the subject
-                if (student.getSubjects().stream().anyMatch(s -> s.getId().equals(request.subjectId()))) {
-                    FeePayment payment = paymentMap.get(student.getId().toString());
-                                        FeeExemption exemption = exemptionMap.get(student.getId());
+                                // Only include students enrolled in the subject
+                                if (student.getSubjects().stream().anyMatch(s -> s.getId().equals(request.subjectId()))) {
+                                        FeePayment payment = paymentMap.get(student.getId().toString());
+                                        List<FeeExemption> exemptions = exemptionMap.getOrDefault(student.getId(), List.of());
                                         FeeExemptionType exemptionType = null;
                                         boolean exemptionApplies = false;
 
-                                        if (exemption != null) {
-                                                exemptionType = exemption.getExemptionType();
+                                        // Find the most relevant exemption for this subject (prefer subject-specific, then all-subject)
+                                        FeeExemption relevantExemption = exemptions.stream()
+                                                .filter(ex -> ex.getSubjects() != null && ex.getSubjects().stream().anyMatch(s -> s.getId().equals(request.subjectId())))
+                                                .findFirst()
+                                                .orElse(
+                                                        exemptions.stream().filter(FeeExemption::isAppliesToAllSubjects).findFirst().orElse(null)
+                                                );
+
+                                        if (relevantExemption != null) {
+                                                exemptionType = relevantExemption.getExemptionType();
                                                 if (exemptionType == FeeExemptionType.FREE_CARD || exemptionType == FeeExemptionType.HALF_PAYMENT) {
-                                                        exemptionApplies = exemption.isAppliesToAllSubjects()
-                                                                        || exemption.getSubjects().stream().anyMatch(s -> s.getId().equals(request.subjectId()));
+                                                        exemptionApplies = relevantExemption.isAppliesToAllSubjects()
+                                                                || (relevantExemption.getSubjects() != null && relevantExemption.getSubjects().stream().anyMatch(s -> s.getId().equals(request.subjectId())));
                                                 }
                                         }
 
-                    reportDtos.add(new FeeReportDto(
-                            student.getId(),
-                            student.getStudentIdCode(),
-                            student.getFullName(),
-                            String.valueOf(student.getBatch().getBatchYear()),
-                            subject.getName(),
-                            request.month(),
-                            request.year(),
-                            payment != null,
-                            payment != null ? payment.getBillNumber() : null,
-                                                        payment != null ? payment.getPaidAt() : null,
-                                                        exemptionType,
-                                                        exemptionApplies
-                    ));
-                }
-            }
-        } else {
-            // Show general fee status per student
-            for (Student student : students) {
-                FeePayment payment = paymentMap.get(student.getId().toString());
-                                FeeExemption exemption = exemptionMap.get(student.getId());
-                                FeeExemptionType exemptionType = null;
-                                boolean exemptionApplies = false;
-
-                                if (exemption != null) {
-                                        exemptionType = exemption.getExemptionType();
-                                        if (exemptionType == FeeExemptionType.FREE_CARD || exemptionType == FeeExemptionType.HALF_PAYMENT) {
-                                                exemptionApplies = exemption.isAppliesToAllSubjects();
-                                        }
-                                }
-
-                reportDtos.add(new FeeReportDto(
-                        student.getId(),
-                        student.getStudentIdCode(),
-                        student.getFullName(),
-                        String.valueOf(student.getBatch().getBatchYear()),
-                        "General Fee", // Generic subject when not filtering by subject
-                        request.month(),
-                        request.year(),
-                        payment != null,
-                        payment != null ? payment.getBillNumber() : null,
+                                        reportDtos.add(new FeeReportDto(
+                                                student.getId(),
+                                                student.getStudentIdCode(),
+                                                student.getFullName(),
+                                                String.valueOf(student.getBatch().getBatchYear()),
+                                                subject.getName(),
+                                                request.month(),
+                                                request.year(),
+                                                payment != null,
+                                                payment != null ? payment.getBillNumber() : null,
                                                 payment != null ? payment.getPaidAt() : null,
                                                 exemptionType,
                                                 exemptionApplies
-                ));
-            }
+                                        ));
+                                }
+                        }
+        } else {
+                        // Show general fee status per student
+                        for (Student student : students) {
+                                FeePayment payment = paymentMap.get(student.getId().toString());
+                                List<FeeExemption> exemptions = exemptionMap.getOrDefault(student.getId(), List.of());
+                                FeeExemptionType exemptionType = null;
+                                boolean exemptionApplies = false;
+
+                                // Prefer an all-subject exemption if present
+                                FeeExemption relevantExemption = exemptions.stream()
+                                        .filter(FeeExemption::isAppliesToAllSubjects)
+                                        .findFirst()
+                                        .orElse(null);
+
+                                if (relevantExemption != null) {
+                                        exemptionType = relevantExemption.getExemptionType();
+                                        if (exemptionType == FeeExemptionType.FREE_CARD || exemptionType == FeeExemptionType.HALF_PAYMENT) {
+                                                exemptionApplies = relevantExemption.isAppliesToAllSubjects();
+                                        }
+                                }
+
+                                reportDtos.add(new FeeReportDto(
+                                        student.getId(),
+                                        student.getStudentIdCode(),
+                                        student.getFullName(),
+                                        String.valueOf(student.getBatch().getBatchYear()),
+                                        "General Fee", // Generic subject when not filtering by subject
+                                        request.month(),
+                                        request.year(),
+                                        payment != null,
+                                        payment != null ? payment.getBillNumber() : null,
+                                        payment != null ? payment.getPaidAt() : null,
+                                        exemptionType,
+                                        exemptionApplies
+                                ));
+                        }
         }
 
         log.info("Generated fee report with {} records", reportDtos.size());

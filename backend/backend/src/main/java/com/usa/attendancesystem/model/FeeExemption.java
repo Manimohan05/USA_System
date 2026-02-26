@@ -23,8 +23,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "fee_exemptions",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"student_id"}))
+@Table(name = "fee_exemptions")
 @Data
 @NoArgsConstructor
 public class FeeExemption {
