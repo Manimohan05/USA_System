@@ -31,6 +31,8 @@ public class GlobalExceptionHandler {
         response.put("status", HttpStatus.CONFLICT.value());
         response.put("error", "Duplicate Resource");
         response.put("message", ex.getMessage());
+        // Log at INFO level for user-friendly duplicate attendance
+        org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class).info("Duplicate attendance attempt: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 

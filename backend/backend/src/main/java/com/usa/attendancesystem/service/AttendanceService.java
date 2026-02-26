@@ -86,7 +86,7 @@ public class AttendanceService {
         Instant startOfDay = LocalDate.now().atStartOfDay(zoneId).toInstant();
         Instant endOfDay = LocalDate.now().plusDays(1).atStartOfDay(zoneId).toInstant();
         if (attendanceRepository.hasStudentMarkedAttendanceToday(student.getId(), subject.getId(), startOfDay, endOfDay)) {
-            throw new DuplicateResourceException("Attendance already marked for this student today.");
+            throw new DuplicateResourceException("You have already marked attendance for this session today. If you think this is a mistake, please contact your teacher.");
         }
 
         // 4. Create and save the record
@@ -101,8 +101,8 @@ public class AttendanceService {
             attendanceRepository.save(record);
             attendanceRepository.flush(); // Force immediate constraint check
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
-            log.warn("Duplicate attendance prevented by database constraint for student: {}", student.getStudentIdCode());
-            throw new DuplicateResourceException("Attendance already marked for this student today.");
+            log.info("Duplicate attendance prevented by database constraint for student: {}", student.getStudentIdCode());
+            throw new DuplicateResourceException("You have already marked attendance for this session today. If you think this is a mistake, please contact your teacher.");
         }
 
         // 5. SMS notification for attendance marking is disabled
@@ -334,7 +334,7 @@ public class AttendanceService {
 
         // Check if already marked (application-level check)
         if (attendanceRepository.hasStudentMarkedAttendanceToday(student.getId(), session.getSubject().getId(), startOfDay, endOfDay)) {
-            throw new DuplicateResourceException("Attendance already marked for this student today in " + session.getSubject().getName());
+            throw new DuplicateResourceException("You have already marked attendance for this session today. If you think this is a mistake, please contact your teacher.");
         }
 
         // 5. Create and save the record
@@ -352,8 +352,8 @@ public class AttendanceService {
             attendanceRepository.flush(); // Force immediate constraint check
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
             // Database constraint caught a race condition - attendance was already marked
-            log.warn("Duplicate attendance prevented by database constraint for student: {}", student.getIndexNumber());
-            throw new DuplicateResourceException("Attendance already marked for this student today in " + session.getSubject().getName());
+            log.info("Duplicate attendance prevented by database constraint for student: {}", student.getIndexNumber());
+            throw new DuplicateResourceException("You have already marked attendance for this session today. If you think this is a mistake, please contact your teacher.");
         }
 
         // 6. SMS notification for attendance marking is disabled
