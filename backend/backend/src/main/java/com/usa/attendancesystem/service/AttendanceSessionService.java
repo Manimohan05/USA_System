@@ -116,7 +116,8 @@ public class AttendanceSessionService {
 
     @Transactional(readOnly = true)
     public List<AttendanceSessionDto> getTodaysActiveSessions() {
-        List<AttendanceSession> todaysSessions = sessionRepository.findAllSessionsByDate(LocalDate.now());
+        // Use Asia/Colombo timezone for 'today' calculation
+        List<AttendanceSession> todaysSessions = sessionRepository.findAllSessionsByDate(LocalDate.now(java.time.ZoneId.of("Asia/Colombo")));
         
         // Filter out auto-expired sessions (inactive AND closed)
         return todaysSessions
