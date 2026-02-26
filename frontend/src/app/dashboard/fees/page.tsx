@@ -1707,16 +1707,20 @@ export default function FeesPage() {
                                   // and if there is an exemption for this subject
                                   // If the report is filtered by subject, only show that subject
                                   if (selectedSubject && subject.id.toString() !== selectedSubject) return null;
-                                  // Find if this student has an exemption for this subject
-                                  const exemption = feeExemptions.find(ex =>
+                                  // Find all exemptions for this subject
+                                  const subjectExemptions = feeExemptions.filter(ex =>
                                     ex.studentId === record.studentId &&
                                     (ex.appliesToAllSubjects || (ex.subjects && ex.subjects.some(s => s.id === subject.id)))
                                   );
+
+                                  // Prefer Free Card, then Half Payment, then ignore Alarm Exemption for color
+                                  let displayExemption = subjectExemptions.find(ex => ex.exemptionType === 'FREE_CARD')
+                                    || subjectExemptions.find(ex => ex.exemptionType === 'HALF_PAYMENT');
+
                                   let pillClass = 'bg-gray-100 text-gray-800';
-                                  if (exemption) {
-                                    if (exemption.exemptionType === 'FREE_CARD') pillClass = 'bg-teal-100 text-teal-800';
-                                    else if (exemption.exemptionType === 'HALF_PAYMENT') pillClass = 'bg-indigo-100 text-indigo-800';
-                                    // Alarm Exemption: treat as normal, do not affect fee status color
+                                  if (displayExemption) {
+                                    if (displayExemption.exemptionType === 'FREE_CARD') pillClass = 'bg-teal-100 text-teal-800';
+                                    else if (displayExemption.exemptionType === 'HALF_PAYMENT') pillClass = 'bg-indigo-100 text-indigo-800';
                                   }
                                   // If the student is not enrolled in this subject, skip
                                   const studentObj = students.find(s => s.id === record.studentId);
