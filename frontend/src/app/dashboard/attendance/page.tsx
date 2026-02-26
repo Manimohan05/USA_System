@@ -1334,8 +1334,8 @@ function AttendancePageContent() {
                           <div 
                             className="cursor-pointer flex-1 min-h-0"
                             onClick={() => {
-                              setCurrentSession(session);
-                              setCommonMarkingOpen(true);
+                              // Redirect to Attendance Management page
+                              router.push('/dashboard/attendance');
                             }}
                           >
                             <div className="flex items-start justify-between mb-2">
