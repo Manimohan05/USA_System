@@ -139,16 +139,14 @@ public class AttendanceService {
                     endOfSessionDay
             );
 
-                List<FeeExemption> feeExemptions = feeExemptionRepository.findByStudentId(student.getId());
-                boolean isAlarmExemption = feeExemptions.stream()
-                    .anyMatch(exemption -> exemption.getExemptionType() == FeeExemptionType.ALARM_EXEMPTION);
-                boolean isFreeCard = feeExemption
-                    .map(exemption -> exemption.getExemptionType() == FeeExemptionType.FREE_CARD
-                        && exemption.isAppliesToAllSubjects())
-                    .orElse(false);
+            List<FeeExemption> exemptions = feeExemptionRepository.findAllByStudentId(student.getId());
+            boolean hasAlarmExemption = exemptions.stream()
+                .anyMatch(e -> e.getExemptionType() == FeeExemptionType.ALARM_EXEMPTION);
+            boolean isFreeCard = exemptions.stream()
+                .anyMatch(e -> e.getExemptionType() == FeeExemptionType.FREE_CARD && e.isAppliesToAllSubjects());
 
-                boolean hasFeePaymentIssue = !hasPaidFees && !isFreeCard;
-                boolean playFeeDueSound = !hasPaidFees && !isAlarmExemption && !isFreeCard;
+            boolean hasFeePaymentIssue = !hasPaidFees && !isFreeCard;
+            boolean playFeeDueSound = !hasPaidFees && !hasAlarmExemption && !isFreeCard;
 
             return AttendanceValidationResponseDto.success(
                     "Attendance marked successfully for " + student.getFullName(),
@@ -399,11 +397,11 @@ public class AttendanceService {
                             endOfSessionDay
                     );
 
-                        List<FeeExemption> feeExemptions = feeExemptionRepository.findByStudentId(record.getStudent().getId());
-                        boolean isFreeCard = feeExemptions.stream()
-                            .anyMatch(exemption -> exemption.getExemptionType() == FeeExemptionType.FREE_CARD
-                                && exemption.isAppliesToAllSubjects())
-                            .orElse(false);
+                    List<FeeExemption> exemptions = feeExemptionRepository.findAllByStudentId(record.getStudent().getId());
+                    boolean hasAlarmExemption = exemptions.stream()
+                        .anyMatch(e -> e.getExemptionType() == FeeExemptionType.ALARM_EXEMPTION);
+                    boolean isFreeCard = exemptions.stream()
+                        .anyMatch(e -> e.getExemptionType() == FeeExemptionType.FREE_CARD && e.isAppliesToAllSubjects());
 
                     return new SessionAttendanceStatusDto.MarkedStudentDto(
                             record.getStudent().getStudentIdCode(),
