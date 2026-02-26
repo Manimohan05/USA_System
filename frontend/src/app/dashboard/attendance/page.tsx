@@ -1334,8 +1334,8 @@ function AttendancePageContent() {
                           <div 
                             className="cursor-pointer flex-1 min-h-0"
                             onClick={() => {
-                              // Redirect to Attendance Management page
-                              router.push('/dashboard/attendance');
+                              // Navigate to attendance management page for this session in the same tab
+                              window.location.href = `/dashboard/attendance/session/${session.id}`;
                             }}
                           >
                             <div className="flex items-start justify-between mb-2">

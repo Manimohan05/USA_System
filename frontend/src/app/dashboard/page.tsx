@@ -376,7 +376,7 @@ export default function DashboardPage() {
                             {/* Action Buttons */}
                             <div className="flex space-x-2">
                               <button
-                                onClick={() => window.open(`/dashboard/attendance/session/${session.id}`, '_blank')}
+                                onClick={() => window.open(`/dashboard/attendance`, '_blank')}
                                 className="flex-1 flex items-center justify-center px-4 py-2 rounded-lg transition-all duration-200 text-sm font-medium bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600"
                               >
                                 <ExternalLink className="h-4 w-4 mr-2" />
