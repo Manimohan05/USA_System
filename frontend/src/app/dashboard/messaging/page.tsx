@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Send, MessageSquare, Bell, Users, Calendar, Target, Zap, CheckCircle, AlertTriangle, Sparkles } from 'lucide-react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import api, { messagingApi } from '@/lib/api';
 import type { BatchDto, SubjectDto, BroadcastMessageRequest, MessagingStatsDto, TargetedStudentCountDto } from '@/types';
 
@@ -358,14 +359,14 @@ export default function MessagingPage() {
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <div className={`flex items-center space-x-2 ${
-                          message.length <= 160 ? 'text-green-600' : 'text-amber-600'
+                          message.length <= 400 ? 'text-green-600' : 'text-amber-600'
                         }`}>
-                          {message.length <= 160 ? (
+                          {message.length <= 400 ? (
                             <CheckCircle className="h-4 w-4" />
                           ) : (
                             <AlertTriangle className="h-4 w-4" />
                           )}
-                          <span>{message.length}/500 (SMS optimal length: 160)</span>
+                          <span>{message.length}/500 (SMS optimal length: 400)</span>
                         </div>
                       </div>
                     </div>
@@ -378,7 +379,7 @@ export default function MessagingPage() {
                     >
                       {sending ? (
                         <>
-                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
+                          <LoadingSpinner size="sm" className="mr-3" />
                           <span className="text-lg">Sending Message...</span>
                         </>
                       ) : (
@@ -522,7 +523,7 @@ export default function MessagingPage() {
                   >
                     {sending ? (
                       <>
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
+                        <LoadingSpinner size="sm" className="mr-3" />
                         <span>Sending Reminders...</span>
                       </>
                     ) : (

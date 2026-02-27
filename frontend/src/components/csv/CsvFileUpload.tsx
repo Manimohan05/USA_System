@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { Upload, Download, FileText, AlertCircle, CheckCircle, X, Loader2 } from 'lucide-react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import api from '@/lib/api';
 import type { CsvImportResult, CsvUploadProgress } from '@/types';
 
@@ -96,7 +97,7 @@ export default function CsvFileUpload({ onImportComplete, selectedBatchId }: Csv
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 300000,
+        timeout: 600000,
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {
             const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -310,7 +311,7 @@ export default function CsvFileUpload({ onImportComplete, selectedBatchId }: Csv
           >
             {uploadProgress.uploading ? (
               <>
-                <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                <LoadingSpinner size="sm" className="mr-2" />
                 Uploading...
               </>
             ) : (

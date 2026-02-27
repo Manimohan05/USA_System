@@ -13,7 +13,7 @@ const api = axios.create({
 // Create a separate instance for messaging operations with extended timeout
 export const messagingApi = axios.create({
   baseURL: apiBaseUrl,
-  timeout: 60000, // 60 seconds for SMS operations
+  timeout: 600000, // 10 minutes for SMS operations
   headers: {
     'Content-Type': 'application/json',
   },
