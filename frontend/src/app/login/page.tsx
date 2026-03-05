@@ -176,7 +176,7 @@ export default function LoginPage() {
           {/* Footer Branding */}
           <div className="text-center">
             <p className="text-white/40 text-xs">
-              © 2026 powered by TronicGenAI
+              © 2026 powered by TronicGen
             </p>
             
           </div>
@@ -209,3 +209,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
