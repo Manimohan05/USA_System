@@ -84,7 +84,7 @@ const Footer = () => {
           <div className="flex flex-col sm:flex-row items-center justify-between space-y-3 sm:space-y-0">
             <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
               <div className="text-xs text-slate-400">
-                {currentYear} &copy; TronicGenAI, Inc. All rights reserved.
+                {currentYear} &copy; TronicGen, Inc. All rights reserved.
               </div>
               <div className="hidden sm:block w-px h-4 bg-slate-600"></div>
               <div className="flex items-center space-x-1 text-xs text-slate-400">
@@ -108,5 +108,6 @@ const Footer = () => {
     </footer>
   );
 };
+
 
 export default Footer;
