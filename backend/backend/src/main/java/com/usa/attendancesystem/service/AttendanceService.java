@@ -632,9 +632,7 @@ public class AttendanceService {
         });
 
         // Keep records ordered by session date for stable rendering in the UI.
-        recordDtos = recordDtos.stream()
-            .sorted(java.util.Comparator.comparing(AttendanceRecordDto::sessionDate))
-            .collect(Collectors.toList());
+        recordDtos.sort(java.util.Comparator.comparing(AttendanceRecordDto::sessionDate));
 
         // Calculate attendance statistics
         int totalPresentDays = attendanceRecords.size();
