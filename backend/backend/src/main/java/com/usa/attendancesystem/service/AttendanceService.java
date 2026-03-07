@@ -583,8 +583,8 @@ public class AttendanceService {
                     student.getId(), request.getSubjectId(), startTime, endTime
             );
 
-            classSessions = sessionRepository.findBySubjectAndDateRange(
-                    request.getSubjectId(), startDate, endDate
+                classSessions = sessionRepository.findByBatchAndSubjectAndDateRange(
+                    student.getBatch().getId(), request.getSubjectId(), startDate, endDate
             );
 
             subjectName = subject.getName();
@@ -594,11 +594,13 @@ public class AttendanceService {
                     student.getId(), startTime, endTime
             );
 
-            classSessions = List.of(); // Can't calculate total class days without a specific subject
+            classSessions = sessionRepository.findByBatchAndDateRange(
+                student.getBatch().getId(), startDate, endDate
+            );
             subjectName = "All Subjects";
         }
 
-        // Convert to DTOs
+        // Convert present records to DTOs
         List<AttendanceRecordDto> recordDtos = attendanceRecords.stream()
                 .map(record -> AttendanceRecordDto.createPresentRecord(
                 record.getStudent().getId(),
@@ -608,10 +610,34 @@ public class AttendanceService {
                 record.getAttendanceTimestamp().atZone(zoneId).toLocalDate(),
                 record.getAttendanceTimestamp()
         ))
-                .toList();
+            .collect(Collectors.toList());
+
+        // Add absent records for class sessions where this student has no matching attendance entry.
+        // Match key is date + subject, which reflects how attendance is tracked per subject/day.
+        Set<String> presentKeys = attendanceRecords.stream()
+            .map(record -> record.getAttendanceDate() + "|" + record.getSubject().getId())
+            .collect(Collectors.toSet());
+
+        classSessions.forEach(session -> {
+            String sessionKey = session.getSessionDate() + "|" + session.getSubject().getId();
+            if (!presentKeys.contains(sessionKey)) {
+            recordDtos.add(AttendanceRecordDto.createAbsentRecord(
+                student.getId(),
+                student.getStudentIdCode(),
+                student.getFullName(),
+                session.getSubject().getName(),
+                session.getSessionDate()
+            ));
+            }
+        });
+
+        // Keep records ordered by session date for stable rendering in the UI.
+        recordDtos = recordDtos.stream()
+            .sorted(java.util.Comparator.comparing(AttendanceRecordDto::sessionDate))
+            .collect(Collectors.toList());
 
         // Calculate attendance statistics
-        int totalPresentDays = recordDtos.size();
+        int totalPresentDays = attendanceRecords.size();
         int totalClassDays = classSessions.size();
 
         return EnhancedAttendanceReportDto.createStudentReport(

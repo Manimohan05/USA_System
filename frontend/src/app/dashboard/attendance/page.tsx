@@ -46,6 +46,10 @@ const getSessionRunningDuration = (createdAt: string) => {
   return `${minutes}m`;
 };
 
+const normalizeAttendanceStatus = (status?: string) => (status || '').trim().toLowerCase();
+const isPresentRecord = (status?: string) => normalizeAttendanceStatus(status) === 'present';
+const isAbsentRecord = (status?: string) => normalizeAttendanceStatus(status) === 'absent';
+
 function AttendancePageContent() {
     const [studentIdSort, setStudentIdSort] = useState<'asc' | 'desc'>('asc');
   const { addToast } = useToast();
@@ -979,9 +983,9 @@ function AttendancePageContent() {
   const downloadEnhancedReport = (format: 'csv' | 'xlsx' = 'csv') => {
     if (!enhancedReport) return;
     
-    // Separate present and absent records
-    const presentRecords = enhancedReport.attendanceRecords.filter(r => r.status === 'Present');
-    const absentRecords = enhancedReport.attendanceRecords.filter(r => r.status === 'Absent');
+    // Separate present and absent records (case-insensitive for backend compatibility)
+    const presentRecords = enhancedReport.attendanceRecords.filter(r => isPresentRecord(r.status));
+    const absentRecords = enhancedReport.attendanceRecords.filter(r => isAbsentRecord(r.status));
     
     // Create CSV content with clear sections
     const csvHeaders = ['Date', 'Student ID', 'Student Name', 'Subject', 'Status', 'Marked At'];
@@ -1488,7 +1492,7 @@ function AttendancePageContent() {
                     <Calendar className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Enhanced Attendance Reports</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">Attendance Reports</h2>
                     <p className="text-gray-600">Generate comprehensive reports with advanced filtering options</p>
                   </div>
                 </div>

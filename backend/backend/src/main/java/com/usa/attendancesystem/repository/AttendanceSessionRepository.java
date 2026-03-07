@@ -58,6 +58,38 @@ public interface AttendanceSessionRepository extends JpaRepository<AttendanceSes
             @Param("endDate") LocalDate endDate
     );
 
+    /**
+     * Finds all sessions for a specific batch+subject within a date range.
+     * Used for accurate student-specific absence calculation.
+     */
+    @Query("SELECT s FROM AttendanceSession s "
+            + "WHERE s.batch.id = :batchId "
+            + "AND s.subject.id = :subjectId "
+            + "AND s.sessionDate >= :startDate "
+            + "AND s.sessionDate <= :endDate "
+            + "ORDER BY s.sessionDate ASC")
+    List<AttendanceSession> findByBatchAndSubjectAndDateRange(
+            @Param("batchId") Integer batchId,
+            @Param("subjectId") Integer subjectId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * Finds all sessions for a specific batch within a date range.
+     * Used for student-specific reports across all subjects.
+     */
+    @Query("SELECT s FROM AttendanceSession s "
+            + "WHERE s.batch.id = :batchId "
+            + "AND s.sessionDate >= :startDate "
+            + "AND s.sessionDate <= :endDate "
+            + "ORDER BY s.sessionDate ASC")
+    List<AttendanceSession> findByBatchAndDateRange(
+            @Param("batchId") Integer batchId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
         /**
          * Deletes all attendance sessions for a specific batch.
          * Used for batch permanent deletion.
