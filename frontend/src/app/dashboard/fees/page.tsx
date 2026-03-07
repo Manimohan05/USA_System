@@ -43,6 +43,12 @@ interface StudentSearchDto {
   studentIdCode: string;
   fullName: string;
   nic: string;
+  batch?: {
+    id: number;
+    batchYear: number;
+    isDayBatch: boolean;
+    displayName: string;
+  };
 }
 
 interface FeeReportRequest {
@@ -203,6 +209,14 @@ export default function FeesPage() {
     if (type === 'ALARM_EXEMPTION') return 'Alarm Exemption';
     if (type === 'HALF_PAYMENT') return 'Half Payment';
     return 'Free Card';
+  };
+
+  const getReportBatchDisplayName = (record: FeeReportDto) => {
+    const student = students.find((s) => s.id === record.studentId);
+    if (student?.batch?.displayName) {
+      return student.batch.displayName;
+    }
+    return record.batchName;
   };
 
   const filteredExemptions = feeExemptions.filter((exemption) => {
@@ -693,7 +707,7 @@ export default function FeesPage() {
     const csvData = filteredReportData.map(record => ({
       'Student Name': record.studentName,
       'Student ID': record.studentIdCode,
-      'Batch': record.batchName,
+      'Batch': getReportBatchDisplayName(record),
       'Subject(s)': (() => {
         // List all subjects enrolled, with exemption info
         const studentObj = students.find(s => s.id === record.studentId);
@@ -772,7 +786,7 @@ export default function FeesPage() {
     const excelData = filteredReportData.map(record => ({
       'Student Name': record.studentName,
       'Student ID': record.studentIdCode,
-      'Batch': record.batchName,
+      'Batch': getReportBatchDisplayName(record),
       'Subject(s)': (() => {
         const studentObj = students.find(s => s.id === record.studentId);
         if (!studentObj) return '-';
@@ -1603,7 +1617,7 @@ export default function FeesPage() {
                             // Apply subject filter
                             if (selectedSubject && subject.id.toString() !== selectedSubject) return;
                             // Apply batch filter
-                            if (selectedBatch && record.batchName !== (batches.find(b => b.id.toString() === selectedBatch)?.displayName)) return;
+                            if (selectedBatch && getReportBatchDisplayName(record) !== (batches.find(b => b.id.toString() === selectedBatch)?.displayName)) return;
                             // Apply student filter
                             if (reportStudentId && !record.studentIdCode.toLowerCase().includes(reportStudentId.toLowerCase()) && !record.studentName.toLowerCase().includes(reportStudentId.toLowerCase())) return;
                             // Apply status filter
@@ -1699,7 +1713,7 @@ export default function FeesPage() {
                               <div className="font-medium text-gray-900">{record.studentName}</div>
                             </td>
                             <td className="py-3 px-4 text-gray-600">{record.studentIdCode}</td>
-                            <td className="py-3 px-4 text-gray-600">{record.batchName}</td>
+                            <td className="py-3 px-4 text-gray-600">{getReportBatchDisplayName(record)}</td>
                             <td className="py-3 px-4">
                               <div className="flex flex-wrap gap-1">
                                 {subjects.map((subject) => {
